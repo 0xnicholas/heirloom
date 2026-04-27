@@ -22,12 +22,13 @@ use crate::types::*;
 
 pub struct Gateway {
     queues: HashMap<String, ProviderQueue>,
+    providers: HashMap<String, ProviderRef>,
 }
 
 impl Gateway {
     pub fn from_config(config: &AppConfig) -> anyhow::Result<Self> {
-        let mut queues = HashMap::new();
-        
+        // First, create all providers
+        let mut providers = HashMap::new();
         for (name, provider_config) in &config.providers {
             if !provider_config.enabled {
                 continue;
@@ -59,6 +60,19 @@ impl Gateway {
                 }
             };
             
+            providers.insert(name.clone(), provider);
+        }
+        
+        // Create queues using cloned provider references
+        let mut queues = HashMap::new();
+        for (name, provider_config) in &config.providers {
+            if !provider_config.enabled {
+                continue;
+            }
+            
+            let provider = providers.get(name)
+                .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in provider map", name))?;
+            
             let retry_policy = RetryPolicy::new(
                 provider_config.max_retries,
                 Duration::from_millis(provider_config.retry_backoff_initial_ms),
@@ -66,7 +80,7 @@ impl Gateway {
             );
             
             let queue = ProviderQueue::new(
-                provider,
+                provider.clone(),
                 retry_policy,
                 provider_config.queue_concurrency,
                 provider_config.queue_buffer_size,
@@ -75,14 +89,13 @@ impl Gateway {
             queues.insert(name.clone(), queue);
         }
         
-        Ok(Self { queues })
+        Ok(Self { queues, providers })
     }
     
     pub async fn chat_completion(
         &self,
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, GatewayError> {
-        // Extract provider from model string (e.g., "openai/gpt-4" or "gpt-4")
         let provider_name = Self::resolve_provider(&request.model);
         
         let queue = self.queues.get(&provider_name)
@@ -103,15 +116,14 @@ impl Gateway {
     ) -> Result<futures::stream::BoxStream<'static, Result<ChatCompletionChunk, GatewayError>>, GatewayError> {
         let provider_name = Self::resolve_provider(&request.model);
         
-        let queue = self.queues.get(&provider_name)
+        let provider = self.providers.get(&provider_name)
             .ok_or_else(|| GatewayError::new(
                 ErrorKind::NoProviderAvailable,
                 format!("Provider '{}' not found", provider_name)
             ))?;
         
-        // For streaming, we need direct provider access
-        // This is a simplified version - in production, you'd route through queue
-        Err(GatewayError::new(ErrorKind::Provider, "Streaming through queue not yet implemented"))
+        // Direct provider call for streaming (bypasses queue)
+        provider.chat_completion_stream(request).await
     }
     
     pub async fn embedding(
@@ -133,7 +145,6 @@ impl Gateway {
     }
     
     pub async fn list_models(&self) -> Result<ModelList, GatewayError> {
-        // Aggregate models from all providers
         let mut all_models = Vec::new();
         
         for (name, queue) in &self.queues {
@@ -154,7 +165,6 @@ impl Gateway {
     }
     
     fn resolve_provider(model: &str) -> String {
-        // Parse "provider/model" or just "model"
         if let Some(pos) = model.find('/') {
             model[..pos].to_string()
         } else {

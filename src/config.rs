@@ -22,6 +22,10 @@ pub struct ServerConfig {
     pub port: u16,
     #[serde(default = "default_log_level")]
     pub log_level: String,
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
+    #[serde(default = "default_max_body_size")]
+    pub max_body_size: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -58,9 +62,29 @@ pub struct NetworkConfig {
     pub proxy_url: Option<String>,
 }
 
+// Secret wrapper to prevent accidental logging of API keys
+#[derive(Clone, Deserialize)]
+pub struct SecretString(String);
+
+impl SecretString {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+    
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for SecretString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("***REDACTED***")
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApiKey {
-    pub value: String,
+    pub value: SecretString,
     #[serde(default = "default_weight")]
     pub weight: f64,
 }
@@ -210,6 +234,7 @@ fn default_request_timeout_seconds() -> u64 { 30 }
 fn default_queue_concurrency() -> usize { 100 }
 fn default_queue_buffer_size() -> usize { 1000 }
 fn default_weight() -> f64 { 1.0 }
+fn default_max_body_size() -> usize { 10 * 1024 * 1024 } // 10MB
 fn default_max_agent_depth() -> usize { 5 }
 fn default_tool_execution_timeout_seconds() -> u64 { 30 }
 fn default_auto_execute() -> bool { false }

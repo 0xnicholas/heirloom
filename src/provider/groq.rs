@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 
+use crate::config::SecretString;
 use crate::error::GatewayError;
 use crate::gateway::key_selector::WeightedKey;
 use crate::provider::{Provider, openai::OpenAIProvider};
@@ -58,7 +59,7 @@ mod tests {
     fn test_groq_name() {
         let provider = GroqProvider::new(
             "https://api.groq.com".to_string(),
-            vec![WeightedKey { value: "test-key".to_string(), weight: 1.0 }],
+            vec![WeightedKey { value: SecretString::new("test-key"), weight: 1.0 }],
             30,
         );
         assert_eq!(provider.name(), "groq");

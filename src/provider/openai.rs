@@ -3,6 +3,7 @@ use futures::stream::{self, BoxStream, StreamExt};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 
 use crate::client::HttpClient;
+use crate::config::SecretString;
 use crate::error::{ErrorKind, GatewayError};
 use crate::gateway::key_selector::{select_key, WeightedKey};
 use crate::provider::Provider;
@@ -36,7 +37,7 @@ impl OpenAIProvider {
     }
     
     fn auth_header(&self) -> String {
-        format!("Bearer {}", self.select_key().value)
+        format!("Bearer {}", self.select_key().value.expose())
     }
     
     fn handle_error(status: reqwest::StatusCode, body: &str) -> GatewayError {
@@ -245,7 +246,7 @@ mod tests {
         
         let provider = OpenAIProvider::new(
             mock_server.uri(),
-            vec![WeightedKey { value: "test-key".to_string(), weight: 1.0 }],
+            vec![WeightedKey { value: SecretString::new("test-key"), weight: 1.0 }],
             30,
         );
         

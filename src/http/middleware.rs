@@ -5,12 +5,22 @@ use actix_web::middleware::Logger;
 use std::future::{ready, Ready};
 use uuid::Uuid;
 
-pub fn configure_cors() -> Cors {
-    Cors::default()
-        .allow_any_origin()
+pub fn configure_cors(allowed_origins: &[String]) -> Cors {
+    let mut cors = Cors::default()
         .allow_any_method()
         .allow_any_header()
-        .max_age(3600)
+        .max_age(3600);
+    
+    if allowed_origins.is_empty() || allowed_origins.iter().any(|o| o == "*") {
+        // Default: allow any origin (for development)
+        cors = cors.allow_any_origin();
+    } else {
+        for origin in allowed_origins {
+            cors = cors.allowed_origin(origin);
+        }
+    }
+    
+    cors
 }
 
 #[derive(Clone, Debug)]

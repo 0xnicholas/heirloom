@@ -1,8 +1,9 @@
 use rand::Rng;
+use crate::config::SecretString;
 
 #[derive(Debug, Clone)]
 pub struct WeightedKey {
-    pub value: String,
+    pub value: SecretString,
     pub weight: f64,
 }
 
@@ -43,25 +44,25 @@ mod tests {
     #[test]
     fn test_weighted_random_selection() {
         let keys = vec![
-            WeightedKey { value: "key-a".to_string(), weight: 1.0 },
-            WeightedKey { value: "key-b".to_string(), weight: 2.0 },
+            WeightedKey { value: SecretString::new("key-a"), weight: 1.0 },
+            WeightedKey { value: SecretString::new("key-b"), weight: 2.0 },
         ];
         
         let selected = select_key(&keys);
-        assert!(keys.iter().any(|k| k.value == selected.value));
+        assert!(keys.iter().any(|k| k.value.expose() == selected.value.expose()));
     }
 
     #[test]
     fn test_weighted_distribution() {
         let keys = vec![
-            WeightedKey { value: "key-a".to_string(), weight: 1.0 },
-            WeightedKey { value: "key-b".to_string(), weight: 3.0 },
+            WeightedKey { value: SecretString::new("key-a"), weight: 1.0 },
+            WeightedKey { value: SecretString::new("key-b"), weight: 3.0 },
         ];
         
         let mut counts = std::collections::HashMap::new();
         for _ in 0..1000 {
             let selected = select_key(&keys);
-            *counts.entry(selected.value.clone()).or_insert(0) += 1;
+            *counts.entry(selected.value.expose().to_string()).or_insert(0) += 1;
         }
         
         let count_a = counts.get("key-a").unwrap_or(&0);

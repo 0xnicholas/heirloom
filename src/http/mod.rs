@@ -19,15 +19,19 @@ pub async fn run_server(
     let mcp_manager = web::Data::new(mcp_manager);
     let agent_executor = web::Data::new(agent_executor);
     let bind_addr = format!("{}:{}", config.server.host, config.server.port);
+    let allowed_origins = config.server.allowed_origins.clone();
+    let max_body_size = config.server.max_body_size;
     
     HttpServer::new(move || {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
-            .wrap(middleware::configure_cors())
+            .wrap(middleware::configure_cors(&allowed_origins))
             .wrap(middleware::RequestIdMiddleware)
             .app_data(gateway.clone())
             .app_data(mcp_manager.clone())
             .app_data(agent_executor.clone())
+            .app_data(web::PayloadConfig::new(max_body_size))
+            .app_data(web::JsonConfig::default().limit(max_body_size))
             .route("/v1/chat/completions", web::post().to(handlers::chat_completions))
             .route("/v1/embeddings", web::post().to(handlers::embeddings))
             .route("/v1/models", web::get().to(handlers::list_models))

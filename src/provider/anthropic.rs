@@ -37,7 +37,7 @@ impl AnthropicProvider {
     
     fn build_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", HeaderValue::from_str(&self.select_key().value).unwrap());
+        headers.insert("x-api-key", HeaderValue::from_str(self.select_key().value.expose()).unwrap());
         headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers
