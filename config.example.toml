@@ -1,0 +1,36 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+log_level = "info"
+
+[providers.openai]
+enabled = true
+base_url = "https://api.openai.com"
+keys = [
+    { value = "sk-your-key-here", weight = 1.0 }
+]
+max_retries = 3
+retry_backoff_initial_ms = 500
+retry_backoff_max_ms = 5000
+request_timeout_seconds = 30
+queue_concurrency = 100
+queue_buffer_size = 1000
+
+[providers.anthropic]
+enabled = true
+base_url = "https://api.anthropic.com"
+keys = [
+    { value = "sk-ant-your-key-here", weight = 1.0 }
+]
+
+[providers.groq]
+enabled = true
+base_url = "https://api.groq.com/openai/v1"
+keys = [
+    { value = "gsk-your-key-here", weight = 1.0 }
+]
+
+[fallbacks]
+chains = [
+    { primary = "openai", fallbacks = ["anthropic", "groq"] }
+]
