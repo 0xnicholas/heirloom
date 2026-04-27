@@ -1,3 +1,5 @@
 .DS_Store
 /bifrost-main
 .worktrees/
+/target/
+Cargo.lock
