@@ -7,7 +7,9 @@ use crate::gateway::Gateway;
 use crate::mcp::agent::AgentExecutor;
 use crate::mcp::client::MCPClientManager;
 
+pub mod auth;
 pub mod handlers;
+pub mod metrics;
 pub mod middleware;
 
 pub struct ServerHandle {
@@ -32,15 +34,19 @@ pub async fn run_server(
     let bind_addr = format!("{}:{}", config.server.host, config.server.port);
     let allowed_origins = config.server.allowed_origins.clone();
     let max_body_size = config.server.max_body_size;
+    let api_keys = config.server.api_keys.clone();
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
+    let metrics = metrics::Metrics::new();
     let server = HttpServer::new(move || {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
             .wrap(middleware::configure_cors(&allowed_origins))
             .wrap(middleware::RequestIdMiddleware)
+            .wrap(auth::ApiKeyAuth::new(api_keys.clone()))
             .app_data(gateway.clone())
+            .app_data(metrics.clone())
             .app_data(mcp_manager.clone())
             .app_data(agent_executor.clone())
             .app_data(web::PayloadConfig::new(max_body_size))
@@ -52,6 +58,7 @@ pub async fn run_server(
             .route("/v1/embeddings", web::post().to(handlers::embeddings))
             .route("/v1/models", web::get().to(handlers::list_models))
             .route("/health", web::get().to(handlers::health))
+            .route("/metrics", web::get().to(handlers::metrics_endpoint))
     })
     .bind(&bind_addr)?
     .run();

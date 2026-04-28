@@ -157,8 +157,17 @@ pub async fn list_models(gateway: web::Data<Arc<Gateway>>) -> impl Responder {
     }
 }
 
+use crate::http::metrics::Metrics;
+
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
         "status": "ok"
     }))
+}
+
+pub async fn metrics_endpoint(
+    metrics: web::Data<Arc<Metrics>>,
+) -> impl Responder {
+    let snapshot = metrics.snapshot();
+    HttpResponse::Ok().json(snapshot)
 }

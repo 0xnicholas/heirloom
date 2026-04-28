@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{oneshot, Semaphore};
 
+use super::plugin::PluginPipeline;
 use super::retry::RetryPolicy;
 use crate::error::GatewayError;
 use crate::provider::ProviderRef;
@@ -22,6 +23,7 @@ pub enum GatewayResponse {
 pub struct ProviderQueue {
     provider: ProviderRef,
     retry_policy: RetryPolicy,
+    plugin_pipeline: Option<PluginPipeline>,
     semaphore: Arc<Semaphore>,
     closing: AtomicBool,
 }
@@ -36,9 +38,18 @@ impl ProviderQueue {
         Self {
             provider,
             retry_policy,
+            plugin_pipeline: None,
             semaphore: Arc::new(Semaphore::new(concurrency)),
             closing: AtomicBool::new(false),
         }
+    }
+
+    pub fn with_plugins(
+        mut self,
+        pipeline: PluginPipeline,
+    ) -> Self {
+        self.plugin_pipeline = Some(pipeline);
+        self
     }
 
     pub async fn send(&self, request: GatewayRequest) -> Result<GatewayResponse, GatewayError> {
@@ -64,9 +75,10 @@ impl ProviderQueue {
             self.retry_policy.backoff_initial(),
             self.retry_policy.backoff_max(),
         );
+        let plugin_pipeline = self.plugin_pipeline.clone();
 
         tokio::spawn(async move {
-            let response = process_request(&provider, &retry_policy, request).await;
+            let response = process_request(&provider, &retry_policy, &plugin_pipeline, request).await;
             let _ = response_tx.send(response);
             drop(permit);
         });
@@ -91,9 +103,17 @@ impl ProviderQueue {
 async fn process_request(
     provider: &ProviderRef,
     retry_policy: &RetryPolicy,
-    request: GatewayRequest,
+    plugin_pipeline: &Option<PluginPipeline>,
+    mut request: GatewayRequest,
 ) -> GatewayResponse {
-    match request {
+    // Execute pre-request hooks
+    if let Some(pipeline) = plugin_pipeline {
+        if let Err(e) = pipeline.execute_pre_request(&mut request).await {
+            return GatewayResponse::ChatCompletion(Err(e));
+        }
+    }
+
+    let mut response = match request {
         GatewayRequest::ChatCompletion(req) => {
             let result = retry_policy
                 .execute(|| async { provider.chat_completion(req.clone()).await })
@@ -112,7 +132,16 @@ async fn process_request(
                 .await;
             GatewayResponse::ListModels(result)
         }
+    };
+
+    // Execute post-response hooks
+    if let Some(pipeline) = plugin_pipeline {
+        if let Err(e) = pipeline.execute_post_response(&mut response).await {
+            return GatewayResponse::ChatCompletion(Err(e));
+        }
     }
+
+    response
 }
 
 #[cfg(test)]

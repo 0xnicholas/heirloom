@@ -28,6 +28,8 @@ pub struct ServerConfig {
     pub allowed_origins: Vec<String>,
     #[serde(default = "default_max_body_size")]
     pub max_body_size: usize,
+    #[serde(default)]
+    pub api_keys: Vec<String>, // If empty, no auth required
 }
 
 #[derive(Debug, Clone, Deserialize)]

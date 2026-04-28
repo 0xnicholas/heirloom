@@ -1,5 +1,6 @@
 pub mod fallback;
 pub mod key_selector;
+pub mod plugin;
 pub mod queue;
 pub mod rate_limit;
 pub mod retry;
