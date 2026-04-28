@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use futures::stream::BoxStream;
+use futures::stream::{self, BoxStream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 
 use crate::client::HttpClient;
@@ -121,6 +121,50 @@ impl AnthropicProvider {
             },
         }
     }
+    
+    fn parse_sse_events(text: &str, model: &str) -> Result<Option<ChatCompletionChunk>, GatewayError> {
+        let mut content = String::new();
+        for line in text.lines() {
+            if line.starts_with("data: ") {
+                let data = &line[6..];
+                if data == "[DONE]" {
+                    continue;
+                }
+                match serde_json::from_str::<AnthropicStreamEvent>(data) {
+                    Ok(event) => {
+                        if event.event_type == "content_block_delta" {
+                            if let Some(delta) = event.delta {
+                                if let Some(text) = delta.text {
+                                    content.push_str(&text);
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+        
+        if content.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(ChatCompletionChunk {
+                id: format!("anthropic-{}-chunk", chrono::Utc::now().timestamp()),
+                object: "chat.completion.chunk".to_string(),
+                created: chrono::Utc::now().timestamp() as u64,
+                model: model.to_string(),
+                choices: vec![ChunkChoice {
+                    index: 0,
+                    delta: DeltaMessage {
+                        role: Some("assistant".to_string()),
+                        content: Some(content),
+                        tool_calls: None,
+                    },
+                    finish_reason: None,
+                }],
+            }))
+        }
+    }
 }
 
 #[async_trait]
@@ -160,20 +204,99 @@ impl Provider for AnthropicProvider {
     
     async fn chat_completion_stream(
         &self,
-        _request: ChatCompletionRequest,
+        request: ChatCompletionRequest,
     ) -> Result<BoxStream<'static, Result<ChatCompletionChunk, GatewayError>>, GatewayError> {
-        Err(GatewayError::new(ErrorKind::Provider, "Streaming not yet implemented for Anthropic"))
+        let url = format!("{}/v1/messages", self.base_url);
+        let mut anthropic_req = Self::convert_request(&request);
+        anthropic_req.stream = Some(true);
+
+        let response = self.client.inner()
+            .post(&url)
+            .headers(self.build_headers())
+            .json(&anthropic_req)
+            .send()
+            .await
+            .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await
+                .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
+            return Err(GatewayError::new(ErrorKind::Provider, format!("HTTP {}: {}", status, body))
+                .with_status_code(status.as_u16()));
+        }
+
+        let model = request.model.clone();
+        let stream = response.bytes_stream()
+            .map(move |chunk| {
+                match chunk {
+                    Ok(bytes) => {
+                        let text = String::from_utf8_lossy(&bytes);
+                        Self::parse_sse_events(&text, &model)
+                    }
+                    Err(e) => Err(GatewayError::new(ErrorKind::Network, format!("Stream error: {}", e))),
+                }
+            })
+            .filter_map(|result| async move {
+                match result {
+                    Ok(Some(chunk)) => Some(Ok(chunk)),
+                    Ok(None) => None,
+                    Err(e) => Some(Err(e)),
+                }
+            })
+            .chain(stream::once(async {
+                Ok(ChatCompletionChunk {
+                    id: String::new(),
+                    object: "chat.completion.chunk".to_string(),
+                    created: 0,
+                    model: String::new(),
+                    choices: vec![],
+                })
+            }));
+
+        Ok(Box::pin(stream))
     }
     
     async fn embedding(
         &self,
         _request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, GatewayError> {
-        Err(GatewayError::new(ErrorKind::Provider, "Embeddings not yet implemented for Anthropic"))
+        Err(GatewayError::new(ErrorKind::Provider, "Embeddings not supported by Anthropic"))
     }
     
     async fn list_models(&self) -> Result<ModelList, GatewayError> {
-        Err(GatewayError::new(ErrorKind::Provider, "List models not yet implemented for Anthropic"))
+        // Return known Anthropic models
+        let models = vec![
+            Model {
+                id: "claude-3-opus-20240229".to_string(),
+                object: "model".to_string(),
+                created: 1708905600,
+                owned_by: Some("anthropic".to_string()),
+            },
+            Model {
+                id: "claude-3-sonnet-20240229".to_string(),
+                object: "model".to_string(),
+                created: 1708905600,
+                owned_by: Some("anthropic".to_string()),
+            },
+            Model {
+                id: "claude-3-haiku-20240307".to_string(),
+                object: "model".to_string(),
+                created: 1709769600,
+                owned_by: Some("anthropic".to_string()),
+            },
+            Model {
+                id: "claude-3-5-sonnet-20240620".to_string(),
+                object: "model".to_string(),
+                created: 1718841600,
+                owned_by: Some("anthropic".to_string()),
+            },
+        ];
+        
+        Ok(ModelList {
+            object: "list".to_string(),
+            data: models,
+        })
     }
 }
 
@@ -222,6 +345,24 @@ enum AnthropicContent {
 struct AnthropicUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct AnthropicStreamEvent {
+    #[serde(rename = "type")]
+    pub event_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta: Option<AnthropicDelta>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct AnthropicDelta {
+    #[serde(rename = "type")]
+    pub delta_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
 }
 
 #[cfg(test)]
