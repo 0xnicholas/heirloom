@@ -10,7 +10,7 @@ pub struct Metrics {
     pub requests_error: AtomicU64,
     pub latency_ms_sum: AtomicU64,
     pub latency_ms_count: AtomicU64,
-    
+
     // Per-provider counters
     pub provider_requests: std::sync::Mutex<std::collections::HashMap<String, AtomicU64>>,
 }
@@ -20,11 +20,7 @@ impl Metrics {
         Arc::new(Self::default())
     }
 
-    pub fn record_request(&self,
-        provider: &str,
-        latency_ms: u64,
-        success: bool,
-    ) {
+    pub fn record_request(&self, provider: &str, latency_ms: u64, success: bool) {
         self.requests_total.fetch_add(1, Ordering::Relaxed);
         self.latency_ms_sum.fetch_add(latency_ms, Ordering::Relaxed);
         self.latency_ms_count.fetch_add(1, Ordering::Relaxed);
@@ -91,10 +87,10 @@ pub struct MetricsMiddleware;
 impl<S, B> actix_web::dev::Transform<S, actix_web::dev::ServiceRequest> for MetricsMiddleware
 where
     S: actix_web::dev::Service<
-            actix_web::dev::ServiceRequest,
-            Response = actix_web::dev::ServiceResponse<B>,
-            Error = actix_web::Error,
-        >,
+        actix_web::dev::ServiceRequest,
+        Response = actix_web::dev::ServiceResponse<B>,
+        Error = actix_web::Error,
+    >,
     S::Future: 'static,
     B: 'static,
 {
@@ -104,10 +100,7 @@ where
     type InitError = ();
     type Future = std::future::Ready<Result<Self::Transform, Self::InitError>>;
 
-    fn new_transform(
-        &self,
-        service: S,
-    ) -> Self::Future {
+    fn new_transform(&self, service: S) -> Self::Future {
         std::future::ready(Ok(MetricsMiddlewareService { service }))
     }
 }
@@ -116,23 +109,20 @@ pub struct MetricsMiddlewareService<S> {
     service: S,
 }
 
-impl<S, B> actix_web::dev::Service<actix_web::dev::ServiceRequest>
-    for MetricsMiddlewareService<S>
+impl<S, B> actix_web::dev::Service<actix_web::dev::ServiceRequest> for MetricsMiddlewareService<S>
 where
     S: actix_web::dev::Service<
-            actix_web::dev::ServiceRequest,
-            Response = actix_web::dev::ServiceResponse<B>,
-            Error = actix_web::Error,
-        >,
+        actix_web::dev::ServiceRequest,
+        Response = actix_web::dev::ServiceResponse<B>,
+        Error = actix_web::Error,
+    >,
     S::Future: 'static,
     B: 'static,
 {
     type Response = actix_web::dev::ServiceResponse<B>;
     type Error = actix_web::Error;
     type Future = std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + 'static,
-        >,
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + 'static>,
     >;
 
     fn poll_ready(
@@ -142,9 +132,7 @@ where
         self.service.poll_ready(cx)
     }
 
-    fn call(&self,
-        req: actix_web::dev::ServiceRequest,
-    ) -> Self::Future {
+    fn call(&self, req: actix_web::dev::ServiceRequest) -> Self::Future {
         let start = Instant::now();
         let fut = self.service.call(req);
 

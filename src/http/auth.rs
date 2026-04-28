@@ -19,10 +19,10 @@ impl ApiKeyAuth {
 impl<S, B> Transform<S, actix_web::dev::ServiceRequest> for ApiKeyAuth
 where
     S: Service<
-            actix_web::dev::ServiceRequest,
-            Response = actix_web::dev::ServiceResponse<B>,
-            Error = Error,
-        >,
+        actix_web::dev::ServiceRequest,
+        Response = actix_web::dev::ServiceResponse<B>,
+        Error = Error,
+    >,
     S::Future: 'static,
     B: 'static,
 {
@@ -48,24 +48,23 @@ pub struct ApiKeyAuthMiddleware<S> {
 impl<S, B> Service<actix_web::dev::ServiceRequest> for ApiKeyAuthMiddleware<S>
 where
     S: Service<
-            actix_web::dev::ServiceRequest,
-            Response = actix_web::dev::ServiceResponse<B>,
-            Error = Error,
-        >,
+        actix_web::dev::ServiceRequest,
+        Response = actix_web::dev::ServiceResponse<B>,
+        Error = Error,
+    >,
     S::Future: 'static,
     B: 'static,
 {
     type Response = actix_web::dev::ServiceResponse<B>;
     type Error = Error;
-    type Future = Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + 'static>>;
+    type Future =
+        Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + 'static>>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&self,
-        req: actix_web::dev::ServiceRequest,
-    ) -> Self::Future {
+    fn call(&self, req: actix_web::dev::ServiceRequest) -> Self::Future {
         // Skip auth if no keys configured
         if self.keys.is_empty() {
             let fut = self.service.call(req);

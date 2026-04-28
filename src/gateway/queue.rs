@@ -44,10 +44,7 @@ impl ProviderQueue {
         }
     }
 
-    pub fn with_plugins(
-        mut self,
-        pipeline: PluginPipeline,
-    ) -> Self {
+    pub fn with_plugins(mut self, pipeline: PluginPipeline) -> Self {
         self.plugin_pipeline = Some(pipeline);
         self
     }
@@ -78,7 +75,8 @@ impl ProviderQueue {
         let plugin_pipeline = self.plugin_pipeline.clone();
 
         tokio::spawn(async move {
-            let response = process_request(&provider, &retry_policy, &plugin_pipeline, request).await;
+            let response =
+                process_request(&provider, &retry_policy, &plugin_pipeline, request).await;
             let _ = response_tx.send(response);
             drop(permit);
         });

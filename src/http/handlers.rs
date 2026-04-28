@@ -165,9 +165,7 @@ pub async fn health() -> impl Responder {
     }))
 }
 
-pub async fn metrics_endpoint(
-    metrics: web::Data<Arc<Metrics>>,
-) -> impl Responder {
+pub async fn metrics_endpoint(metrics: web::Data<Arc<Metrics>>) -> impl Responder {
     let snapshot = metrics.snapshot();
     HttpResponse::Ok().json(snapshot)
 }

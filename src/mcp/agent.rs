@@ -12,6 +12,10 @@ pub struct AgentExecutor {
 }
 
 impl AgentExecutor {
+    // Estimated token limits for common models (conservative estimates)
+    const DEFAULT_MAX_TOKENS: usize = 4000;
+    const MAX_MESSAGES: usize = 50; // Prevent memory explosion
+
     pub fn new(
         max_depth: usize,
         gateway: Arc<Gateway>,
@@ -21,6 +25,65 @@ impl AgentExecutor {
             max_depth,
             gateway,
             mcp_manager,
+        }
+    }
+
+    /// Estimate token count from text (rough approximation: 1 token ≈ 4 chars)
+    fn estimate_tokens(text: &str) -> usize {
+        text.len() / 4 + 1
+    }
+
+    /// Calculate total estimated tokens for all messages
+    fn estimate_message_tokens(messages: &[ChatMessage]) -> usize {
+        messages
+            .iter()
+            .map(|m| match m {
+                ChatMessage::System { content } => Self::estimate_tokens(content),
+                ChatMessage::User { content } => Self::estimate_tokens(content),
+                ChatMessage::Assistant {
+                    content,
+                    tool_calls,
+                } => {
+                    let content_tokens = content
+                        .as_ref()
+                        .map(|c| Self::estimate_tokens(c))
+                        .unwrap_or(0);
+                    let tool_tokens = tool_calls
+                        .as_ref()
+                        .map(|tc| {
+                            tc.iter()
+                                .map(|t| {
+                                    Self::estimate_tokens(&t.function.name)
+                                        + Self::estimate_tokens(&t.function.arguments.to_string())
+                                })
+                                .sum()
+                        })
+                        .unwrap_or(0);
+                    content_tokens + tool_tokens
+                }
+                ChatMessage::Tool { content, .. } => Self::estimate_tokens(content),
+            })
+            .sum()
+    }
+
+    /// Truncate messages to fit within token limit while preserving system message
+    fn truncate_messages(messages: &mut Vec<ChatMessage>, max_tokens: usize) {
+        if Self::estimate_message_tokens(messages) <= max_tokens {
+            return;
+        }
+
+        // Keep system message at index 0 if present
+        let has_system = messages
+            .first()
+            .map(|m| matches!(m, ChatMessage::System { .. }))
+            .unwrap_or(false);
+
+        let start_idx = if has_system { 1 } else { 0 };
+
+        // Remove oldest non-system messages until under limit
+        while messages.len() > start_idx + 1 && Self::estimate_message_tokens(messages) > max_tokens
+        {
+            messages.remove(start_idx);
         }
     }
 
@@ -34,8 +97,22 @@ impl AgentExecutor {
             request.tools = Some(tools);
         }
 
+        // Check initial message count
+        if request.messages.len() > Self::MAX_MESSAGES {
+            tracing::warn!(
+                "Initial messages ({}) exceed MAX_MESSAGES ({}), truncating",
+                request.messages.len(),
+                Self::MAX_MESSAGES
+            );
+            let start = request.messages.len() - Self::MAX_MESSAGES;
+            request.messages = request.messages.split_off(start);
+        }
+
         for depth in 0..self.max_depth {
             tracing::debug!("Agent loop iteration {}/{}", depth + 1, self.max_depth);
+
+            // Truncate messages to prevent context window overflow
+            Self::truncate_messages(&mut request.messages, Self::DEFAULT_MAX_TOKENS);
 
             // Call LLM
             let response = self.gateway.chat_completion(request.clone()).await?;
@@ -79,6 +156,17 @@ impl AgentExecutor {
                         tool_call_id: tool_call.id.clone(),
                         content,
                     });
+                }
+
+                // Check message count limit
+                if request.messages.len() > Self::MAX_MESSAGES {
+                    tracing::warn!(
+                        "Messages ({}) exceeded MAX_MESSAGES ({}), truncating",
+                        request.messages.len(),
+                        Self::MAX_MESSAGES
+                    );
+                    let start = request.messages.len() - Self::MAX_MESSAGES;
+                    request.messages = request.messages.split_off(start);
                 }
             } else {
                 // No tool calls, return final response
@@ -124,11 +212,20 @@ impl AgentExecutor {
 
     fn build_pending_response(
         &self,
-        response: ChatCompletionResponse,
-        _manual_tools: Vec<ToolCall>,
+        mut response: ChatCompletionResponse,
+        manual_tools: Vec<ToolCall>,
     ) -> ChatCompletionResponse {
-        // Return the response as-is with tool_calls included
-        // The client (e.g., OpenAI SDK) will handle these tool_calls
+        // Mark response as having pending tool calls that require user approval
+        // Set finish_reason to "tool_calls" to indicate incomplete processing
+        if let Some(choice) = response.choices.first_mut() {
+            choice.finish_reason = Some("tool_calls".to_string());
+            // Ensure tool_calls are preserved in the message
+            if choice.message.tool_calls.is_none() {
+                choice.message.tool_calls = Some(manual_tools);
+            }
+        }
+
+        // Add metadata to indicate pending manual tools
         response
     }
 }

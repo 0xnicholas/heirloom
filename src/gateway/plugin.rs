@@ -13,17 +13,13 @@ pub trait Plugin: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Called before request is sent to provider
-    async fn pre_request(&self,
-        request: &mut GatewayRequest,
-    ) -> Result<(), GatewayError> {
+    async fn pre_request(&self, request: &mut GatewayRequest) -> Result<(), GatewayError> {
         let _ = request;
         Ok(())
     }
 
     /// Called after response is received from provider
-    async fn post_response(&self,
-        response: &mut GatewayResponse,
-    ) -> Result<(), GatewayError> {
+    async fn post_response(&self, response: &mut GatewayResponse) -> Result<(), GatewayError> {
         let _ = response;
         Ok(())
     }
@@ -42,9 +38,7 @@ impl PluginPipeline {
         }
     }
 
-    pub fn add_plugin(&mut self,
-        plugin: Arc<dyn Plugin>,
-    ) {
+    pub fn add_plugin(&mut self, plugin: Arc<dyn Plugin>) {
         self.plugins.push(plugin);
     }
 
@@ -84,22 +78,13 @@ impl Plugin for LoggingPlugin {
         "logging"
     }
 
-    async fn pre_request(
-        &self,
-        request: &mut GatewayRequest,
-    ) -> Result<(), GatewayError> {
+    async fn pre_request(&self, request: &mut GatewayRequest) -> Result<(), GatewayError> {
         match request {
             GatewayRequest::ChatCompletion(req) => {
-                tracing::info!(
-                    "[plugin:logging] Chat request: model={}",
-                    req.model
-                );
+                tracing::info!("[plugin:logging] Chat request: model={}", req.model);
             }
             GatewayRequest::Embedding(req) => {
-                tracing::info!(
-                    "[plugin:logging] Embedding request: model={}",
-                    req.model
-                );
+                tracing::info!("[plugin:logging] Embedding request: model={}", req.model);
             }
             GatewayRequest::ListModels => {
                 tracing::info!("[plugin:logging] List models request");
@@ -118,13 +103,13 @@ impl Plugin for TransformPlugin {
         "transform"
     }
 
-    async fn pre_request(
-        &self,
-        request: &mut GatewayRequest,
-    ) -> Result<(), GatewayError> {
+    async fn pre_request(&self, request: &mut GatewayRequest) -> Result<(), GatewayError> {
         if let GatewayRequest::ChatCompletion(req) = request {
             // Add system message if not present
-            let has_system = req.messages.iter().any(|m| matches!(m, ChatMessage::System { .. }));
+            let has_system = req
+                .messages
+                .iter()
+                .any(|m| matches!(m, ChatMessage::System { .. }));
             if !has_system {
                 req.messages.insert(
                     0,
