@@ -16,19 +16,26 @@ pub struct AnthropicProvider {
 }
 
 impl AnthropicProvider {
-    pub fn new(base_url: String, keys: Vec<WeightedKey>, timeout_seconds: u64) -> Self {
+    pub fn new(
+        base_url: String,
+        keys: Vec<WeightedKey>,
+        timeout_seconds: u64,
+        extra_headers: &std::collections::HashMap<String, String>,
+        proxy_url: Option<&str>,
+        enforce_http2: bool,
+    ) -> anyhow::Result<Self> {
         let base_url = if base_url.is_empty() {
             "https://api.anthropic.com".to_string()
         } else {
             base_url.trim_end_matches('/').to_string()
         };
         
-        Self {
+        Ok(Self {
             base_url,
             keys,
             timeout_seconds,
-            client: HttpClient::new(timeout_seconds),
-        }
+            client: HttpClient::new(timeout_seconds, extra_headers, proxy_url, enforce_http2)?,
+        })
     }
     
     fn select_key(&self) -> &WeightedKey {

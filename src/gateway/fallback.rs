@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use crate::error::GatewayError;
 use crate::provider::ProviderRef;
 use crate::types::*;

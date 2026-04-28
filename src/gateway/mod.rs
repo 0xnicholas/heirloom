@@ -3,8 +3,6 @@ pub mod retry;
 pub mod fallback;
 pub mod queue;
 
-pub use key_selector::*;
-pub use retry::*;
 pub use fallback::*;
 pub use queue::*;
 
@@ -40,22 +38,32 @@ impl Gateway {
                 .map(|k| WeightedKey { value: k.value.clone(), weight: k.weight })
                 .collect();
             
+            let proxy_url = provider_config.network.proxy_url.as_deref();
             let provider: ProviderRef = match name.as_str() {
                 "openai" => Arc::new(OpenAIProvider::new(
                     provider_config.base_url.clone(),
                     keys,
                     provider_config.request_timeout_seconds,
-                )),
+                    &provider_config.network.extra_headers,
+                    proxy_url,
+                    provider_config.network.enforce_http2,
+                )?),
                 "anthropic" => Arc::new(AnthropicProvider::new(
                     provider_config.base_url.clone(),
                     keys,
                     provider_config.request_timeout_seconds,
-                )),
+                    &provider_config.network.extra_headers,
+                    proxy_url,
+                    provider_config.network.enforce_http2,
+                )?),
                 "groq" => Arc::new(GroqProvider::new(
                     provider_config.base_url.clone(),
                     keys,
                     provider_config.request_timeout_seconds,
-                )),
+                    &provider_config.network.extra_headers,
+                    proxy_url,
+                    provider_config.network.enforce_http2,
+                )?),
                 _ => {
                     tracing::warn!("Unknown provider: {}, skipping", name);
                     continue;

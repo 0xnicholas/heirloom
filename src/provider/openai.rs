@@ -3,7 +3,6 @@ use futures::stream::{self, BoxStream, StreamExt};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 
 use crate::client::HttpClient;
-use crate::config::SecretString;
 use crate::error::{ErrorKind, GatewayError};
 use crate::gateway::key_selector::{select_key, WeightedKey};
 use crate::provider::Provider;
@@ -17,19 +16,26 @@ pub struct OpenAIProvider {
 }
 
 impl OpenAIProvider {
-    pub fn new(base_url: String, keys: Vec<WeightedKey>, timeout_seconds: u64) -> Self {
+    pub fn new(
+        base_url: String,
+        keys: Vec<WeightedKey>,
+        timeout_seconds: u64,
+        extra_headers: &std::collections::HashMap<String, String>,
+        proxy_url: Option<&str>,
+        enforce_http2: bool,
+    ) -> anyhow::Result<Self> {
         let base_url = if base_url.is_empty() {
             "https://api.openai.com".to_string()
         } else {
             base_url.trim_end_matches('/').to_string()
         };
         
-        Self {
+        Ok(Self {
             base_url,
             keys,
             timeout_seconds,
-            client: HttpClient::new(timeout_seconds),
-        }
+            client: HttpClient::new(timeout_seconds, extra_headers, proxy_url, enforce_http2)?,
+        })
     }
     
     fn select_key(&self) -> &WeightedKey {
@@ -211,6 +217,7 @@ fn parse_sse_chunk(text: &str) -> Result<Option<ChatCompletionChunk>, GatewayErr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SecretString;
     use wiremock::{MockServer, Mock, ResponseTemplate};
     use wiremock::matchers::{method, path, header};
 
@@ -248,7 +255,10 @@ mod tests {
             mock_server.uri(),
             vec![WeightedKey { value: SecretString::new("test-key"), weight: 1.0 }],
             30,
-        );
+            &std::collections::HashMap::new(),
+            None,
+            false,
+        ).unwrap();
         
         let request = ChatCompletionRequest {
             model: "gpt-4".to_string(),

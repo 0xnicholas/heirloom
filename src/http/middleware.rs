@@ -1,7 +1,6 @@
 use actix_web::{http, HttpMessage};
 use actix_web::dev::{Service, Transform};
 use actix_cors::Cors;
-use actix_web::middleware::Logger;
 use std::future::{ready, Ready};
 use uuid::Uuid;
 

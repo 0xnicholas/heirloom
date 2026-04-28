@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 
-use crate::config::SecretString;
 use crate::error::GatewayError;
 use crate::gateway::key_selector::WeightedKey;
 use crate::provider::{Provider, openai::OpenAIProvider};
@@ -12,10 +11,17 @@ pub struct GroqProvider {
 }
 
 impl GroqProvider {
-    pub fn new(base_url: String, keys: Vec<WeightedKey>, timeout_seconds: u64) -> Self {
-        Self {
-            inner: OpenAIProvider::new(base_url, keys, timeout_seconds),
-        }
+    pub fn new(
+        base_url: String,
+        keys: Vec<WeightedKey>,
+        timeout_seconds: u64,
+        extra_headers: &std::collections::HashMap<String, String>,
+        proxy_url: Option<&str>,
+        enforce_http2: bool,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            inner: OpenAIProvider::new(base_url, keys, timeout_seconds, extra_headers, proxy_url, enforce_http2)?,
+        })
     }
 }
 
@@ -54,6 +60,7 @@ impl Provider for GroqProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SecretString;
 
     #[test]
     fn test_groq_name() {
@@ -61,7 +68,10 @@ mod tests {
             "https://api.groq.com".to_string(),
             vec![WeightedKey { value: SecretString::new("test-key"), weight: 1.0 }],
             30,
-        );
+            &std::collections::HashMap::new(),
+            None,
+            false,
+        ).unwrap();
         assert_eq!(provider.name(), "groq");
     }
 }
