@@ -110,6 +110,15 @@ pub struct StdioTransport {
     timeout_seconds: u64,
 }
 
+impl Drop for StdioTransport {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.start_kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 impl StdioTransport {
     pub fn new(command: String, args: Vec<String>, timeout_seconds: u64) -> Self {
         Self {

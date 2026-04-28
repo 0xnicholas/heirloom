@@ -16,7 +16,10 @@ impl HttpClient {
     ) -> anyhow::Result<Self> {
         let mut builder = Client::builder()
             .timeout(Duration::from_secs(timeout_seconds))
-            .pool_max_idle_per_host(100);
+            .connect_timeout(Duration::from_secs(10))
+            .pool_max_idle_per_host(100)
+            .pool_idle_timeout(Duration::from_secs(90))
+            .tcp_keepalive(Duration::from_secs(60));
 
         // Apply default headers from network config
         if !extra_headers.is_empty() {

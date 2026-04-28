@@ -176,6 +176,11 @@ impl Gateway {
     > {
         let provider_name = self.resolve_provider(&request.model);
 
+        // Check if there's a fallback chain for this provider
+        if let Some(chain) = self.fallbacks.get(&provider_name) {
+            return chain.execute_chat_completion_stream(request).await;
+        }
+
         let provider = self.providers.get(&provider_name).ok_or_else(|| {
             GatewayError::new(
                 ErrorKind::NoProviderAvailable,
@@ -240,8 +245,9 @@ impl Gateway {
         } else if let Some(provider) = self.model_map.get(model) {
             provider.clone()
         } else {
-            // Default to openai if no provider specified
-            "openai".to_string()
+            // No provider prefix and no model mapping found;
+            // return model name as-is so caller gets a clear "Provider not found" error
+            model.to_string()
         }
     }
 }
@@ -263,14 +269,15 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_provider_default() {
+    fn test_resolve_provider_no_mapping() {
         let gateway = Gateway {
             queues: HashMap::new(),
             providers: HashMap::new(),
             fallbacks: HashMap::new(),
             model_map: HashMap::new(),
         };
-        assert_eq!(gateway.resolve_provider("gpt-4"), "openai");
+        // No provider prefix and no model mapping: return model name as-is
+        assert_eq!(gateway.resolve_provider("gpt-4"), "gpt-4");
     }
 
     #[test]

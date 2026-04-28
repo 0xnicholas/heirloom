@@ -114,8 +114,7 @@ impl AgentExecutor {
     }
 
     async fn execute_tool(&self, tool_call: &ToolCall) -> Result<String, GatewayError> {
-        let args: serde_json::Value =
-            serde_json::from_str(&tool_call.function.arguments).unwrap_or(serde_json::json!({}));
+        let args = tool_call.function.arguments.clone();
 
         self.mcp_manager
             .execute_tool(&tool_call.function.name, args)

@@ -41,7 +41,7 @@ impl RetryPolicy {
             match operation().await {
                 Ok(result) => return Ok(result),
                 Err(e) => {
-                    if !Self::is_retryable(&e) || attempt == self.max_retries {
+                    if !e.is_retryable() || attempt == self.max_retries {
                         return Err(e);
                     }
                     last_error = Some(e);
@@ -55,14 +55,6 @@ impl RetryPolicy {
             ErrorKind::MaxRetriesExceeded,
             "Max retries exceeded",
         )))
-    }
-
-    pub fn is_retryable(error: &GatewayError) -> bool {
-        matches!(
-            error.kind,
-            ErrorKind::Network | ErrorKind::RateLimited | ErrorKind::MaxRetriesExceeded
-        ) || matches!(error.status_code, Some(500..=599))
-            || matches!(error.status_code, Some(429))
     }
 
     fn calculate_backoff(&self, attempt: u32) -> Duration {
@@ -118,5 +110,15 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(attempts.load(Ordering::SeqCst), 1); // No retries
+    }
+
+    #[test]
+    fn test_retryable_error_kinds() {
+        assert!(GatewayError::new(ErrorKind::Network, "timeout".to_string()).is_retryable());
+        assert!(GatewayError::new(ErrorKind::RateLimited, "429".to_string()).is_retryable());
+        assert!(!GatewayError::new(ErrorKind::InvalidRequest, "400".to_string()).is_retryable());
+        assert!(
+            !GatewayError::new(ErrorKind::AuthenticationFailed, "401".to_string()).is_retryable()
+        );
     }
 }

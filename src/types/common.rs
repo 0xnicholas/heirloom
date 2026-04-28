@@ -49,5 +49,5 @@ pub struct ToolCall {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCallFunction {
     pub name: String,
-    pub arguments: String,
+    pub arguments: serde_json::Value,
 }
