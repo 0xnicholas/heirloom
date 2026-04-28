@@ -322,8 +322,43 @@ impl SseTransport {
             ));
         }
         
-        // Simplified: assume message endpoint is /message
-        self.message_endpoint = Some(format!("{}/message", self.url));
+        // Parse SSE stream to find the message endpoint
+        let bytes = tokio::time::timeout(timeout, response.bytes()).await
+            .map_err(|_| MCPError::Timeout(self.timeout_seconds))?
+            .map_err(|e| MCPError::Transport(format!("Failed to read SSE stream: {}", e)))?;
+        
+        let text = String::from_utf8_lossy(&bytes);
+        let mut endpoint = None;
+        let mut expecting_endpoint_data = false;
+        
+        for line in text.lines() {
+            if line.starts_with("event: endpoint") {
+                expecting_endpoint_data = true;
+                continue;
+            }
+            if expecting_endpoint_data && line.starts_with("data: ") {
+                endpoint = Some(line[6..].to_string());
+                break;
+            }
+            if line.is_empty() {
+                expecting_endpoint_data = false;
+            }
+        }
+        
+        // If no endpoint event found, default to /message relative to base URL
+        let message_endpoint = match endpoint {
+            Some(ep) => {
+                if ep.starts_with("http://") || ep.starts_with("https://") {
+                    ep
+                } else {
+                    // Relative path - resolve against base URL
+                    format!("{}/{}", self.url, ep.trim_start_matches('/'))
+                }
+            }
+            None => format!("{}/message", self.url),
+        };
+        
+        self.message_endpoint = Some(message_endpoint);
         
         // 3. Send initialize via HTTP POST
         let init_req = JsonRpcRequest {
