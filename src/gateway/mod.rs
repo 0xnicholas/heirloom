@@ -2,6 +2,7 @@ pub mod key_selector;
 pub mod retry;
 pub mod fallback;
 pub mod queue;
+pub mod rate_limit;
 
 pub use fallback::*;
 pub use queue::*;

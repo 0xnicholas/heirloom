@@ -50,6 +50,8 @@ pub struct ProviderConfig {
     pub queue_buffer_size: usize,
     #[serde(default)]
     pub network: NetworkConfig,
+    #[serde(default)]
+    pub rate_limit: RateLimitConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -236,6 +238,16 @@ fn default_request_timeout_seconds() -> u64 { 30 }
 fn default_queue_concurrency() -> usize { 100 }
 fn default_queue_buffer_size() -> usize { 1000 }
 fn default_weight() -> f64 { 1.0 }
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct RateLimitConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub requests_per_second: Option<u32>,
+    #[serde(default)]
+    pub burst_size: Option<u32>,
+}
+
 fn default_max_body_size() -> usize { 10 * 1024 * 1024 } // 10MB
 fn default_max_agent_depth() -> usize { 5 }
 fn default_tool_execution_timeout_seconds() -> u64 { 30 }
