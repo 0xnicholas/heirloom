@@ -12,6 +12,8 @@ pub struct AppConfig {
     pub fallbacks: Vec<FallbackChainConfig>,
     #[serde(default)]
     pub mcp: Option<McpConfig>,
+    #[serde(default)]
+    pub models: HashMap<String, String>, // model_name -> provider_name
 }
 
 #[derive(Debug, Clone, Deserialize)]

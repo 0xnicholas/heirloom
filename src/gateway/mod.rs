@@ -23,6 +23,8 @@ use crate::types::*;
 pub struct Gateway {
     queues: HashMap<String, ProviderQueue>,
     providers: HashMap<String, ProviderRef>,
+    fallbacks: HashMap<String, FallbackChain>,
+    model_map: HashMap<String, String>, // model_name -> provider_name
 }
 
 impl Gateway {
@@ -89,14 +91,38 @@ impl Gateway {
             queues.insert(name.clone(), queue);
         }
         
-        Ok(Self { queues, providers })
+        // Build fallback chains
+        let mut fallbacks = HashMap::new();
+        for chain_config in &config.fallbacks {
+            let primary = providers.get(&chain_config.primary)
+                .ok_or_else(|| anyhow::anyhow!("Fallback primary provider '{}' not found", chain_config.primary))?;
+            
+            let mut fallback_providers = Vec::new();
+            for fallback_name in &chain_config.fallbacks {
+                let fallback = providers.get(fallback_name)
+                    .ok_or_else(|| anyhow::anyhow!("Fallback provider '{}' not found", fallback_name))?;
+                fallback_providers.push(fallback.clone());
+            }
+            
+            let chain = FallbackChain::new(primary.clone(), fallback_providers);
+            fallbacks.insert(chain_config.primary.clone(), chain);
+        }
+        
+        let model_map = config.models.clone();
+        
+        Ok(Self { queues, providers, fallbacks, model_map })
     }
     
     pub async fn chat_completion(
         &self,
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, GatewayError> {
-        let provider_name = Self::resolve_provider(&request.model);
+        let provider_name = self.resolve_provider(&request.model);
+        
+        // Check if there's a fallback chain for this provider
+        if let Some(chain) = self.fallbacks.get(&provider_name) {
+            return chain.execute_chat_completion(request).await;
+        }
         
         let queue = self.queues.get(&provider_name)
             .ok_or_else(|| GatewayError::new(
@@ -114,7 +140,7 @@ impl Gateway {
         &self,
         request: ChatCompletionRequest,
     ) -> Result<futures::stream::BoxStream<'static, Result<ChatCompletionChunk, GatewayError>>, GatewayError> {
-        let provider_name = Self::resolve_provider(&request.model);
+        let provider_name = self.resolve_provider(&request.model);
         
         let provider = self.providers.get(&provider_name)
             .ok_or_else(|| GatewayError::new(
@@ -130,7 +156,12 @@ impl Gateway {
         &self,
         request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, GatewayError> {
-        let provider_name = Self::resolve_provider(&request.model);
+        let provider_name = self.resolve_provider(&request.model);
+        
+        // Check if there's a fallback chain for this provider
+        if let Some(chain) = self.fallbacks.get(&provider_name) {
+            return chain.execute_embedding(request).await;
+        }
         
         let queue = self.queues.get(&provider_name)
             .ok_or_else(|| GatewayError::new(
@@ -164,9 +195,11 @@ impl Gateway {
         })
     }
     
-    fn resolve_provider(model: &str) -> String {
+    fn resolve_provider(&self, model: &str) -> String {
         if let Some(pos) = model.find('/') {
             model[..pos].to_string()
+        } else if let Some(provider) = self.model_map.get(model) {
+            provider.clone()
         } else {
             // Default to openai if no provider specified
             "openai".to_string()
@@ -180,12 +213,38 @@ mod tests {
 
     #[test]
     fn test_resolve_provider_explicit() {
-        assert_eq!(Gateway::resolve_provider("openai/gpt-4"), "openai");
-        assert_eq!(Gateway::resolve_provider("anthropic/claude-3"), "anthropic");
+        let gateway = Gateway {
+            queues: HashMap::new(),
+            providers: HashMap::new(),
+            fallbacks: HashMap::new(),
+            model_map: HashMap::new(),
+        };
+        assert_eq!(gateway.resolve_provider("openai/gpt-4"), "openai");
+        assert_eq!(gateway.resolve_provider("anthropic/claude-3"), "anthropic");
     }
 
     #[test]
     fn test_resolve_provider_default() {
-        assert_eq!(Gateway::resolve_provider("gpt-4"), "openai");
+        let gateway = Gateway {
+            queues: HashMap::new(),
+            providers: HashMap::new(),
+            fallbacks: HashMap::new(),
+            model_map: HashMap::new(),
+        };
+        assert_eq!(gateway.resolve_provider("gpt-4"), "openai");
+    }
+
+    #[test]
+    fn test_resolve_provider_mapped() {
+        let mut model_map = HashMap::new();
+        model_map.insert("claude-3-opus".to_string(), "anthropic".to_string());
+        
+        let gateway = Gateway {
+            queues: HashMap::new(),
+            providers: HashMap::new(),
+            fallbacks: HashMap::new(),
+            model_map,
+        };
+        assert_eq!(gateway.resolve_provider("claude-3-opus"), "anthropic");
     }
 }
