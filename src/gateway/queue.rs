@@ -1,5 +1,4 @@
-use tokio::sync::{broadcast, mpsc, oneshot};
-use tokio::sync::Mutex;
+use tokio::sync::{Semaphore, oneshot};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -20,14 +19,10 @@ pub enum GatewayResponse {
     ListModels(Result<ModelList, GatewayError>),
 }
 
-pub struct QueuedRequest {
-    pub request: GatewayRequest,
-    pub response_tx: oneshot::Sender<GatewayResponse>,
-}
-
 pub struct ProviderQueue {
-    tx: mpsc::Sender<QueuedRequest>,
-    shutdown_tx: broadcast::Sender<()>,
+    provider: ProviderRef,
+    retry_policy: RetryPolicy,
+    semaphore: Arc<Semaphore>,
     closing: AtomicBool,
 }
 
@@ -36,46 +31,12 @@ impl ProviderQueue {
         provider: ProviderRef,
         retry_policy: RetryPolicy,
         concurrency: usize,
-        buffer_size: usize,
+        _buffer_size: usize,
     ) -> Self {
-        let (tx, rx) = mpsc::channel::<QueuedRequest>(buffer_size);
-        let rx = Arc::new(Mutex::new(rx));
-        let (shutdown_tx, _) = broadcast::channel(1);
-        
-        for _ in 0..concurrency {
-            let provider = provider.clone();
-            let retry_policy = RetryPolicy::new(
-                retry_policy.max_retries(),
-                retry_policy.backoff_initial(),
-                retry_policy.backoff_max(),
-            );
-            let rx = rx.clone();
-            let mut shutdown_rx = shutdown_tx.subscribe();
-            
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        Some(req) = async { rx.lock().await.recv().await } => {
-                            let response = process_request(&provider, &retry_policy, req.request).await;
-                            let _ = req.response_tx.send(response);
-                        }
-                        _ = shutdown_rx.recv() => {
-                            // Drain remaining requests
-                            let mut rx = rx.lock().await;
-                            while let Some(req) = rx.try_recv().ok() {
-                                let response = process_request(&provider, &retry_policy, req.request).await;
-                                let _ = req.response_tx.send(response);
-                            }
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-        
         Self {
-            tx,
-            shutdown_tx,
+            provider,
+            retry_policy,
+            semaphore: Arc::new(Semaphore::new(concurrency)),
             closing: AtomicBool::new(false),
         }
     }
@@ -93,12 +54,24 @@ impl ProviderQueue {
         
         let (response_tx, response_rx) = oneshot::channel();
         
-        self.tx.send(QueuedRequest { request, response_tx })
-            .await
+        let permit = self.semaphore.clone().acquire_owned().await
             .map_err(|_| GatewayError::new(
                 crate::error::ErrorKind::NoProviderAvailable,
-                "Queue is full or closed"
+                "Queue is closed"
             ))?;
+        
+        let provider = self.provider.clone();
+        let retry_policy = RetryPolicy::new(
+            self.retry_policy.max_retries(),
+            self.retry_policy.backoff_initial(),
+            self.retry_policy.backoff_max(),
+        );
+        
+        tokio::spawn(async move {
+            let response = process_request(&provider, &retry_policy, request).await;
+            let _ = response_tx.send(response);
+            drop(permit);
+        });
         
         response_rx.await
             .map_err(|_| GatewayError::new(
@@ -108,10 +81,7 @@ impl ProviderQueue {
     }
     
     pub async fn shutdown(&self) {
-        if self.closing.swap(true, Ordering::SeqCst) {
-            return; // Already closing
-        }
-        let _ = self.shutdown_tx.send(());
+        self.closing.store(true, Ordering::SeqCst);
     }
     
     pub fn is_closing(&self) -> bool {
@@ -149,11 +119,10 @@ async fn process_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[test]
     fn test_queue_creation() {
-        let (_tx, _rx) = mpsc::channel::<QueuedRequest>(10);
-        assert_eq!(_tx.capacity(), 10);
+        let semaphore = Semaphore::new(10);
+        assert_eq!(semaphore.available_permits(), 10);
     }
 }
