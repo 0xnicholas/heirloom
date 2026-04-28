@@ -94,6 +94,8 @@ pub enum MCPError {
     ToolExecution(String),
     #[error("Concurrency error: {0}")]
     Concurrency(String),
+    #[error("Timeout after {0}s")]
+    Timeout(u64),
 }
 
 // stdio Transport
@@ -104,10 +106,12 @@ pub struct StdioTransport {
     stdin: Option<ChildStdin>,
     stdout: Option<BufReader<ChildStdout>>,
     request_id: AtomicU64,
+    #[allow(dead_code)]
+    timeout_seconds: u64,
 }
 
 impl StdioTransport {
-    pub fn new(command: String, args: Vec<String>) -> Self {
+    pub fn new(command: String, args: Vec<String>, timeout_seconds: u64) -> Self {
         Self {
             command,
             args,
@@ -115,6 +119,7 @@ impl StdioTransport {
             stdin: None,
             stdout: None,
             request_id: AtomicU64::new(0),
+            timeout_seconds,
         }
     }
     
@@ -280,21 +285,25 @@ pub struct SseTransport {
     client: reqwest::Client,
     message_endpoint: Option<String>,
     request_id: AtomicU64,
+    timeout_seconds: u64,
 }
 
 impl SseTransport {
-    pub fn new(url: String, headers: HashMap<String, String>) -> Self {
+    pub fn new(url: String, headers: HashMap<String, String>, timeout_seconds: u64) -> Self {
         Self {
             url: url.trim_end_matches('/').to_string(),
             headers,
             client: reqwest::Client::new(),
             message_endpoint: None,
             request_id: AtomicU64::new(0),
+            timeout_seconds,
         }
     }
     
     pub async fn initialize(&mut self,
     ) -> Result<InitializeResult, MCPError> {
+        let timeout = tokio::time::Duration::from_secs(self.timeout_seconds);
+        
         // 1. Connect to SSE endpoint
         let sse_url = format!("{}/sse", self.url);
         
@@ -303,7 +312,8 @@ impl SseTransport {
             request = request.header(key, value);
         }
         
-        let response = request.send().await
+        let response = tokio::time::timeout(timeout, request.send()).await
+            .map_err(|_| MCPError::Timeout(self.timeout_seconds))?
             .map_err(|e| MCPError::Transport(format!("SSE connection failed: {}", e)))?;
         
         if !response.status().is_success() {
@@ -417,11 +427,14 @@ impl SseTransport {
             http_req = http_req.header(key, value);
         }
         
-        let response = http_req.json(&request).send().await
+        let timeout = tokio::time::Duration::from_secs(self.timeout_seconds);
+        let response = tokio::time::timeout(timeout, http_req.json(&request).send()).await
+            .map_err(|_| MCPError::Timeout(self.timeout_seconds))?
             .map_err(|e| MCPError::Transport(format!("HTTP request failed: {}", e)))?;
         
         let status = response.status();
-        let body = response.text().await
+        let body = tokio::time::timeout(timeout, response.text()).await
+            .map_err(|_| MCPError::Timeout(self.timeout_seconds))?
             .map_err(|e| MCPError::Transport(format!("Failed to read response: {}", e)))?;
         
         if !status.is_success() {
@@ -466,6 +479,7 @@ mod tests {
         let transport = StdioTransport::new(
             "echo".to_string(),
             vec!["hello".to_string()],
+            30,
         );
         assert_eq!(transport.command, "echo");
     }

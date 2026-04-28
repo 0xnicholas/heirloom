@@ -27,7 +27,8 @@ impl MCPClient {
                     .ok_or(MCPError::Transport("Command required for stdio".to_string()))?;
                 let args = config.args.clone().unwrap_or_default();
                 
-                let mut transport = StdioTransport::new(command, args);
+                let timeout = config.timeout_seconds.unwrap_or(30);
+                let mut transport = StdioTransport::new(command, args, timeout);
                 transport.initialize().await?;
                 
                 (Transport::Stdio(transport), 1) // stdio is always serial
@@ -36,7 +37,8 @@ impl MCPClient {
                 let url = config.url.clone()
                     .ok_or(MCPError::Transport("URL required for SSE".to_string()))?;
                 
-                let mut transport = SseTransport::new(url, HashMap::new());
+                let timeout = config.timeout_seconds.unwrap_or(30);
+                let mut transport = SseTransport::new(url, HashMap::new(), timeout);
                 transport.initialize().await?;
                 
                 (Transport::Sse(transport), config.concurrency)
