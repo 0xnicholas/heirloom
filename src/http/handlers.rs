@@ -1,20 +1,25 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, HttpRequest, Responder};
 use bytes::Bytes;
 use futures::stream::StreamExt;
 use std::sync::Arc;
 
+use crate::context::RequestContext;
 use crate::gateway::Gateway;
 use crate::mcp::agent::AgentExecutor;
 use crate::mcp::client::MCPClientManager;
 use crate::types::*;
 
 pub async fn chat_completions(
+    req: HttpRequest,
     body: web::Json<ChatCompletionRequest>,
     gateway: web::Data<Arc<Gateway>>,
     mcp_manager: web::Data<Option<Arc<MCPClientManager>>>,
     agent_executor: web::Data<Option<Arc<AgentExecutor>>>,
 ) -> impl Responder {
     let request = body.into_inner();
+    let ctx = RequestContext::new("unknown", &request.model);
+    
+    tracing::info!("request_id={} model={} stream={}", ctx.request_id, request.model, request.stream);
     
     // Check if MCP is enabled and has tools
     if let (Some(mcp), Some(agent)) = (mcp_manager.as_ref(), agent_executor.as_ref()) {
@@ -25,6 +30,7 @@ pub async fn chat_completions(
                 Ok(response) => return HttpResponse::Ok().json(response),
                 Err(e) => {
                     let status = e.status_code();
+                    tracing::error!("request_id={} agent_error: {}", ctx.request_id, e);
                     return HttpResponse::build(actix_web::http::StatusCode::from_u16(status).unwrap())
                         .json(ErrorResponse {
                             error: ApiError {
@@ -96,10 +102,14 @@ pub async fn chat_completions(
 }
 
 pub async fn embeddings(
+    req: HttpRequest,
     body: web::Json<EmbeddingRequest>,
     gateway: web::Data<Arc<Gateway>>,
 ) -> impl Responder {
     let request = body.into_inner();
+    let ctx = RequestContext::new("unknown", &request.model);
+    
+    tracing::info!("request_id={} model={} embedding_request", ctx.request_id, request.model);
     
     match gateway.embedding(request).await {
         Ok(response) => HttpResponse::Ok().json(response),
