@@ -68,12 +68,44 @@ async fn run() -> anyhow::Result<()> {
         (None, None)
     };
     
-    http::run_server(
+    let server_handle = http::run_server(
         &config,
-        gateway,
+        gateway.clone(),
         mcp_manager,
         agent_executor,
     ).await?;
     
+    info!("Server started, waiting for shutdown signal...");
+    
+    // Wait for shutdown signal
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Received SIGINT, shutting down gracefully...");
+        }
+        _ = async {
+            // SIGTERM handler for Unix systems
+            #[cfg(unix)]
+            {
+                use tokio::signal::unix::{signal, SignalKind};
+                let mut sigterm = signal(SignalKind::terminate())
+                    .expect("Failed to create SIGTERM handler");
+                sigterm.recv().await;
+            }
+            #[cfg(not(unix))]
+            {
+                std::future::pending::<()>().await;
+            }
+        } => {
+            info!("Received SIGTERM, shutting down gracefully...");
+        }
+    }
+    
+    // Trigger graceful shutdown
+    server_handle.shutdown();
+    
+    // Give in-flight requests time to complete (max 5 seconds)
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    
+    info!("Shutdown complete");
     Ok(())
 }
