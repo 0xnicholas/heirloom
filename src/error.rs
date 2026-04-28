@@ -41,32 +41,32 @@ impl GatewayError {
             fallback_index: None,
         }
     }
-    
+
     pub fn with_provider(mut self, provider: impl Into<String>) -> Self {
         self.provider = Some(provider.into());
         self
     }
-    
+
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
         self
     }
-    
+
     pub fn with_status_code(mut self, code: u16) -> Self {
         self.status_code = Some(code);
         self
     }
-    
+
     pub fn with_retry_count(mut self, count: u32) -> Self {
         self.retry_count = Some(count);
         self
     }
-    
+
     pub fn with_fallback_index(mut self, index: u32) -> Self {
         self.fallback_index = Some(index);
         self
     }
-    
+
     pub fn status_code(&self) -> u16 {
         match self.kind {
             ErrorKind::InvalidRequest => 400,
@@ -76,12 +76,11 @@ impl GatewayError {
             _ => self.status_code.unwrap_or(500),
         }
     }
-    
+
     pub fn is_retryable(&self) -> bool {
-        matches!(self.kind,
-            ErrorKind::Network |
-            ErrorKind::RateLimited |
-            ErrorKind::MaxRetriesExceeded
+        matches!(
+            self.kind,
+            ErrorKind::Network | ErrorKind::RateLimited | ErrorKind::MaxRetriesExceeded
         ) || matches!(self.status_code, Some(500..=599 | 429))
     }
 }
@@ -116,7 +115,7 @@ mod tests {
             .with_model("gpt-4")
             .with_status_code(500)
             .with_retry_count(2);
-        
+
         assert_eq!(err.status_code(), 500);
         assert!(err.is_retryable());
         assert!(err.to_string().contains("[provider=openai]"));

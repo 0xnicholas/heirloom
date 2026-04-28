@@ -29,7 +29,7 @@ impl AnthropicProvider {
         } else {
             base_url.trim_end_matches('/').to_string()
         };
-        
+
         Ok(Self {
             base_url,
             keys,
@@ -37,23 +37,26 @@ impl AnthropicProvider {
             client: HttpClient::new(timeout_seconds, extra_headers, proxy_url, enforce_http2)?,
         })
     }
-    
+
     fn select_key(&self) -> &WeightedKey {
         select_key(&self.keys)
     }
-    
+
     fn build_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", HeaderValue::from_str(self.select_key().value.expose()).unwrap());
+        headers.insert(
+            "x-api-key",
+            HeaderValue::from_str(self.select_key().value.expose()).unwrap(),
+        );
         headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers
     }
-    
+
     fn convert_request(request: &ChatCompletionRequest) -> AnthropicRequest {
         let mut messages = Vec::new();
         let mut system_msg = None;
-        
+
         for msg in &request.messages {
             match msg {
                 ChatMessage::System { content } => {
@@ -71,7 +74,10 @@ impl AnthropicProvider {
                         content: content.clone().unwrap_or_default(),
                     });
                 }
-                ChatMessage::Tool { tool_call_id, content } => {
+                ChatMessage::Tool {
+                    tool_call_id,
+                    content,
+                } => {
                     messages.push(AnthropicMessage {
                         role: "user".to_string(),
                         content: format!("Tool {} result: {}", tool_call_id, content),
@@ -79,7 +85,7 @@ impl AnthropicProvider {
                 }
             }
         }
-        
+
         AnthropicRequest {
             model: request.model.clone(),
             messages,
@@ -90,16 +96,18 @@ impl AnthropicProvider {
             stream: Some(request.stream),
         }
     }
-    
+
     fn convert_response(response: AnthropicResponse) -> ChatCompletionResponse {
-        let content = response.content.iter()
+        let content = response
+            .content
+            .iter()
             .filter_map(|c| match c {
                 AnthropicContent::Text { text } => Some(text.clone()),
                 _ => None,
             })
             .collect::<Vec<_>>()
             .join("");
-        
+
         ChatCompletionResponse {
             id: response.id,
             object: "chat.completion".to_string(),
@@ -121,8 +129,11 @@ impl AnthropicProvider {
             },
         }
     }
-    
-    fn parse_sse_events(text: &str, model: &str) -> Result<Option<ChatCompletionChunk>, GatewayError> {
+
+    fn parse_sse_events(
+        text: &str,
+        model: &str,
+    ) -> Result<Option<ChatCompletionChunk>, GatewayError> {
         let mut content = String::new();
         for line in text.lines() {
             if line.starts_with("data: ") {
@@ -144,7 +155,7 @@ impl AnthropicProvider {
                 }
             }
         }
-        
+
         if content.is_empty() {
             Ok(None)
         } else {
@@ -172,36 +183,43 @@ impl Provider for AnthropicProvider {
     fn name(&self) -> &'static str {
         "anthropic"
     }
-    
+
     async fn chat_completion(
         &self,
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, GatewayError> {
         let url = format!("{}/v1/messages", self.base_url);
         let anthropic_req = Self::convert_request(&request);
-        
-        let response = self.client.inner()
+
+        let response = self
+            .client
+            .inner()
             .post(&url)
             .headers(self.build_headers())
             .json(&anthropic_req)
             .send()
             .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         let status = response.status();
-        let body = response.text().await
+        let body = response
+            .text()
+            .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         if status.is_success() {
-            let anthropic_resp: AnthropicResponse = serde_json::from_str(&body)
-                .map_err(|e| GatewayError::new(ErrorKind::Provider, format!("Parse error: {}", e)))?;
+            let anthropic_resp: AnthropicResponse = serde_json::from_str(&body).map_err(|e| {
+                GatewayError::new(ErrorKind::Provider, format!("Parse error: {}", e))
+            })?;
             Ok(Self::convert_response(anthropic_resp))
         } else {
-            Err(GatewayError::new(ErrorKind::Provider, format!("HTTP {}: {}", status, body))
-                .with_status_code(status.as_u16()))
+            Err(
+                GatewayError::new(ErrorKind::Provider, format!("HTTP {}: {}", status, body))
+                    .with_status_code(status.as_u16()),
+            )
         }
     }
-    
+
     async fn chat_completion_stream(
         &self,
         request: ChatCompletionRequest,
@@ -210,7 +228,9 @@ impl Provider for AnthropicProvider {
         let mut anthropic_req = Self::convert_request(&request);
         anthropic_req.stream = Some(true);
 
-        let response = self.client.inner()
+        let response = self
+            .client
+            .inner()
             .post(&url)
             .headers(self.build_headers())
             .json(&anthropic_req)
@@ -220,22 +240,29 @@ impl Provider for AnthropicProvider {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await
+            let body = response
+                .text()
+                .await
                 .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-            return Err(GatewayError::new(ErrorKind::Provider, format!("HTTP {}: {}", status, body))
-                .with_status_code(status.as_u16()));
+            return Err(GatewayError::new(
+                ErrorKind::Provider,
+                format!("HTTP {}: {}", status, body),
+            )
+            .with_status_code(status.as_u16()));
         }
 
         let model = request.model.clone();
-        let stream = response.bytes_stream()
-            .map(move |chunk| {
-                match chunk {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        Self::parse_sse_events(&text, &model)
-                    }
-                    Err(e) => Err(GatewayError::new(ErrorKind::Network, format!("Stream error: {}", e))),
+        let stream = response
+            .bytes_stream()
+            .map(move |chunk| match chunk {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    Self::parse_sse_events(&text, &model)
                 }
+                Err(e) => Err(GatewayError::new(
+                    ErrorKind::Network,
+                    format!("Stream error: {}", e),
+                )),
             })
             .filter_map(|result| async move {
                 match result {
@@ -256,14 +283,17 @@ impl Provider for AnthropicProvider {
 
         Ok(Box::pin(stream))
     }
-    
+
     async fn embedding(
         &self,
         _request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, GatewayError> {
-        Err(GatewayError::new(ErrorKind::Provider, "Embeddings not supported by Anthropic"))
+        Err(GatewayError::new(
+            ErrorKind::Provider,
+            "Embeddings not supported by Anthropic",
+        ))
     }
-    
+
     async fn list_models(&self) -> Result<ModelList, GatewayError> {
         // Return known Anthropic models
         let models = vec![
@@ -292,7 +322,7 @@ impl Provider for AnthropicProvider {
                 owned_by: Some("anthropic".to_string()),
             },
         ];
-        
+
         Ok(ModelList {
             object: "list".to_string(),
             data: models,
@@ -374,8 +404,12 @@ mod tests {
         let request = ChatCompletionRequest {
             model: "claude-3-opus".to_string(),
             messages: vec![
-                ChatMessage::System { content: "You are helpful".to_string() },
-                ChatMessage::User { content: "Hello".to_string() },
+                ChatMessage::System {
+                    content: "You are helpful".to_string(),
+                },
+                ChatMessage::User {
+                    content: "Hello".to_string(),
+                },
             ],
             stream: false,
             temperature: Some(0.7),
@@ -388,7 +422,7 @@ mod tests {
             tool_choice: None,
             user: None,
         };
-        
+
         let anthropic = AnthropicProvider::convert_request(&request);
         assert_eq!(anthropic.model, "claude-3-opus");
         assert_eq!(anthropic.system, Some("You are helpful".to_string()));

@@ -1,8 +1,8 @@
-pub mod key_selector;
-pub mod retry;
 pub mod fallback;
+pub mod key_selector;
 pub mod queue;
 pub mod rate_limit;
+pub mod retry;
 
 pub use fallback::*;
 pub use queue::*;
@@ -13,10 +13,12 @@ use std::time::Duration;
 
 use crate::config::AppConfig;
 use crate::error::{ErrorKind, GatewayError};
-use crate::provider::{openai::OpenAIProvider, anthropic::AnthropicProvider, groq::GroqProvider, ProviderRef};
 use crate::gateway::key_selector::WeightedKey;
 use crate::gateway::queue::{GatewayRequest, GatewayResponse, ProviderQueue};
 use crate::gateway::retry::RetryPolicy;
+use crate::provider::{
+    anthropic::AnthropicProvider, groq::GroqProvider, openai::OpenAIProvider, ProviderRef,
+};
 use crate::types::*;
 
 pub struct Gateway {
@@ -34,11 +36,16 @@ impl Gateway {
             if !provider_config.enabled {
                 continue;
             }
-            
-            let keys: Vec<WeightedKey> = provider_config.keys.iter()
-                .map(|k| WeightedKey { value: k.value.clone(), weight: k.weight })
+
+            let keys: Vec<WeightedKey> = provider_config
+                .keys
+                .iter()
+                .map(|k| WeightedKey {
+                    value: k.value.clone(),
+                    weight: k.weight,
+                })
                 .collect();
-            
+
             let proxy_url = provider_config.network.proxy_url.as_deref();
             let provider: ProviderRef = match name.as_str() {
                 "openai" => Arc::new(OpenAIProvider::new(
@@ -70,123 +77,146 @@ impl Gateway {
                     continue;
                 }
             };
-            
+
             providers.insert(name.clone(), provider);
         }
-        
+
         // Create queues using cloned provider references
         let mut queues = HashMap::new();
         for (name, provider_config) in &config.providers {
             if !provider_config.enabled {
                 continue;
             }
-            
-            let provider = providers.get(name)
+
+            let provider = providers
+                .get(name)
                 .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in provider map", name))?;
-            
+
             let retry_policy = RetryPolicy::new(
                 provider_config.max_retries,
                 Duration::from_millis(provider_config.retry_backoff_initial_ms),
                 Duration::from_millis(provider_config.retry_backoff_max_ms),
             );
-            
+
             let queue = ProviderQueue::new(
                 provider.clone(),
                 retry_policy,
                 provider_config.queue_concurrency,
                 provider_config.queue_buffer_size,
             );
-            
+
             queues.insert(name.clone(), queue);
         }
-        
+
         // Build fallback chains
         let mut fallbacks = HashMap::new();
         for chain_config in &config.fallbacks {
-            let primary = providers.get(&chain_config.primary)
-                .ok_or_else(|| anyhow::anyhow!("Fallback primary provider '{}' not found", chain_config.primary))?;
-            
+            let primary = providers.get(&chain_config.primary).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Fallback primary provider '{}' not found",
+                    chain_config.primary
+                )
+            })?;
+
             let mut fallback_providers = Vec::new();
             for fallback_name in &chain_config.fallbacks {
-                let fallback = providers.get(fallback_name)
-                    .ok_or_else(|| anyhow::anyhow!("Fallback provider '{}' not found", fallback_name))?;
+                let fallback = providers.get(fallback_name).ok_or_else(|| {
+                    anyhow::anyhow!("Fallback provider '{}' not found", fallback_name)
+                })?;
                 fallback_providers.push(fallback.clone());
             }
-            
+
             let chain = FallbackChain::new(primary.clone(), fallback_providers);
             fallbacks.insert(chain_config.primary.clone(), chain);
         }
-        
+
         let model_map = config.models.clone();
-        
-        Ok(Self { queues, providers, fallbacks, model_map })
+
+        Ok(Self {
+            queues,
+            providers,
+            fallbacks,
+            model_map,
+        })
     }
-    
+
     pub async fn chat_completion(
         &self,
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, GatewayError> {
         let provider_name = self.resolve_provider(&request.model);
-        
+
         // Check if there's a fallback chain for this provider
         if let Some(chain) = self.fallbacks.get(&provider_name) {
             return chain.execute_chat_completion(request).await;
         }
-        
-        let queue = self.queues.get(&provider_name)
-            .ok_or_else(|| GatewayError::new(
+
+        let queue = self.queues.get(&provider_name).ok_or_else(|| {
+            GatewayError::new(
                 ErrorKind::NoProviderAvailable,
-                format!("Provider '{}' not found", provider_name)
-            ))?;
-        
+                format!("Provider '{}' not found", provider_name),
+            )
+        })?;
+
         match queue.send(GatewayRequest::ChatCompletion(request)).await? {
             GatewayResponse::ChatCompletion(result) => result,
-            _ => Err(GatewayError::new(ErrorKind::Provider, "Unexpected response type")),
+            _ => Err(GatewayError::new(
+                ErrorKind::Provider,
+                "Unexpected response type",
+            )),
         }
     }
-    
+
     pub async fn chat_completion_stream(
         &self,
         request: ChatCompletionRequest,
-    ) -> Result<futures::stream::BoxStream<'static, Result<ChatCompletionChunk, GatewayError>>, GatewayError> {
+    ) -> Result<
+        futures::stream::BoxStream<'static, Result<ChatCompletionChunk, GatewayError>>,
+        GatewayError,
+    > {
         let provider_name = self.resolve_provider(&request.model);
-        
-        let provider = self.providers.get(&provider_name)
-            .ok_or_else(|| GatewayError::new(
+
+        let provider = self.providers.get(&provider_name).ok_or_else(|| {
+            GatewayError::new(
                 ErrorKind::NoProviderAvailable,
-                format!("Provider '{}' not found", provider_name)
-            ))?;
-        
+                format!("Provider '{}' not found", provider_name),
+            )
+        })?;
+
         // Direct provider call for streaming (bypasses queue)
         provider.chat_completion_stream(request).await
     }
-    
+
     pub async fn embedding(
         &self,
         request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, GatewayError> {
         let provider_name = self.resolve_provider(&request.model);
-        
+
         // Check if there's a fallback chain for this provider
         if let Some(chain) = self.fallbacks.get(&provider_name) {
             return chain.execute_embedding(request).await;
         }
-        
-        let queue = self.queues.get(&provider_name)
-            .ok_or_else(|| GatewayError::new(
+
+        let queue = self.queues.get(&provider_name).ok_or_else(|| {
+            GatewayError::new(
                 ErrorKind::NoProviderAvailable,
-                format!("Provider '{}' not found", provider_name)
-            ))?;
-        
+                format!("Provider '{}' not found", provider_name),
+            )
+        })?;
+
         match queue.send(GatewayRequest::Embedding(request)).await? {
             GatewayResponse::Embedding(result) => result,
-            _ => Err(GatewayError::new(ErrorKind::Provider, "Unexpected response type")),
+            _ => Err(GatewayError::new(
+                ErrorKind::Provider,
+                "Unexpected response type",
+            )),
         }
     }
-    
+
     pub async fn list_models(&self) -> Result<ModelList, GatewayError> {
         let mut all_models = Vec::new();
-        
+
         for (name, queue) in &self.queues {
             match queue.send(GatewayRequest::ListModels).await {
                 Ok(GatewayResponse::ListModels(Ok(list))) => {
@@ -197,13 +227,13 @@ impl Gateway {
                 }
             }
         }
-        
+
         Ok(ModelList {
             object: "list".to_string(),
             data: all_models,
         })
     }
-    
+
     fn resolve_provider(&self, model: &str) -> String {
         if let Some(pos) = model.find('/') {
             model[..pos].to_string()
@@ -247,7 +277,7 @@ mod tests {
     fn test_resolve_provider_mapped() {
         let mut model_map = HashMap::new();
         model_map.insert("claude-3-opus".to_string(), "anthropic".to_string());
-        
+
         let gateway = Gateway {
             queues: HashMap::new(),
             providers: HashMap::new(),

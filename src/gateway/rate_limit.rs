@@ -74,12 +74,9 @@ pub struct RateLimiter {
 impl RateLimiter {
     pub fn new(config: RateLimitConfig) -> Self {
         let global_limiter = if config.enabled {
-            config.requests_per_second.map(|rps| {
-                Arc::new(KeyRateLimiter::new(
-                    config.burst_size.unwrap_or(rps),
-                    rps,
-                ))
-            })
+            config
+                .requests_per_second
+                .map(|rps| Arc::new(KeyRateLimiter::new(config.burst_size.unwrap_or(rps), rps)))
         } else {
             None
         };

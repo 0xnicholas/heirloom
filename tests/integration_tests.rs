@@ -2,17 +2,17 @@
 mod integration_tests {
     use std::collections::HashMap;
     use std::sync::Arc;
-    
-    use heirloom::config::{AppConfig, RateLimitConfig};
-    use heirloom::gateway::rate_limit::{RateLimiter, RateLimitConfig as RLConfig};
-    use heirloom::gateway::fallback::FallbackChain;
-    use heirloom::gateway::queue::{GatewayRequest, GatewayResponse, ProviderQueue};
-    use heirloom::gateway::retry::RetryPolicy;
-    use heirloom::gateway::key_selector::WeightedKey;
-    use heirloom::provider::openai::OpenAIProvider;
-    use heirloom::provider::anthropic::AnthropicProvider;
-    use heirloom::types::*;
+
     use heirloom::config::SecretString;
+    use heirloom::config::{AppConfig, RateLimitConfig};
+    use heirloom::gateway::fallback::FallbackChain;
+    use heirloom::gateway::key_selector::WeightedKey;
+    use heirloom::gateway::queue::{GatewayRequest, GatewayResponse, ProviderQueue};
+    use heirloom::gateway::rate_limit::{RateLimitConfig as RLConfig, RateLimiter};
+    use heirloom::gateway::retry::RetryPolicy;
+    use heirloom::provider::anthropic::AnthropicProvider;
+    use heirloom::provider::openai::OpenAIProvider;
+    use heirloom::types::*;
 
     #[tokio::test]
     async fn test_provider_instantiation_with_network_config() {
@@ -22,7 +22,7 @@ mod integration_tests {
         }];
 
         let extra_headers = HashMap::new();
-        
+
         let openai = OpenAIProvider::new(
             "https://api.openai.com".to_string(),
             keys.clone(),
@@ -52,7 +52,7 @@ mod integration_tests {
         }];
 
         let extra_headers = HashMap::new();
-        
+
         let provider = OpenAIProvider::new(
             "https://api.openai.com".to_string(),
             keys,
@@ -71,14 +71,14 @@ mod integration_tests {
             requests_per_second: Some(100),
             burst_size: Some(50),
         };
-        
+
         let limiter = Arc::new(RateLimiter::new(config));
-        
+
         // Should allow burst up to burst_size (global limiter)
         for _ in 0..50 {
             assert!(limiter.check_rate_limit(Some("key1")).await);
         }
-        
+
         // 51st request should fail (global burst exhausted)
         assert!(!limiter.check_rate_limit(Some("key1")).await);
         assert!(!limiter.check_rate_limit(Some("key2")).await);
@@ -126,7 +126,7 @@ claude-3 = "anthropic"
 
         let config: AppConfig = toml::from_str(toml).unwrap();
         assert!(config.validate().is_ok());
-        
+
         let gateway = heirloom::gateway::Gateway::from_config(&config);
         assert!(gateway.is_ok());
     }
@@ -157,7 +157,10 @@ burst_size = 50
         assert!(config.providers.contains_key("openai"));
         let provider = &config.providers["openai"];
         assert!(provider.network.enforce_http2);
-        assert_eq!(provider.network.proxy_url, Some("http://proxy:8080".to_string()));
+        assert_eq!(
+            provider.network.proxy_url,
+            Some("http://proxy:8080".to_string())
+        );
         assert!(provider.rate_limit.enabled);
         assert_eq!(provider.rate_limit.requests_per_second, Some(100));
     }

@@ -1,11 +1,11 @@
-use tokio::sync::{Semaphore, oneshot};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::{oneshot, Semaphore};
 
-use crate::error::GatewayError;
-use crate::types::*;
-use crate::provider::ProviderRef;
 use super::retry::RetryPolicy;
+use crate::error::GatewayError;
+use crate::provider::ProviderRef;
+use crate::types::*;
 
 pub enum GatewayRequest {
     ChatCompletion(ChatCompletionRequest),
@@ -40,50 +40,49 @@ impl ProviderQueue {
             closing: AtomicBool::new(false),
         }
     }
-    
-    pub async fn send(
-        &self,
-        request: GatewayRequest,
-    ) -> Result<GatewayResponse, GatewayError> {
+
+    pub async fn send(&self, request: GatewayRequest) -> Result<GatewayResponse, GatewayError> {
         if self.closing.load(Ordering::SeqCst) {
             return Err(GatewayError::new(
                 crate::error::ErrorKind::NoProviderAvailable,
-                "Queue is closing"
+                "Queue is closing",
             ));
         }
-        
+
         let (response_tx, response_rx) = oneshot::channel();
-        
-        let permit = self.semaphore.clone().acquire_owned().await
-            .map_err(|_| GatewayError::new(
+
+        let permit = self.semaphore.clone().acquire_owned().await.map_err(|_| {
+            GatewayError::new(
                 crate::error::ErrorKind::NoProviderAvailable,
-                "Queue is closed"
-            ))?;
-        
+                "Queue is closed",
+            )
+        })?;
+
         let provider = self.provider.clone();
         let retry_policy = RetryPolicy::new(
             self.retry_policy.max_retries(),
             self.retry_policy.backoff_initial(),
             self.retry_policy.backoff_max(),
         );
-        
+
         tokio::spawn(async move {
             let response = process_request(&provider, &retry_policy, request).await;
             let _ = response_tx.send(response);
             drop(permit);
         });
-        
-        response_rx.await
-            .map_err(|_| GatewayError::new(
+
+        response_rx.await.map_err(|_| {
+            GatewayError::new(
                 crate::error::ErrorKind::NoProviderAvailable,
-                "Request cancelled"
-            ))
+                "Request cancelled",
+            )
+        })
     }
-    
+
     pub async fn shutdown(&self) {
         self.closing.store(true, Ordering::SeqCst);
     }
-    
+
     pub fn is_closing(&self) -> bool {
         self.closing.load(Ordering::SeqCst)
     }
@@ -96,21 +95,21 @@ async fn process_request(
 ) -> GatewayResponse {
     match request {
         GatewayRequest::ChatCompletion(req) => {
-            let result = retry_policy.execute(|| async {
-                provider.chat_completion(req.clone()).await
-            }).await;
+            let result = retry_policy
+                .execute(|| async { provider.chat_completion(req.clone()).await })
+                .await;
             GatewayResponse::ChatCompletion(result)
         }
         GatewayRequest::Embedding(req) => {
-            let result = retry_policy.execute(|| async {
-                provider.embedding(req.clone()).await
-            }).await;
+            let result = retry_policy
+                .execute(|| async { provider.embedding(req.clone()).await })
+                .await;
             GatewayResponse::Embedding(result)
         }
         GatewayRequest::ListModels => {
-            let result = retry_policy.execute(|| async {
-                provider.list_models().await
-            }).await;
+            let result = retry_policy
+                .execute(|| async { provider.list_models().await })
+                .await;
             GatewayResponse::ListModels(result)
         }
     }

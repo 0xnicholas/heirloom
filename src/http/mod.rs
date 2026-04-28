@@ -45,7 +45,10 @@ pub async fn run_server(
             .app_data(agent_executor.clone())
             .app_data(web::PayloadConfig::new(max_body_size))
             .app_data(web::JsonConfig::default().limit(max_body_size))
-            .route("/v1/chat/completions", web::post().to(handlers::chat_completions))
+            .route(
+                "/v1/chat/completions",
+                web::post().to(handlers::chat_completions),
+            )
             .route("/v1/embeddings", web::post().to(handlers::embeddings))
             .route("/v1/models", web::get().to(handlers::list_models))
             .route("/health", web::get().to(handlers::health))

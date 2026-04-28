@@ -29,7 +29,7 @@ impl OpenAIProvider {
         } else {
             base_url.trim_end_matches('/').to_string()
         };
-        
+
         Ok(Self {
             base_url,
             keys,
@@ -37,15 +37,15 @@ impl OpenAIProvider {
             client: HttpClient::new(timeout_seconds, extra_headers, proxy_url, enforce_http2)?,
         })
     }
-    
+
     fn select_key(&self) -> &WeightedKey {
         select_key(&self.keys)
     }
-    
+
     fn auth_header(&self) -> String {
         format!("Bearer {}", self.select_key().value.expose())
     }
-    
+
     fn handle_error(status: reqwest::StatusCode, body: &str) -> GatewayError {
         if let Ok(err_resp) = serde_json::from_str::<ErrorResponse>(body) {
             let mut err = GatewayError::new(ErrorKind::Provider, err_resp.error.message)
@@ -66,14 +66,16 @@ impl Provider for OpenAIProvider {
     fn name(&self) -> &'static str {
         "openai"
     }
-    
+
     async fn chat_completion(
         &self,
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, GatewayError> {
         let url = format!("{}/v1/chat/completions", self.base_url);
-        
-        let response = self.client.inner()
+
+        let response = self
+            .client
+            .inner()
             .post(&url)
             .header(AUTHORIZATION, self.auth_header())
             .header(CONTENT_TYPE, "application/json")
@@ -81,11 +83,13 @@ impl Provider for OpenAIProvider {
             .send()
             .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         let status = response.status();
-        let body = response.text().await
+        let body = response
+            .text()
+            .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         if status.is_success() {
             serde_json::from_str(&body)
                 .map_err(|e| GatewayError::new(ErrorKind::Provider, format!("Parse error: {}", e)))
@@ -93,15 +97,17 @@ impl Provider for OpenAIProvider {
             Err(Self::handle_error(status, &body))
         }
     }
-    
+
     async fn chat_completion_stream(
         &self,
         mut request: ChatCompletionRequest,
     ) -> Result<BoxStream<'static, Result<ChatCompletionChunk, GatewayError>>, GatewayError> {
         let url = format!("{}/v1/chat/completions", self.base_url);
         request.stream = true;
-        
-        let response = self.client.inner()
+
+        let response = self
+            .client
+            .inner()
             .post(&url)
             .header(AUTHORIZATION, self.auth_header())
             .header(CONTENT_TYPE, "application/json")
@@ -110,23 +116,24 @@ impl Provider for OpenAIProvider {
             .send()
             .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await
+            let body = response
+                .text()
+                .await
                 .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
             return Err(Self::handle_error(status, &body));
         }
-        
-        let stream = response.bytes_stream()
-            .map(|chunk| {
-                match chunk {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        parse_sse_chunk(&text)
-                    }
-                    Err(e) => Err(GatewayError::new(ErrorKind::Network, e.to_string())),
+
+        let stream = response
+            .bytes_stream()
+            .map(|chunk| match chunk {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    parse_sse_chunk(&text)
                 }
+                Err(e) => Err(GatewayError::new(ErrorKind::Network, e.to_string())),
             })
             .filter_map(|result| async move {
                 match result {
@@ -144,17 +151,19 @@ impl Provider for OpenAIProvider {
                     choices: vec![],
                 })
             }));
-        
+
         Ok(Box::pin(stream))
     }
-    
+
     async fn embedding(
         &self,
         request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, GatewayError> {
         let url = format!("{}/v1/embeddings", self.base_url);
-        
-        let response = self.client.inner()
+
+        let response = self
+            .client
+            .inner()
             .post(&url)
             .header(AUTHORIZATION, self.auth_header())
             .header(CONTENT_TYPE, "application/json")
@@ -162,11 +171,13 @@ impl Provider for OpenAIProvider {
             .send()
             .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         let status = response.status();
-        let body = response.text().await
+        let body = response
+            .text()
+            .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         if status.is_success() {
             serde_json::from_str(&body)
                 .map_err(|e| GatewayError::new(ErrorKind::Provider, format!("Parse error: {}", e)))
@@ -174,21 +185,25 @@ impl Provider for OpenAIProvider {
             Err(Self::handle_error(status, &body))
         }
     }
-    
+
     async fn list_models(&self) -> Result<ModelList, GatewayError> {
         let url = format!("{}/v1/models", self.base_url);
-        
-        let response = self.client.inner()
+
+        let response = self
+            .client
+            .inner()
             .get(&url)
             .header(AUTHORIZATION, self.auth_header())
             .send()
             .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         let status = response.status();
-        let body = response.text().await
+        let body = response
+            .text()
+            .await
             .map_err(|e| GatewayError::new(ErrorKind::Network, e.to_string()))?;
-        
+
         if status.is_success() {
             serde_json::from_str(&body)
                 .map_err(|e| GatewayError::new(ErrorKind::Provider, format!("Parse error: {}", e)))
@@ -206,8 +221,9 @@ fn parse_sse_chunk(text: &str) -> Result<Option<ChatCompletionChunk>, GatewayErr
             if data == "[DONE]" {
                 return Ok(None);
             }
-            let chunk: ChatCompletionChunk = serde_json::from_str(data)
-                .map_err(|e| GatewayError::new(ErrorKind::Provider, format!("SSE parse error: {}", e)))?;
+            let chunk: ChatCompletionChunk = serde_json::from_str(data).map_err(|e| {
+                GatewayError::new(ErrorKind::Provider, format!("SSE parse error: {}", e))
+            })?;
             return Ok(Some(chunk));
         }
     }
@@ -218,51 +234,56 @@ fn parse_sse_chunk(text: &str) -> Result<Option<ChatCompletionChunk>, GatewayErr
 mod tests {
     use super::*;
     use crate::config::SecretString;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
-    use wiremock::matchers::{method, path, header};
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_chat_completion() {
         let mock_server = MockServer::start().await;
-        
+
         Mock::given(method("POST"))
             .and(path("/v1/chat/completions"))
             .and(header("authorization", "Bearer test-key"))
-            .respond_with(ResponseTemplate::new(200)
-                .set_body_json(serde_json::json!({
-                    "id": "chat-123",
-                    "object": "chat.completion",
-                    "created": 1700000000,
-                    "model": "gpt-4",
-                    "choices": [{
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": "Hello!"
-                        },
-                        "finish_reason": "stop"
-                    }],
-                    "usage": {
-                        "prompt_tokens": 10,
-                        "completion_tokens": 5,
-                        "total_tokens": 15
-                    }
-                })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "chat-123",
+                "object": "chat.completion",
+                "created": 1700000000,
+                "model": "gpt-4",
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello!"
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15
+                }
+            })))
             .mount(&mock_server)
             .await;
-        
+
         let provider = OpenAIProvider::new(
             mock_server.uri(),
-            vec![WeightedKey { value: SecretString::new("test-key"), weight: 1.0 }],
+            vec![WeightedKey {
+                value: SecretString::new("test-key"),
+                weight: 1.0,
+            }],
             30,
             &std::collections::HashMap::new(),
             None,
             false,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let request = ChatCompletionRequest {
             model: "gpt-4".to_string(),
-            messages: vec![ChatMessage::User { content: "Hello".to_string() }],
+            messages: vec![ChatMessage::User {
+                content: "Hello".to_string(),
+            }],
             stream: false,
             temperature: None,
             max_tokens: None,
@@ -274,9 +295,12 @@ mod tests {
             tool_choice: None,
             user: None,
         };
-        
+
         let response = provider.chat_completion(request).await.unwrap();
         assert_eq!(response.id, "chat-123");
-        assert_eq!(response.choices[0].message.content, Some("Hello!".to_string()));
+        assert_eq!(
+            response.choices[0].message.content,
+            Some("Hello!".to_string())
+        );
     }
 }

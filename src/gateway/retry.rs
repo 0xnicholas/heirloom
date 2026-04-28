@@ -1,7 +1,7 @@
+use crate::error::{ErrorKind, GatewayError};
+use rand::Rng;
 use std::time::Duration;
 use tokio::time::sleep;
-use rand::Rng;
-use crate::error::{ErrorKind, GatewayError};
 
 pub struct RetryPolicy {
     max_retries: u32,
@@ -17,28 +17,26 @@ impl RetryPolicy {
             backoff_max,
         }
     }
-    
+
     pub fn max_retries(&self) -> u32 {
         self.max_retries
     }
-    
+
     pub fn backoff_initial(&self) -> Duration {
         self.backoff_initial
     }
-    
+
     pub fn backoff_max(&self) -> Duration {
         self.backoff_max
     }
-    
-    pub async fn execute<F, Fut, T>(&self,
-        operation: F,
-    ) -> Result<T, GatewayError>
+
+    pub async fn execute<F, Fut, T>(&self, operation: F) -> Result<T, GatewayError>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T, GatewayError>>,
     {
         let mut last_error = None;
-        
+
         for attempt in 0..=self.max_retries {
             match operation().await {
                 Ok(result) => return Ok(result),
@@ -52,18 +50,21 @@ impl RetryPolicy {
                 }
             }
         }
-        
-        Err(last_error.unwrap_or(GatewayError::new(ErrorKind::MaxRetriesExceeded, "Max retries exceeded")))
+
+        Err(last_error.unwrap_or(GatewayError::new(
+            ErrorKind::MaxRetriesExceeded,
+            "Max retries exceeded",
+        )))
     }
-    
+
     pub fn is_retryable(error: &GatewayError) -> bool {
-        matches!(error.kind,
-            ErrorKind::Network |
-            ErrorKind::RateLimited |
-            ErrorKind::MaxRetriesExceeded
-        ) || matches!(error.status_code, Some(500..=599)) || matches!(error.status_code, Some(429))
+        matches!(
+            error.kind,
+            ErrorKind::Network | ErrorKind::RateLimited | ErrorKind::MaxRetriesExceeded
+        ) || matches!(error.status_code, Some(500..=599))
+            || matches!(error.status_code, Some(429))
     }
-    
+
     fn calculate_backoff(&self, attempt: u32) -> Duration {
         let base = self.backoff_initial.as_millis() as u64 * 2u64.pow(attempt);
         let capped = std::cmp::min(base, self.backoff_max.as_millis() as u64);
@@ -83,16 +84,18 @@ mod tests {
         let policy = RetryPolicy::new(3, Duration::from_millis(10), Duration::from_millis(100));
         let attempts = Arc::new(AtomicUsize::new(0));
         let attempts_clone = attempts.clone();
-        
-        let result = policy.execute(|| async {
-            let attempt = attempts_clone.fetch_add(1, Ordering::SeqCst);
-            if attempt < 2 {
-                Err(GatewayError::new(ErrorKind::Network, "fail".to_string()))
-            } else {
-                Ok("success")
-            }
-        }).await;
-        
+
+        let result = policy
+            .execute(|| async {
+                let attempt = attempts_clone.fetch_add(1, Ordering::SeqCst);
+                if attempt < 2 {
+                    Err(GatewayError::new(ErrorKind::Network, "fail".to_string()))
+                } else {
+                    Ok("success")
+                }
+            })
+            .await;
+
         assert_eq!(result.unwrap(), "success");
         assert_eq!(attempts.load(Ordering::SeqCst), 3);
     }
@@ -102,12 +105,17 @@ mod tests {
         let policy = RetryPolicy::new(3, Duration::from_millis(10), Duration::from_millis(100));
         let attempts = Arc::new(AtomicUsize::new(0));
         let attempts_clone = attempts.clone();
-        
-        let result: Result<String, _> = policy.execute(|| async {
-            attempts_clone.fetch_add(1, Ordering::SeqCst);
-            Err(GatewayError::new(ErrorKind::InvalidRequest, "bad request".to_string()))
-        }).await;
-        
+
+        let result: Result<String, _> = policy
+            .execute(|| async {
+                attempts_clone.fetch_add(1, Ordering::SeqCst);
+                Err(GatewayError::new(
+                    ErrorKind::InvalidRequest,
+                    "bad request".to_string(),
+                ))
+            })
+            .await;
+
         assert!(result.is_err());
         assert_eq!(attempts.load(Ordering::SeqCst), 1); // No retries
     }

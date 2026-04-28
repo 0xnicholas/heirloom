@@ -74,7 +74,7 @@ impl SecretString {
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }
-    
+
     pub fn expose(&self) -> &str {
         &self.0
     }
@@ -148,45 +148,48 @@ impl AppConfig {
         let config: AppConfig = toml::from_str(&content)?;
         Ok(config)
     }
-    
+
     pub fn from_file_with_env(path: &Path) -> anyhow::Result<Self> {
         let mut config = Self::from_file(path)?;
-        
+
         if let Ok(port) = std::env::var("HEIRLOOM_PORT") {
             config.server.port = port.parse()?;
         }
         if let Ok(level) = std::env::var("HEIRLOOM_LOG_LEVEL") {
             config.server.log_level = level;
         }
-        
+
         Ok(config)
     }
-    
+
     pub fn validate(&self) -> Result<(), ConfigError> {
-        let enabled_providers: Vec<&String> = self.providers.iter()
+        let enabled_providers: Vec<&String> = self
+            .providers
+            .iter()
             .filter(|(_, p)| p.enabled)
             .map(|(n, _)| n)
             .collect();
-        
+
         if enabled_providers.is_empty() {
             return Err(ConfigError::NoProviders);
         }
-        
+
         for (name, provider) in &self.providers {
             if !provider.enabled {
                 continue;
             }
-            
+
             if provider.keys.is_empty() {
                 return Err(ConfigError::NoKeys(name.clone()));
             }
-            
+
             if !provider.base_url.is_empty() {
-                Url::parse(&provider.base_url)
-                    .map_err(|_| ConfigError::InvalidUrl(name.clone(), provider.base_url.clone()))?;
+                Url::parse(&provider.base_url).map_err(|_| {
+                    ConfigError::InvalidUrl(name.clone(), provider.base_url.clone())
+                })?;
             }
         }
-        
+
         for chain in &self.fallbacks {
             if !enabled_providers.contains(&&chain.primary) {
                 return Err(ConfigError::UnknownFallbackProvider(chain.primary.clone()));
@@ -197,47 +200,74 @@ impl AppConfig {
                 }
             }
         }
-        
+
         // Validate MCP config
         if let Some(mcp) = &self.mcp {
             for client in &mcp.clients {
                 match client.transport.as_str() {
                     "stdio" => {
                         if client.command.is_none() {
-                            return Err(ConfigError::InvalidMcpConfig(
-                                format!("Client '{}' missing command for stdio transport", client.name)
-                            ));
+                            return Err(ConfigError::InvalidMcpConfig(format!(
+                                "Client '{}' missing command for stdio transport",
+                                client.name
+                            )));
                         }
                     }
                     "sse" => {
                         if client.url.is_none() {
-                            return Err(ConfigError::InvalidMcpConfig(
-                                format!("Client '{}' missing url for SSE transport", client.name)
-                            ));
+                            return Err(ConfigError::InvalidMcpConfig(format!(
+                                "Client '{}' missing url for SSE transport",
+                                client.name
+                            )));
                         }
                     }
-                    _ => return Err(ConfigError::InvalidMcpConfig(
-                        format!("Client '{}' has invalid transport: {}", client.name, client.transport)
-                    )),
+                    _ => {
+                        return Err(ConfigError::InvalidMcpConfig(format!(
+                            "Client '{}' has invalid transport: {}",
+                            client.name, client.transport
+                        )))
+                    }
                 }
             }
         }
-        
+
         Ok(())
     }
 }
 
-fn default_host() -> String { "0.0.0.0".to_string() }
-fn default_port() -> u16 { 8080 }
-fn default_log_level() -> String { "info".to_string() }
-fn default_base_url() -> String { "".to_string() }
-fn default_max_retries() -> u32 { 3 }
-fn default_retry_backoff_initial_ms() -> u64 { 500 }
-fn default_retry_backoff_max_ms() -> u64 { 5000 }
-fn default_request_timeout_seconds() -> u64 { 30 }
-fn default_queue_concurrency() -> usize { 100 }
-fn default_queue_buffer_size() -> usize { 1000 }
-fn default_weight() -> f64 { 1.0 }
+fn default_host() -> String {
+    "0.0.0.0".to_string()
+}
+fn default_port() -> u16 {
+    8080
+}
+fn default_log_level() -> String {
+    "info".to_string()
+}
+fn default_base_url() -> String {
+    "".to_string()
+}
+fn default_max_retries() -> u32 {
+    3
+}
+fn default_retry_backoff_initial_ms() -> u64 {
+    500
+}
+fn default_retry_backoff_max_ms() -> u64 {
+    5000
+}
+fn default_request_timeout_seconds() -> u64 {
+    30
+}
+fn default_queue_concurrency() -> usize {
+    100
+}
+fn default_queue_buffer_size() -> usize {
+    1000
+}
+fn default_weight() -> f64 {
+    1.0
+}
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct RateLimitConfig {
     #[serde(default)]
@@ -248,11 +278,21 @@ pub struct RateLimitConfig {
     pub burst_size: Option<u32>,
 }
 
-fn default_max_body_size() -> usize { 10 * 1024 * 1024 } // 10MB
-fn default_max_agent_depth() -> usize { 5 }
-fn default_tool_execution_timeout_seconds() -> u64 { 30 }
-fn default_auto_execute() -> bool { false }
-fn default_stdio_concurrency() -> usize { 1 }
+fn default_max_body_size() -> usize {
+    10 * 1024 * 1024
+} // 10MB
+fn default_max_agent_depth() -> usize {
+    5
+}
+fn default_tool_execution_timeout_seconds() -> u64 {
+    30
+}
+fn default_auto_execute() -> bool {
+    false
+}
+fn default_stdio_concurrency() -> usize {
+    1
+}
 
 #[cfg(test)]
 mod tests {
@@ -320,7 +360,7 @@ keys = [{ value = "test", weight = 1.0 }]
 "#;
         let tmpfile = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmpfile.path(), toml).unwrap();
-        
+
         let config = AppConfig::from_file(tmpfile.path()).unwrap();
         assert_eq!(config.server.port, 9090);
     }
@@ -338,7 +378,7 @@ keys = [{ value = "test", weight = 1.0 }]
 "#;
         let tmpfile = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmpfile.path(), toml).unwrap();
-        
+
         std::env::set_var("HEIRLOOM_PORT", "9999");
         let config = AppConfig::from_file_with_env(tmpfile.path()).unwrap();
         assert_eq!(config.server.port, 9999);

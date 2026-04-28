@@ -20,19 +20,19 @@ impl RequestContext {
             fallback_index: AtomicU32::new(0),
         }
     }
-    
+
     pub fn increment_retry(&self) -> u32 {
         self.retry_count.fetch_add(1, Ordering::SeqCst)
     }
-    
+
     pub fn get_retry_count(&self) -> u32 {
         self.retry_count.load(Ordering::SeqCst)
     }
-    
+
     pub fn set_fallback_index(&self, index: u32) {
         self.fallback_index.store(index, Ordering::SeqCst);
     }
-    
+
     pub fn get_fallback_index(&self) -> u32 {
         self.fallback_index.load(Ordering::SeqCst)
     }

@@ -11,7 +11,7 @@ impl FallbackChain {
     pub fn new(primary: ProviderRef, fallbacks: Vec<ProviderRef>) -> Self {
         Self { primary, fallbacks }
     }
-    
+
     pub async fn execute_chat_completion(
         &self,
         request: ChatCompletionRequest,
@@ -25,7 +25,7 @@ impl FallbackChain {
                 }
             }
         }
-        
+
         // Try fallbacks in order
         for (index, fallback) in self.fallbacks.iter().enumerate() {
             match fallback.chat_completion(request.clone()).await {
@@ -37,13 +37,13 @@ impl FallbackChain {
                 }
             }
         }
-        
+
         Err(GatewayError::new(
             crate::error::ErrorKind::NoProviderAvailable,
-            "All providers in fallback chain failed"
+            "All providers in fallback chain failed",
         ))
     }
-    
+
     pub async fn execute_embedding(
         &self,
         request: EmbeddingRequest,
@@ -56,7 +56,7 @@ impl FallbackChain {
                 }
             }
         }
-        
+
         for (index, fallback) in self.fallbacks.iter().enumerate() {
             match fallback.embedding(request.clone()).await {
                 Ok(response) => return Ok(response),
@@ -67,13 +67,13 @@ impl FallbackChain {
                 }
             }
         }
-        
+
         Err(GatewayError::new(
             crate::error::ErrorKind::NoProviderAvailable,
-            "All providers in fallback chain failed"
+            "All providers in fallback chain failed",
         ))
     }
-    
+
     fn should_fallback(error: &GatewayError) -> bool {
         // Fallback on retryable errors
         error.is_retryable()
@@ -89,10 +89,10 @@ mod tests {
     fn test_should_fallback_on_retryable() {
         let err = GatewayError::new(ErrorKind::Network, "timeout".to_string());
         assert!(FallbackChain::should_fallback(&err));
-        
+
         let err = GatewayError::new(ErrorKind::RateLimited, "too many requests".to_string());
         assert!(FallbackChain::should_fallback(&err));
-        
+
         let err = GatewayError::new(ErrorKind::InvalidRequest, "bad request".to_string());
         assert!(!FallbackChain::should_fallback(&err));
     }
