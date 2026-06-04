@@ -49,8 +49,8 @@ export function validateType(
     });
   }
 
-  // Info: PascalCase naming convention
-  if (type.name[0] !== type.name[0].toUpperCase()) {
+  // Info: PascalCase naming convention (skip empty names)
+  if (type.name.length > 0 && type.name[0] !== type.name[0].toUpperCase()) {
     diagnostics.push({
       severity: 'info',
       message: `Type name "${type.name}" should use PascalCase by convention`,
