@@ -779,6 +779,7 @@ export function validateType(
   //  This check is a no-op for the current domain model and is omitted.)
 
   // Warning: orphan nodes (states with no incoming edges, excluding the initial state)
+  const allStates = new Set(type.stateMachine.flatMap(t => [t.from, t.to]));
   const initialStates = new Set(type.stateMachine.map(t => t.from).filter(
     from => !type.stateMachine.some(t => t.to === from)
   ));
