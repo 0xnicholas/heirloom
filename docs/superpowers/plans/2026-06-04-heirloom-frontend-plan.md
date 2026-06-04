@@ -2459,6 +2459,7 @@ export function TypeList({ types, selected, onSelect, onNew }: TypeListProps) {
 `workshop/src/components/schema/FieldTable.tsx`:
 
 ```typescript
+import { useState, useCallback } from 'react';
 import type { Field, FieldType } from '@/lib/types';
 import { FIELD_TYPES } from '@/lib/constants';
 
@@ -2624,7 +2625,7 @@ export function AbilitiesMatrix({ selected, onChange }: AbilitiesMatrixProps) {
 `workshop/src/components/schema/StateMachineEditor.tsx`:
 
 ```typescript
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -2692,6 +2693,13 @@ export function StateMachineEditor({ transitions, onChange }: StateMachineEditor
   const { nodes: initialNodes, edges: initialEdges } = transitionsToFlow(transitions);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Re-sync when transitions prop changes (safety net; key prop handles remount, this handles in-place updates)
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = transitionsToFlow(transitions);
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [transitions, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -2920,6 +2928,7 @@ export function TypeEditor({ type, allTypes, onSave, isNew }: TypeEditorProps) {
         {/* State Machine + Abilities side by side */}
         <div className="grid grid-cols-2 gap-6">
           <StateMachineEditor
+            key={draft.name}
             transitions={draft.stateMachine}
             onChange={stateMachine => update({ stateMachine })}
           />
