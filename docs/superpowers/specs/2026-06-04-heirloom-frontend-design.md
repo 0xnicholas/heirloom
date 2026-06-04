@@ -46,7 +46,7 @@
 
 - 迷你 Monaco JSON DSL 编辑器
 - 结果展示区（编辑器右侧，利用宽屏）
-- 独立查询历史（localStorage 持久化，最近 5 条缩略预览）
+- 独立 Recent Runs 历史（localStorage 持久化，最近 5 条缩略预览）
 
 **上下文感知**：从 Schema Tab 打开时，如果正在编辑某个 Type，Console 中 `from` 自动预设为该 Type 名。
 
@@ -145,7 +145,7 @@ Customer ──[owns]───▶ Contract (Ownership)      [✕]
   - 聚合操作符：`$count`、`$sum`、`$avg`、`$max`、`$min`
 - **实时校验**：基于 SchemaRegistrySnapshot，即时红色波浪线标注：Type 不存在、字段拼写错误、路径语法错误
 - **代码片段**：预设模板——基础查询、遍历查询、聚合查询、语义搜索
-- Run / Save / Share 按钮
+- Run / Save 按钮
 
 #### 3.2.3 右侧 Results 面板
 
@@ -225,9 +225,9 @@ Validate (业务规则):
 
 Execute:
 ┌──────────────────────────────────────────┐
-│ UPDATE inventory SET                     │
-│   safety_stock = {{params.safety_stock}} │
-│ WHERE rid = {{target.rid}}               │
+│ (Action 执行 DSL — 格式待 Phase 2        │
+│  实现时确定。编辑器提供语法高亮和基本     │
+│  校验的代码区域)                          │
 └──────────────────────────────────────────┘
 
 ⚠ Live Validation:  ✓ requires mutates exists on Inventory
@@ -248,7 +248,7 @@ Execute:
 
 ### 4.1 SchemaRegistrySnapshot
 
-应用启动时从 API 全量加载到内存（`Map<name, { fields, abilities, stateMachine, relationships }>`）。每次成功 Save 后乐观更新。所有校验器从这个单一快照读取——保证跨 Tab 一致性。
+应用启动时通过 `listTypes()` 全量加载到内存（返回完整 Type 定义：字段、Abilities、状态机、关系）。每次成功 Save 后乐观更新。所有校验器从这个单一快照读取——保证跨 Tab 一致性。
 
 ### 4.2 校验器
 
@@ -317,7 +317,7 @@ Execute:
 
 ### 5.3 React 19 特性利用
 
-- `use()` hook：处理 TanStack Query 的 promise 挂起，替代部分 Suspense 模版
+- TanStack Query 内置 Suspense 支持（`suspense: true` 选项），用于声明式加载状态管理
 - `useOptimistic`：Save 操作的即时 UI 反馈
 - `useActionState`：表单提交的 pending/error 状态管理
 
@@ -361,7 +361,7 @@ interface ApiClient {
 ### 6.2 Mock 层（MSW v2）
 
 - 使用 MSW 在浏览器 Service Worker 层拦截 fetch 请求
-- Mock 数据预设：4-5 个 Resource Type、10+ 个实例、3 个 Role、5 个 Action
+- Mock 数据预设：4-5 个 Resource Type（含完整字段、状态机、Abilities、关系）、10+ 个符合 Type 定义的实例、3 个 Role、5 个 Action
 - 数据持久化到 localStorage，刷新不丢失
 - 通过环境变量 `VITE_API_MODE=mock|real` 切换适配器
 
