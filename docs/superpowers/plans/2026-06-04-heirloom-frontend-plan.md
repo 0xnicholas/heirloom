@@ -803,6 +803,14 @@ export function validateType(
     }
   }
 
+  // Warning: no abilities declared
+  if (type.abilities.length === 0) {
+    diagnostics.push({
+      severity: 'warning',
+      message: `Type "${type.name}" has no abilities declared — it cannot be queried or modified`,
+    });
+  }
+
   // Info: PascalCase naming convention
   if (type.name[0] !== type.name[0].toUpperCase()) {
     diagnostics.push({
@@ -1243,6 +1251,27 @@ export function validateAction(
     }
   }
 
+  // Check parameters: type match (error) and field existence (warning)
+  const typeFieldNames = new Set(targetType.fields.map(f => f.name));
+  const typeFieldMap = new Map(targetType.fields.map(f => [f.name, f.type]));
+
+  for (const param of action.parameters) {
+    if (typeFieldNames.has(param.name)) {
+      const expectedType = typeFieldMap.get(param.name);
+      if (expectedType && expectedType !== param.type) {
+        diagnostics.push({
+          severity: 'error',
+          message: `Parameter "${param.name}" type mismatch: action declares ${param.type}, but field is ${expectedType}`,
+        });
+      }
+    } else {
+      diagnostics.push({
+        severity: 'warning',
+        message: `Parameter "${param.name}" is not a field on type "${action.targetType}"`,
+      });
+    }
+  }
+
   return diagnostics;
 }
 ```
@@ -1253,14 +1282,14 @@ export function validateAction(
 cd workshop && npx vitest run src/lib/validation/action-validator.test.ts
 ```
 
-Expected: All tests pass.
+Expected: 6 tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/nicholasl/Documents/build-whatever/heirloom
 git add workshop/src/lib/validation/action-validator.ts workshop/src/lib/validation/action-validator.test.ts
-git commit -m "feat: Action validator — target type, required ability, gate state"
+git commit -m "feat: Action validator — target type, required ability, gate state, parameter validation"
 ```
 
 ---
@@ -1829,14 +1858,25 @@ export function NavBar() {
 `workshop/src/components/layout/AppLayout.tsx`:
 
 ```typescript
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, createContext, useContext } from 'react';
 import { Outlet } from 'react-router-dom';
 import { NavBar } from './NavBar';
 import { QueryConsole } from './QueryConsole';
 
+// Context for current editor selection (used by QueryConsole for defaultFrom)
+export const ConsoleContext = createContext<{
+  activeType: string | null;
+  setActiveType: (t: string | null) => void;
+}>({ activeType: null, setActiveType: () => {} });
+
+export function useConsoleContext() {
+  return useContext(ConsoleContext);
+}
+
 export function AppLayout() {
   const [consoleOpen, setConsoleOpen] = useState(false);
-  const [consoleHeight, setConsoleHeight] = useState(50); // percentage
+  const [consoleHeight, setConsoleHeight] = useState(50);
+  const [activeType, setActiveType] = useState<string | null>(null);
 
   // Global shortcut: Ctrl+` to toggle Query Console
   useEffect(() => {
@@ -1853,6 +1893,7 @@ export function AppLayout() {
   const toggleConsole = useCallback(() => setConsoleOpen(prev => !prev), []);
 
   return (
+    <ConsoleContext.Provider value={{ activeType, setActiveType }}>
     <div className="flex flex-col h-screen bg-gray-50">
       <NavBar />
       <main className="flex-1 overflow-hidden" style={{ height: consoleOpen ? `${100 - consoleHeight}%` : '100%' }}>
@@ -1863,6 +1904,7 @@ export function AppLayout() {
           height={consoleHeight}
           onHeightChange={setConsoleHeight}
           onClose={() => setConsoleOpen(false)}
+          defaultFrom={activeType ?? undefined}
         />
       )}
       {/* Bottom status bar */}
@@ -1873,26 +1915,57 @@ export function AppLayout() {
         <span>Ctrl+`</span>
       </div>
     </div>
+    </ConsoleContext.Provider>
   );
 }
 ```
 
-- [ ] **Step 5: 实现 QueryConsole（骨架）**
+- [ ] **Step 5: 实现 QueryConsole（带 Monaco + Recent Runs + context-aware defaultFrom）**
 
 `workshop/src/components/layout/QueryConsole.tsx`:
 
 ```typescript
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Editor, { type OnMount } from '@monaco-editor/react';
+import type { QueryDSL, QueryResult } from '@/lib/types';
+
+// Simple tabular mini-results renderer (no TanStack Table dependency for Console)
+function MiniResults({ result }: { result: QueryResult }) {
+  if (!result.rows.length) return <p className="text-xs text-gray-400 p-4">No results</p>;
+  const cols = Object.keys(result.rows[0]).filter(k => k !== '_meta');
+  return (
+    <div className="overflow-auto p-2">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b">
+            {cols.map(c => <th key={c} className="text-left py-1 px-2 font-medium text-gray-600">{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {result.rows.map((row, i) => (
+            <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+              {cols.map(c => <td key={c} className="py-1 px-2 text-gray-700">{String(row[c] ?? '')}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-xs text-gray-400 mt-1">{result.total} rows · {result.meta.query_ms}ms</p>
+    </div>
+  );
+}
 
 interface QueryConsoleProps {
   height: number;
   onHeightChange: (h: number) => void;
   onClose: () => void;
+  defaultFrom?: string;
 }
 
-export function QueryConsole({ height, onHeightChange, onClose }: QueryConsoleProps) {
+export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: QueryConsoleProps) {
   const [dragging, setDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<QueryResult | null>(null);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
   const onMouseDown = useCallback(() => setDragging(true), []);
   const onMouseUp = useCallback(() => setDragging(false), []);
@@ -1912,9 +1985,52 @@ export function QueryConsole({ height, onHeightChange, onClose }: QueryConsolePr
     };
   }, [dragging, onHeightChange, onMouseUp]);
 
+  // Ctrl+Enter to run
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Enter' && editorRef.current) {
+        e.preventDefault();
+        handleRun();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Persist recent runs to localStorage
+  const recentRunsKey = 'heirloom_console_recent_runs';
+  const getRecentRuns = (): string[] => {
+    try { return JSON.parse(localStorage.getItem(recentRunsKey) || '[]'); } catch { return []; }
+  };
+  const saveRecentRun = (query: string) => {
+    const runs = [query, ...getRecentRuns().filter(r => r !== query)].slice(0, 5);
+    localStorage.setItem(recentRunsKey, JSON.stringify(runs));
+  };
+
+  const handleRun = async () => {
+    const code = editorRef.current?.getValue();
+    if (!code) return;
+    try {
+      const query: QueryDSL = JSON.parse(code);
+      const res = await fetch('/api/query/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(query),
+      });
+      const data: QueryResult = await res.json();
+      setResult(data);
+      saveRecentRun(code);
+    } catch {
+      setResult({ rows: [], total: 0, meta: { query_ms: 0, plan: 'parse error' } });
+    }
+  };
+
+  const defaultCode = defaultFrom
+    ? JSON.stringify({ from: defaultFrom, select: [], limit: 10 }, null, 2)
+    : '';
+
   return (
     <div ref={containerRef} className="border-t border-gray-300 bg-white" style={{ height: `${height}%` }}>
-      {/* Resize handle */}
       <div
         className="h-1.5 bg-gray-200 hover:bg-indigo-400 cursor-row-resize transition-colors"
         onMouseDown={onMouseDown}
@@ -1924,16 +2040,27 @@ export function QueryConsole({ height, onHeightChange, onClose }: QueryConsolePr
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm">&times;</button>
       </div>
       <div className="flex h-[calc(100%-2rem)]">
-        <div className="flex-1 border-r border-gray-100 p-2">
-          <textarea
-            className="w-full h-full resize-none font-mono text-sm p-2 border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
-            placeholder='{ "from": "Customer", "select": ["name"], "limit": 10 }'
-            defaultValue=""
+        <div className="flex-1 border-r border-gray-100">
+          <Editor
+            height="100%"
+            defaultLanguage="json"
+            defaultValue={defaultCode}
+            onMount={editor => { editorRef.current = editor; }}
+            options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: 'on', scrollBeyondLastLine: false }}
           />
         </div>
-        <div className="flex-1 p-2 overflow-auto">
-          <p className="text-xs text-gray-400">Run query (Ctrl+Enter) to see results</p>
+        <div className="flex-1 overflow-auto">
+          {result ? <MiniResults result={result} /> : <p className="text-xs text-gray-400 p-4">Run query (Ctrl+Enter) to see results</p>}
         </div>
+      </div>
+      {/* Recent Runs bar */}
+      <div className="flex items-center gap-1 px-3 py-1 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 overflow-x-auto">
+        <span className="shrink-0">Recent:</span>
+        {getRecentRuns().map((q, i) => (
+          <button key={i} onClick={() => editorRef.current?.setValue(q)} className="shrink-0 px-1.5 py-0.5 bg-white border rounded hover:bg-gray-100 font-mono truncate max-w-[200px]">
+            {q.slice(0, 60)}{q.length > 60 ? '...' : ''}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -2660,14 +2787,15 @@ export function RelationshipList({ relationships, typeName, allTypes, onChange }
 
 ```typescript
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { ResourceType, Ability } from '@/lib/types';
 import { FieldTable } from './FieldTable';
 import { StateMachineEditor } from './StateMachineEditor';
 import { AbilitiesMatrix } from './AbilitiesMatrix';
 import { RelationshipList } from './RelationshipList';
 import { ValidationBar } from '@/components/shared/ValidationBar';
-import { validateType } from '@/lib/validation/type-validator';
-import { createSnapshot } from '@/lib/validation/registry-snapshot';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { useRegistrySnapshot, useDebouncedTypeValidation } from '@/hooks/useValidation';
 
 interface TypeEditorProps {
   type: ResourceType | null;
@@ -2679,11 +2807,24 @@ interface TypeEditorProps {
 export function TypeEditor({ type, allTypes, onSave, isNew }: TypeEditorProps) {
   const [draft, setDraft] = useState<ResourceType | null>(type);
   const [dirty, setDirty] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
   useEffect(() => {
     setDraft(type);
     setDirty(false);
   }, [type]);
+
+  // Warn on browser tab close with unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   if (!draft) {
     return (
@@ -2693,8 +2834,8 @@ export function TypeEditor({ type, allTypes, onSave, isNew }: TypeEditorProps) {
     );
   }
 
-  const snapshot = createSnapshot(allTypes, [], []);
-  const diagnostics = validateType(draft, snapshot);
+  const snapshot = useRegistrySnapshot(allTypes, []);
+  const diagnostics = useDebouncedTypeValidation(draft, snapshot);
 
   const handleSave = () => {
     onSave(draft);
@@ -3008,7 +3149,7 @@ export function useSchemaRegistry() {
 `useValidation.ts`:
 
 ```typescript
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { createSnapshot } from '@/lib/validation/registry-snapshot';
 import { validateType } from '@/lib/validation/type-validator';
 import { validateAction } from '@/lib/validation/action-validator';
@@ -3018,19 +3159,56 @@ export function useRegistrySnapshot(types: ResourceType[], actions: Action[]) {
   return useMemo(() => createSnapshot(types, actions, []), [types, actions]);
 }
 
-export function useTypeValidation(type: ResourceType | null, snapshot: SchemaRegistrySnapshot): Diagnostic[] {
-  return useMemo(() => {
-    if (!type) return [];
-    return validateType(type, snapshot);
-  }, [type, snapshot]);
+// Debounced validation for type editor (300ms as per spec §4.2)
+export function useDebouncedTypeValidation(
+  type: ResourceType | null,
+  snapshot: SchemaRegistrySnapshot,
+  delay = 300,
+): Diagnostic[] {
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (!type) {
+        setDiagnostics([]);
+      } else {
+        setDiagnostics(validateType(type, snapshot));
+      }
+    }, delay);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [type, snapshot, delay]);
+
+  return diagnostics;
 }
 
-export function useActionValidation(action: Action | null, snapshot: SchemaRegistrySnapshot): Diagnostic[] {
-  return useMemo(() => {
-    if (!action) return [];
-    return validateAction(action, snapshot);
-  }, [action, snapshot]);
+// Debounced validation for action editor (300ms as per spec §4.2)
+export function useDebouncedActionValidation(
+  action: Action | null,
+  snapshot: SchemaRegistrySnapshot,
+  delay = 300,
+): Diagnostic[] {
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (!action) {
+        setDiagnostics([]);
+      } else {
+        setDiagnostics(validateAction(action, snapshot));
+      }
+    }, delay);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [action, snapshot, delay]);
+
+  return diagnostics;
 }
+
+// For QueryValidator: debounce is handled inside Monaco's onChange callback (500ms).
+// The QueryEditor component should wrap validateQuery() in a setTimeout on each onChange event.
 ```
 
 - [ ] **Step 2: 验证无 TS 错误**
@@ -3063,11 +3241,12 @@ git commit -m "feat: TanStack Query hooks — useSchemaRegistry, useQueries, use
 `SchemaPage.tsx`:
 
 ```typescript
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TypeList } from '@/components/schema/TypeList';
 import { TypeEditor } from '@/components/schema/TypeEditor';
 import { useSchemaRegistry } from '@/hooks/useSchemaRegistry';
+import { useConsoleContext } from '@/components/layout/AppLayout';
 import type { ResourceType } from '@/lib/types';
 
 export function SchemaPage() {
@@ -3076,9 +3255,15 @@ export function SchemaPage() {
   const { typesQuery, saveMutation, deleteMutation } = useSchemaRegistry();
   const [selectedName, setSelectedName] = useState<string | null>(typeName || null);
   const [isNew, setIsNew] = useState(false);
+  const { setActiveType } = useConsoleContext();
 
   const types = typesQuery.data || [];
   const selectedType = types.find(t => t.name === selectedName) || null;
+
+  // Keep ConsoleContext in sync (for QueryConsole defaultFrom)
+  useEffect(() => {
+    setActiveType(selectedName);
+  }, [selectedName, setActiveType]);
 
   const handleSelect = (name: string) => {
     setSelectedName(name);
