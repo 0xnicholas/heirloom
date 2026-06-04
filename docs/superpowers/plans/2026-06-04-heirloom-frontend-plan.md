@@ -3733,9 +3733,185 @@ export function SchemaPage() {
 }
 ```
 
-`QueryPage.tsx` — 左侧 QueryHistory + 右侧 QueryEditor（上部40%）+ QueryResults（下部60%），可拖拽分割条。约60行。
+`QueryPage.tsx`:
 
-`SecurityPage.tsx` — 左侧双列表（Roles + Actions 折叠组）+ 右侧 RoleEditor 或 ActionEditor（根据左侧选中类型）。约60行。
+```typescript
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { QueryHistory } from '@/components/query/QueryHistory';
+import { QueryEditor } from '@/components/query/QueryEditor';
+import { QueryResults } from '@/components/query/QueryResults';
+import { useQueries } from '@/hooks/useQueries';
+import { useSchemaRegistry } from '@/hooks/useSchemaRegistry';
+import { useRegistrySnapshot } from '@/hooks/useValidation';
+import type { SavedQuery, QueryDSL, QueryResult, Diagnostic } from '@/lib/types';
+import { QUERY_TEMPLATES } from '@/lib/constants';
+
+export function QueryPage() {
+  const { typesQuery } = useSchemaRegistry();
+  const { queriesQuery, executeMutation, saveMutation, deleteMutation } = useQueries();
+  const types = typesQuery.data || [];
+  const snapshot = useRegistrySnapshot(types, []);
+
+  const [editorValue, setEditorValue] = useState(JSON.stringify({ from: 'Customer', select: ['name'], limit: 10 }, null, 2));
+  const [result, setResult] = useState<QueryResult | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [splitPercent, setSplitPercent] = useState(40);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+
+  const handleRun = async () => {
+    try {
+      const query: QueryDSL = JSON.parse(editorValue);
+      const res = await executeMutation.mutateAsync(query);
+      setResult(res);
+    } catch { /* handled by Monaco diagnostics */ }
+  };
+
+  const handleSelectQuery = (q: SavedQuery) => {
+    setEditorValue(JSON.stringify(q.query, null, 2));
+    setResult(null);
+  };
+
+  const handleSaveQuery = async () => {
+    const id = crypto.randomUUID();
+    const name = prompt('Query name:') || `Query ${new Date().toLocaleTimeString()}`;
+    await saveMutation.mutateAsync({ id, name, query: JSON.parse(editorValue), createdAt: new Date().toISOString(), favorited: false });
+  };
+
+  // Resizable divider
+  const onMouseDown = useCallback(() => { draggingRef.current = true; }, []);
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!draggingRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      setSplitPercent(Math.round(((e.clientY - rect.top) / rect.height) * 100));
+    };
+    const onMouseUp = () => { draggingRef.current = false; };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+  }, []);
+
+  return (
+    <div className="flex h-full">
+      <div className="w-[260px] border-r border-gray-200 bg-white overflow-auto">
+        <QueryHistory queries={queriesQuery.data || []} onSelect={handleSelectQuery}
+          onDelete={id => deleteMutation.mutate(id)} onToggleFavorite={id => { /* TODO: optimistic update on favorited flag */ }} />
+      </div>
+      <div ref={containerRef} className="flex-1 flex flex-col">
+        {/* Toolbar */}
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b bg-white">
+          <button onClick={handleRun} className="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700">Run</button>
+          <button onClick={handleSaveQuery} className="px-3 py-1 text-sm text-gray-600 border rounded hover:bg-gray-50">Save</button>
+          <span className="ml-2 text-xs">Snippets:</span>
+          {(['basic','traverse','aggregate','search'] as const).map(k => (
+            <button key={k} onClick={() => setEditorValue(JSON.stringify(QUERY_TEMPLATES[k], null, 2))}
+              className="px-2 py-0.5 text-xs text-gray-500 border rounded hover:bg-gray-100">{k}</button>
+          ))}
+          {diagnostics.length > 0 && <span className="ml-auto text-xs text-red-500">{diagnostics.filter(d=>d.severity==='error').length} errors</span>}
+        </div>
+        {/* Editor (top, percentage-based height) */}
+        <div style={{ height: `${splitPercent}%` }}>
+          <QueryEditor value={editorValue} onChange={setEditorValue} snapshot={snapshot} onDiagnostics={setDiagnostics} />
+        </div>
+        {/* Draggable divider */}
+        <div className="h-1 bg-gray-200 hover:bg-indigo-400 cursor-row-resize transition-colors" onMouseDown={onMouseDown} />
+        {/* Results (bottom) */}
+        <div className="flex-1 overflow-hidden">
+          <QueryResults result={result} />
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+`SecurityPage.tsx`:
+
+```typescript
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { RoleList } from '@/components/security/RoleList';
+import { ActionList } from '@/components/security/ActionList';
+import { RoleEditor } from '@/components/security/RoleEditor';
+import { ActionEditor } from '@/components/security/ActionEditor';
+import { useSecurity } from '@/hooks/useSecurity';
+import { useSchemaRegistry } from '@/hooks/useSchemaRegistry';
+import type { Role, Action } from '@/lib/types';
+
+export function SecurityPage() {
+  const { roleName, actionName } = useParams<{ roleName?: string; actionName?: string }>();
+  const navigate = useNavigate();
+  const { typesQuery } = useSchemaRegistry();
+  const { rolesQuery, actionsQuery, saveRoleMutation, saveActionMutation } = useSecurity();
+  const types = typesQuery.data || [];
+  const roles = rolesQuery.data || [];
+  const actions = actionsQuery.data || [];
+
+  // Determine which editor to show
+  const activeRole = roleName ? roles.find(r => r.name === roleName) || null : null;
+  const activeAction = actionName ? actions.find(a => a.name === actionName) || null : null;
+  const [isNewRole, setIsNewRole] = useState(false);
+  const [isNewAction, setIsNewAction] = useState(false);
+
+  const handleSelectRole = (name: string) => {
+    setIsNewRole(false); setIsNewAction(false);
+    navigate(`/security/roles/${name}`);
+  };
+  const handleNewRole = () => {
+    setIsNewRole(true); setIsNewAction(false);
+    navigate('/security');
+  };
+  const handleSaveRole = (role: Role) => {
+    saveRoleMutation.mutate({ role, isNew: isNewRole });
+    setIsNewRole(false);
+    navigate(`/security/roles/${role.name}`);
+  };
+
+  const handleSelectAction = (name: string) => {
+    setIsNewRole(false); setIsNewAction(false);
+    navigate(`/security/actions/${name}`);
+  };
+  const handleNewAction = () => {
+    setIsNewRole(false); setIsNewAction(true);
+    navigate('/security');
+  };
+  const handleSaveAction = (action: Action) => {
+    saveActionMutation.mutate({ action, isNew: isNewAction });
+    setIsNewAction(false);
+    navigate(`/security/actions/${action.name}`);
+  };
+
+  const newRoleTemplate: Role = { name: '', scope: 'Type', targets: [], capabilities: [], actors: [] };
+  const newActionTemplate: Action = { name: '', targetType: types[0]?.name || '', requires: types[0]?.abilities[0] || 'query', parameters: [], validateRules: [], executeTemplate: '' };
+
+  return (
+    <div className="flex h-full">
+      {/* Left sidebar: two collapsible sections */}
+      <div className="w-[260px] border-r border-gray-200 bg-white overflow-auto">
+        <details open>
+          <summary className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer">Roles</summary>
+          <RoleList roles={roles} selected={activeRole?.name || null} onSelect={handleSelectRole} onNew={handleNewRole} />
+        </details>
+        <details>
+          <summary className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase cursor-pointer border-t">Actions</summary>
+          <ActionList actions={actions} selected={activeAction?.name || null} onSelect={handleSelectAction} onNew={handleNewAction} />
+        </details>
+      </div>
+      {/* Right editor: Role or Action depending on context */}
+      <div className="flex-1 overflow-auto">
+        {activeRole || isNewRole ? (
+          <RoleEditor role={isNewRole ? newRoleTemplate : activeRole} allTypes={types} onSave={handleSaveRole} isNew={isNewRole} />
+        ) : activeAction || isNewAction ? (
+          <ActionEditor action={isNewAction ? newActionTemplate : activeAction} allTypes={types} onSave={handleSaveAction} isNew={isNewAction} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-400">Select a role or action to edit</div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
 
 - [ ] **Step 2: 验证无 TS 错误**
 
