@@ -2481,6 +2481,20 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
     onChange([...fields, { name: '', type: 'string', required: false }]);
   };
 
+  // Drag-to-reorder
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const handleDragStart = (index: number) => setDragIndex(index);
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === index) return;
+    const reordered = [...fields];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(index, 0, moved);
+    onChange(reordered);
+    setDragIndex(index);
+  };
+  const handleDragEnd = () => setDragIndex(null);
+
   return (
     <div>
       <h4 className="text-sm font-semibold text-gray-700 mb-2">Fields</h4>
@@ -2495,7 +2509,9 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
         </thead>
         <tbody>
           {fields.map((field, i) => (
-            <tr key={i} className="border-t border-gray-100">
+            <tr key={i} className="border-t border-gray-100"
+              draggable onDragStart={() => handleDragStart(i)} onDragOver={e => handleDragOver(e, i)} onDragEnd={handleDragEnd}
+              style={{ cursor: 'grab', opacity: dragIndex === i ? 0.5 : 1 }}>
               <td className="py-1.5">
                 <input
                   type="text"
@@ -2543,9 +2559,6 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
       >
         + Add Field
       </button>
-      <p className="text-xs text-gray-400 mt-2">
-        <strong>Drag-to-reorder:</strong> Add HTML5 drag handlers (<code>draggable</code>, <code>onDragStart</code>, <code>onDragOver</code>, <code>onDrop</code>) to table rows for field reordering.
-      </p>
     </div>
   );
 }
@@ -3600,11 +3613,127 @@ export function useSchemaRegistry() {
 }
 ```
 
-`useQueries.ts` — 类似模式：`useQuery` for saved queries list, `useMutation` for execute/save/delete。execute 用 `useMutation`（POST `/api/query/execute`），结果不缓存。
+`useQueries.ts`:
 
-`useSecurity.ts` — 类似模式：`useQuery` for roles + actions lists, `useMutation` for CRUD。
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { QueryDSL, QueryResult, SavedQuery } from '@/lib/types';
 
-`useValidation.ts`:
+async function executeQuery(query: QueryDSL): Promise<QueryResult> {
+  const res = await fetch('/api/query/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(query) });
+  if (!res.ok) throw new Error('Query execution failed');
+  return res.json();
+}
+
+async function fetchQueries(): Promise<SavedQuery[]> {
+  const res = await fetch('/api/queries');
+  if (!res.ok) throw new Error('Failed to fetch queries');
+  return res.json();
+}
+
+async function saveQuery(query: SavedQuery): Promise<void> {
+  const res = await fetch('/api/queries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(query) });
+  if (!res.ok) throw new Error('Failed to save query');
+}
+
+async function deleteQuery(id: string): Promise<void> {
+  const res = await fetch(`/api/queries/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete query');
+}
+
+export function useQueries() {
+  const qc = useQueryClient();
+  const queriesQuery = useQuery({ queryKey: ['queries'], queryFn: fetchQueries });
+  const executeMutation = useMutation({ mutationFn: executeQuery });
+  const saveMutation = useMutation({ mutationFn: saveQuery, onSuccess: () => qc.invalidateQueries({ queryKey: ['queries'] }) });
+  const deleteMutation = useMutation({ mutationFn: deleteQuery, onSuccess: () => qc.invalidateQueries({ queryKey: ['queries'] }) });
+  return { queriesQuery, executeMutation, saveMutation, deleteMutation };
+}
+```
+
+`useSecurity.ts`:
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Role, Action } from '@/lib/types';
+
+async function fetchRoles(): Promise<Role[]> {
+  const res = await fetch('/api/roles');
+  if (!res.ok) throw new Error('Failed to fetch roles');
+  return res.json();
+}
+
+async function fetchActions(): Promise<Action[]> {
+  const res = await fetch('/api/actions');
+  if (!res.ok) throw new Error('Failed to fetch actions');
+  return res.json();
+}
+
+async function saveRole(role: Role, isNew: boolean): Promise<void> {
+  const url = isNew ? '/api/roles' : `/api/roles/${role.name}`;
+  const res = await fetch(url, { method: isNew ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(role) });
+  if (!res.ok) throw new Error('Failed to save role');
+}
+
+async function deleteRole(name: string): Promise<void> {
+  await fetch(`/api/roles/${name}`, { method: 'DELETE' });
+}
+
+async function saveAction(action: Action, isNew: boolean): Promise<void> {
+  const url = isNew ? '/api/actions' : `/api/actions/${action.name}`;
+  const res = await fetch(url, { method: isNew ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action) });
+  if (!res.ok) throw new Error('Failed to save action');
+}
+
+async function deleteAction(name: string): Promise<void> {
+  await fetch(`/api/actions/${name}`, { method: 'DELETE' });
+}
+
+export function useSecurity() {
+  const qc = useQueryClient();
+  const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: fetchRoles });
+  const actionsQuery = useQuery({ queryKey: ['actions'], queryFn: fetchActions });
+
+  const saveRoleMutation = useMutation({
+    mutationFn: ({ role, isNew }: { role: Role; isNew: boolean }) => saveRole(role, isNew),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
+  });
+  const deleteRoleMutation = useMutation({
+    mutationFn: (name: string) => deleteRole(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
+  });
+
+  const saveActionMutation = useMutation({
+    mutationFn: ({ action, isNew }: { action: Action; isNew: boolean }) => saveAction(action, isNew),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  });
+  const deleteActionMutation = useMutation({
+    mutationFn: (name: string) => deleteAction(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  });
+
+  return { rolesQuery, actionsQuery, saveRoleMutation, deleteRoleMutation, saveActionMutation, deleteActionMutation };
+}
+```
+
+- [ ] **Step 2.5: 更新 TypeEditor 使用 debounced hooks**
+
+Task 10's TypeEditor currently uses inline stubs. After Task 13 creates the real hooks, update TypeEditor's imports:
+
+```typescript
+// Remove these lines from workshop/src/components/schema/TypeEditor.tsx:
+// import { createSnapshot } from '@/lib/validation/registry-snapshot';
+// import { validateType } from '@/lib/validation/type-validator';
+// import type { SchemaRegistrySnapshot, Diagnostic } from '@/lib/types';
+// function useRegistrySnapshot(...) { ... }
+// function useDebouncedTypeValidation(...) { ... }
+
+// Add these imports:
+import { useRegistrySnapshot, useDebouncedTypeValidation } from '@/hooks/useValidation';
+```
+No other changes needed — the call sites (`useRegistrySnapshot(allTypes, [])`, `useDebouncedTypeValidation(draft, snapshot)`) have identical signatures.
+
+`useValidation.ts` (unchanged from above):
 
 ```typescript
 import { useMemo, useState, useEffect, useRef } from 'react';
