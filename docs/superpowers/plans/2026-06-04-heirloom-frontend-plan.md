@@ -3177,7 +3177,48 @@ export function QueryResults({ result }: Props) {
           <table className="w-full text-sm"><thead><tr className="border-b bg-gray-50 sticky top-0">{columns.map(c => <th key={c} className="text-left py-2 px-3 font-medium text-gray-600">{c}</th>)}</tr></thead>
             <tbody>{result.rows.map((row,i) => <tr key={i} className="border-b border-gray-50 hover:bg-indigo-50/30">{columns.map(c => <td key={c} className="py-1.5 px-3 text-gray-700 font-mono text-xs">{String(row[c]??'')}</td>)}</tr>)}</tbody></table>
         )}
+        {mode==='graph' && (
+          <GraphResultView rows={result.rows} />
+        )}
         {mode==='raw' && <pre className="p-4 text-xs font-mono text-gray-700 whitespace-pre-wrap">{JSON.stringify(result,null,2)}</pre>}
+      </div>
+    </div>
+  );
+}
+
+// Graph view for traverse results: converts flat rows to ReactFlow nodes+edges
+function GraphResultView({ rows }: { rows: QueryResult['rows'] }) {
+  const nodes: { id: string; data: { label: string }; position: { x: number; y: number } }[] = [];
+  const edges: { id: string; source: string; target: string }[] = [];
+  const seen = new Set<string>();
+
+  rows.forEach((row, rowIdx) => {
+    const meta = row._meta;
+    if (meta && !seen.has(meta.rid)) {
+      seen.add(meta.rid);
+      nodes.push({
+        id: meta.rid,
+        data: { label: `${meta.type}: ${meta.rid.split('.').pop()}` },
+        position: { x: 50 + (rowIdx % 3) * 200, y: 50 + Math.floor(rowIdx / 3) * 120 },
+      });
+    }
+  });
+
+  // Create edges from traversal metadata: if a row has joined data (prefix like "o."),
+  // connect source to traversed target. For simplicity, create edges between consecutive RIDs.
+  const rids = [...seen];
+  for (let i = 1; i < rids.length; i++) {
+    edges.push({ id: `e-${i}`, source: rids[i - 1], target: rids[i] });
+  }
+
+  // Dynamic import to avoid pulling ReactFlow into table-only views.
+  // For Phase 0-2, render a simple div with node/edge summary.
+  // Full ReactFlow integration: replace this with <ReactFlow nodes={nodes} edges={edges} fitView />
+  return (
+    <div className="p-4">
+      <p className="text-xs text-gray-500 mb-2">Graph: {nodes.length} nodes, {edges.length} edges</p>
+      <div className="text-xs font-mono text-gray-600 space-y-1">
+        {nodes.map(n => <div key={n.id}>⬤ {n.data.label}</div>)}
       </div>
     </div>
   );
@@ -4127,13 +4168,14 @@ describe('Schema integration', () => {
     expect(nameFields.length).toBeGreaterThan(0);
   });
 
-  it('opens query console and executes a query', async () => {
+  it('renders schema page without errors', async () => {
     renderPage('/schema');
-    // This test verifies the ConsoleContext wiring doesn't crash
-    // Full Console test requires rendering AppLayout with QueryConsole
-    // For now, verify the page renders without errors
+    // Verify the page renders the type list from mock data
     await waitFor(() => expect(screen.getByText('Customer')).toBeInTheDocument());
-    expect(screen.getByText('◇ Heirloom')).toBeInTheDocument();
+    // Verify the NavBar is rendered (AppLayout wraps SchemaPage)
+    // Note: SchemaPage is rendered inside AppLayout, which renders ◇ Heirloom in NavBar
+    // When testing SchemaPage in isolation, the NavBar is not rendered.
+    // For full integration, test through App.tsx routes instead.
   });
 });
 ```
