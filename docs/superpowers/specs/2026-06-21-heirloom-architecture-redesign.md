@@ -201,17 +201,35 @@ heirloom-server/src/main/java/com/heirloom/
 
 ---
 
+## 4a. OpenMetadata Source Code Reference
+
+This architecture references OpenMetadata's actual source code patterns:
+- `Entity.java` — central entity type registry with `registerEntity()` called from Repository constructors
+- `EntityResource<T, K>` — base REST resource that fetches Repository from `Entity.getEntityRepository()`
+- `EntityInterface` — rich interface with default-null optional fields (owners, tags, domains, sourceHash)
+- `EntityRepository<T>` — JDBI3-based base repository with `setFields`, `storeEntity`, `storeRelationships`
+- `ChangeEventHandler` — JAX-RS `ContainerResponseFilter` that intercepts non-GET responses
+- `TableResource` — thin concrete resource: constructor takes `Authorizer + Limits`, entity type hardcoded
+
+Key adaptations for Heirloom (Spring Boot, not Dropwizard/JDBI3):
+1. Repository self-registration via `EntityRegistry.register()` in constructor (not `@PostConstruct`)
+2. `EntityResource` gets Repository from `EntityRegistry` (not constructor injection)
+3. `HeirloomEntity` has mandatory + default-null optional fields (like `EntityInterface`)
+4. Static inner List classes for generic serialization (`TypeList extends ResultList<ResourceType>`)
+5. Heirloom does NOT adopt: EntityReference, TagLabel, ChangeDescription, Votes, Followers, Feed
+
+---
+
 ## 4b. Component Deep-Dives
 
-### 4b.1 EntityRegistry — Spring @Component + @PostConstruct
+### 4b.1 EntityRegistry — Decentralized Registration (OM pattern)
 
-OpenMetadata uses `static {}` block for entity registration because JDBI3 DAOs
-are created with `new`, not via DI. Heirloom uses Spring — repositories are
-`@Repository` beans that don't exist when `static {}` executes.
+OpenMetadata: each `EntityRepository` constructor calls `Entity.registerEntity()`.
+Registration is decentralized — each Repository registers itself.
 
-**Solution:** `EntityRegistry` is itself a `@Component`. All Repository and
-Service beans are injected via constructor. Registration happens in
-`@PostConstruct` after the Spring context is fully initialized.
+Heirloom adaptation: `EntityRegistry` is a singleton with a static registry map.
+Each `@Repository` bean calls `EntityRegistry.register()` in its `@PostConstruct`.
+The static `register()` method and `getRepository()`/`getService()` are thread-safe.
 
 ```java
 @Component
@@ -223,6 +241,7 @@ public class EntityRegistry {
     public static final String DISCOVERY_SOURCE = "discoverySource";
     public static final String DISCOVERY_REPORT = "discoveryReport";
     public static final String MAPPING_RULE     = "mappingRule";
+    public static final String EVENT            = "event";
 
     // Common field constants
     public static final String FIELD_OWNER       = "owner";
@@ -231,32 +250,20 @@ public class EntityRegistry {
     public static final String FIELD_VERSION     = "version";
     public static final String FQN_SEPARATOR     = ".";
 
-    // Internal registry — populated in @PostConstruct
-    private final Map<String, EntityRegistration> registry = new LinkedHashMap<>();
+    // Thread-safe static registry
+    private static final Map<String, EntityRegistration> registry = new ConcurrentHashMap<>();
 
-    // All Repository and Service beans injected via constructor
-    private final TypeRepository typeRepo;
-    private final TypeService typeService;
-    // ... other repositories and services
+    // OM pattern: each Repository registers itself in its constructor.
+    // Heirloom adaptation: Spring Beans — Repository @Component registers via
+    // @PostConstruct in its own class. Not centralized here.
 
-    public EntityRegistry(TypeRepository typeRepo, TypeService typeService, ...) {
-        this.typeRepo = typeRepo;
-        this.typeService = typeService;
-        // ...
-    }
-
-    @PostConstruct
-    public void init() {
-        register(RESOURCE_TYPE, ResourceType.class, typeRepo, typeService,
-            "{domain}.{name}", "/v1/resourceTypes");
-        register(PROPOSAL, Proposal.class, proposalRepo, null,
-            "{typeFQN}.proposal-{uuid}", "/v1/proposals");
-        register(DISCOVERY_SOURCE, DiscoverySource.class, discoverySourceRepo, discoveryService,
-            "{env}.{name}", "/v1/discovery/sources");
-        register(DISCOVERY_REPORT, DiscoveryReport.class, discoveryReportRepo, discoveryService,
-            "{sourceFQN}.{timestamp}", "/v1/discovery/reports");
-        register(MAPPING_RULE, MappingRule.class, mappingRuleRepo, null,
-            "{typeFQN}.{field}", "/v1/mappings");
+    /** Called by each EntityRepository in its constructor/@PostConstruct */
+    public static void register(String entityType, Class<?> entityClass,
+                                 EntityRepository<?> repo, EntityService<?> svc,
+                                 String fqnTemplate, String collectionPath) {
+        registry.put(entityType, new EntityRegistration(
+            entityType, entityClass, repo, svc, fqnTemplate, collectionPath
+        ));
     }
 
     // Query methods return raw types (Java generics erasure limitation)
@@ -276,7 +283,32 @@ record EntityRegistration(
 ) {}
 ```
 
-### 4b.2 EntityService Interface
+### 4b.2 HeirloomEntity Interface
+
+Modeled on OpenMetadata's `EntityInterface` — mandatory fields plus default-null optional fields.
+
+```java
+public interface HeirloomEntity {
+    // === Mandatory ===
+    Long getId();
+    String getEntityType();
+    String getFullyQualifiedName();
+    void   setFullyQualifiedName(String fqn);
+    String getName();
+    String getDescription();
+    Long getVersion();
+    Instant getCreatedAt();
+    Instant getUpdatedAt();
+
+    // === Optional (default null — like OM's EntityInterface) ===
+    default String  getOwner()       { return null; }
+    default String  getDomain()      { return null; }
+    default String  getChangeHash()  { return null; }
+    default Boolean getDeleted()     { return false; }
+}
+```
+
+### 4b.3 EntityService Interface
 
 ```java
 public interface EntityService<E extends HeirloomEntity> {
@@ -292,7 +324,7 @@ public interface EntityService<E extends HeirloomEntity> {
 `prepareInternal()` in EntityRepository is structural validation (TypeValidator).
 Both run during `create()`, in that order.
 
-### 4b.3 EntityRepository — Wrapping Spring Data JPA
+### 4b.4 EntityRepository — Wrapping Spring Data JPA
 
 `EntityRepository<E>` is NOT a Spring Data interface. It is a wrapper class
 that holds a reference to `JpaRepository<E, Long>` and adds lifecycle hooks.
@@ -382,7 +414,7 @@ public class TypeRepository extends EntityRepository<ResourceType> {
 }
 ```
 
-### 4b.4 EntityResource — Generics + Spring MVC
+### 4b.5 EntityResource — Gets Repository from EntityRegistry (OM pattern)
 
 **Problem:** Spring MVC cannot see generic type parameters at runtime due to
 type erasure. `@RequestBody CreateRequest<E>` would be erased to `Object`.
@@ -397,6 +429,15 @@ public abstract class EntityResource<E extends HeirloomEntity> {
     protected final EntityRepository<E> repository;
     protected final EntityService<E> service;
     protected final Authorizer authorizer;
+
+    @SuppressWarnings("unchecked")
+    protected EntityResource(String entityType, Authorizer authorizer) {
+        this.entityType = entityType;
+        this.authorizer = authorizer;
+        // OM pattern: Entity.getEntityRepository(entityType)
+        this.repository = (EntityRepository<E>) EntityRegistry.getRepository(entityType);
+        this.service    = (EntityService<E>)    EntityRegistry.getService(entityType);
+    }
 
     // Protected template methods that subclasses delegate to
     protected ResponseEntity<EntityList<E>> list(String fields, int limit,
@@ -418,8 +459,9 @@ public abstract class EntityResource<E extends HeirloomEntity> {
 @RequestMapping("/v1/resourceTypes")
 public class TypeResource extends EntityResource<ResourceType> {
 
-    public TypeResource(TypeRepository repo, TypeService svc, Authorizer auth) {
-        super(EntityRegistry.RESOURCE_TYPE, repo, svc, auth);
+    public TypeResource(Authorizer auth) {
+        super(EntityRegistry.RESOURCE_TYPE, auth);
+        // OM pattern: repository fetched from EntityRegistry in base constructor
     }
 
     @GetMapping
@@ -462,7 +504,7 @@ public class CreateTypeRequest extends CreateRequest<ResourceType> {
 }
 ```
 
-### 4b.5 ChangeEventInterceptor — Automatic Audit
+### 4b.6 ChangeEventInterceptor — Automatic Audit (Spring equivalent of OM's ChangeEventHandler)
 
 Spring `ResponseBodyAdvice` intercepts all non-GET responses containing
 `HeirloomEntity` and writes `ChangeEvent` to `EventLogRepository` in an
@@ -525,7 +567,7 @@ public enum EventType {
 }
 ```
 
-### 4b.6 Discovery as Platform Entity
+### 4b.7 Discovery as Platform Entity
 
 **DiscoverySource** — a configured data source for automated schema discovery.
 Standard CRUD via `EntityResource<DiscoverySource>`. Fields: `name`, `sourceType`,
@@ -584,7 +626,7 @@ public DiscoveryReport runDiscovery(String sourceFQN) {
 }
 ```
 
-### 4b.7 InferencePipeline — Rule Chain + Proposal Merging
+### 4b.8 InferencePipeline — Rule Chain + Proposal Merging
 
 Multiple rules may produce partial proposals for the same table. The pipeline
 merges them by `proposedTypeName` using `LinkedHashMap.merge()`.
@@ -749,7 +791,7 @@ because:
 | `Relationship.java` | No change |
 | `StateTransition.java` | No change |
 | `TypeValidator.java` | No change (called from `TypeRepository.prepareInternal()`) |
-| `TypeController.java` | Replace with `TypeResource extends EntityResource<ResourceType>` |
+| `TypeController.java` | Replace with `TypeResource extends EntityResource<ResourceType>` (constructor: `Authorizer` only) |
 | `SchemaRegistryService.java` | Refactor to implement `EntityService<ResourceType>` |
 
 ### 7.2 Files to Add
@@ -869,7 +911,7 @@ CREATE INDEX idx_event_log_actor  ON event_log(actor, timestamp DESC);
 ```
 POST /v1/resourceTypes  { "name": "Customer", "domain": "crm", ... }
 │
-├─ TypeResource.create(@RequestBody CreateTypeRequest)
+├─ TypeResource.create(@RequestBody CreateTypeRequest)  // Constructor: TypeResource(Authorizer auth) only
 │   │  Spring deserializes CreateTypeRequest (concrete type)
 │   │
 │   ├─ authorizer.authorize(actor, "resourceType", "CREATE", null)
