@@ -866,7 +866,7 @@ Perspective Engine does two things:
 2. **Metadata context injection** (NEW): for each field, look up Column FQN →
    fetch TableProfile (freshness, nullRate), Lineage summary → inject into response
 
-Agent SDK (Python/TypeScript) provides three operations:
+Agent SDK (<strong>Python</strong> for Phase 0, TypeScript for Phase 1 — shared types with Workshop UI) provides three operations:
 - `discover()` — list available ResourceTypes and fields (Role-filtered)
 - `query(jsonDsl)` — structured semantic query → JSON result with metadata context
 - `action(type, action, params)` — safe write operation through Action engine (Phase 2)
