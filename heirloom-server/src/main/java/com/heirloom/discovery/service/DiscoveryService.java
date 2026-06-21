@@ -48,7 +48,7 @@ public class DiscoveryService {
             }
 
             // Phase 1: Extract
-            DiscoveryRunner runner = new DiscoveryRunner(extractor);
+            DiscoveryRunner runner = new DiscoveryRunner(extractor, config);
             RawSchema schema = runner.run();
 
             report.setTablesScanned(schema.tables().size());

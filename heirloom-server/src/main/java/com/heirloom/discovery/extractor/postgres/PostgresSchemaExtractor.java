@@ -146,4 +146,8 @@ public class PostgresSchemaExtractor implements SchemaExtractor {
     public Set<ExtractorCapability> capabilities() {
         return Set.of(ExtractorCapability.SCHEMA_METADATA, ExtractorCapability.CONSTRAINTS);
     }
+
+    public void close() {
+        if (dataSource instanceof HikariDataSource hds) hds.close();
+    }
 }
