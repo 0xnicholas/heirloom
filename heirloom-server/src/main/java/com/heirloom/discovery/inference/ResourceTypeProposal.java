@@ -46,4 +46,14 @@ public record ResourceTypeProposal(String proposedTypeName, String sourceTable,
         if (description != null) rt.setDescription(description);
         return rt;
     }
+
+    public com.heirloom.schema.domain.Proposal toProposal() {
+        com.heirloom.schema.domain.Proposal p = new com.heirloom.schema.domain.Proposal();
+        p.setName("Create " + proposedTypeName);
+        p.setTargetEntityType("resourceType");
+        p.setChangeType("CREATE");
+        p.setSource("discovery");
+        p.setProposedChanges("{}");
+        return p;
+    }
 }
