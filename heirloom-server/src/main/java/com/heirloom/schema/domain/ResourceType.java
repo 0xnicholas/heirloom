@@ -1,5 +1,6 @@
 package com.heirloom.schema.domain;
 
+import com.heirloom.entity.HeirloomEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,10 +18,12 @@ import java.util.List;
  * are permitted on it, how its state machine works, and how it relates to
  * other types. These declarations are type-level contracts enforced by the
  * system, not optional RBAC configuration.
+ * <p>
+ * Implements {@link HeirloomEntity} — the common interface for all platform entities.
  */
 @Entity
 @Table(name = "resource_types")
-public class ResourceType {
+public class ResourceType implements HeirloomEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -77,6 +80,22 @@ public class ResourceType {
     @Column(nullable = false)
     private int version;
 
+    /** Fully Qualified Name — globally unique identifier. Pattern: {domain}.{name} */
+    @Column(length = 512)
+    private String fullyQualifiedName;
+
+    /** Domain namespace for organizational separation. Default: "default" */
+    @Column(length = 128)
+    private String domain = "default";
+
+    /** Content hash for incremental ingestion detection (sourceHash equivalent) */
+    @Column(length = 64)
+    private String changeHash;
+
+    /** Soft-delete flag */
+    @Column(nullable = false)
+    private Boolean deleted = false;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -128,7 +147,29 @@ public class ResourceType {
     public List<Relationship> getRelationships() { return relationships; }
     public void setRelationships(List<Relationship> relationships) { this.relationships = relationships; }
 
-    public int getVersion() { return version; }
+    @Override
+    public Long getVersion() { return (long) version; }
+
+    @Override
+    public String getFullyQualifiedName() { return fullyQualifiedName; }
+
+    @Override
+    public void setFullyQualifiedName(String fqn) { this.fullyQualifiedName = fqn; }
+
+    @Override
+    public String getEntityType() { return "resourceType"; }
+
+    @Override
+    public String getDomain() { return domain; }
+    public void setDomain(String domain) { this.domain = domain; }
+
+    @Override
+    public String getChangeHash() { return changeHash; }
+    public void setChangeHash(String changeHash) { this.changeHash = changeHash; }
+
+    @Override
+    public Boolean getDeleted() { return deleted; }
+    public void setDeleted(Boolean deleted) { this.deleted = deleted; }
 
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

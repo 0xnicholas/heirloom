@@ -15,7 +15,7 @@ public record TypeResponse(
         List<Ability> abilities,
         List<StateTransition> stateMachine,
         List<Relationship> relationships,
-        int version,
+        Long version,
         Instant createdAt,
         Instant updatedAt
 ) {
