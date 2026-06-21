@@ -125,7 +125,7 @@ adopts the same patterns. Heirloom's **semantic layer** is built on top.
 
 ---
 
-## 3. Adjustments to Original Heirloom Design
+## 5. Adjustments to Original Heirloom Design
 
 Adding the metadata layer requires recalibrating the original Heirloom concepts.
 Core semantic concepts (Abilities, StateMachine, Relationship, Action, Function,
@@ -160,7 +160,7 @@ Semantic Core architecture (now 5 members, not 4).
 
 ---
 
-## 4. Module Structure
+## 6. Module Structure
 
 ```
 heirloom-server/src/main/java/com/heirloom/
@@ -260,7 +260,7 @@ heirloom-server/src/main/java/com/heirloom/
 
 ---
 
-## 4a. OpenMetadata Source Code Reference
+## 6a. OpenMetadata Source Code Reference
 
 This architecture references OpenMetadata's actual source code patterns:
 - `Entity.java` — central entity type registry with `registerEntity()` called from Repository constructors
@@ -279,9 +279,9 @@ Key adaptations for Heirloom (Spring Boot, not Dropwizard/JDBI3):
 
 ---
 
-## 4b. Component Deep-Dives
+## 6b. Component Deep-Dives
 
-### 4b.1 EntityRegistry — Decentralized Registration (OM pattern)
+### 6b.1 EntityRegistry — Decentralized Registration (OM pattern)
 
 OpenMetadata: each `EntityRepository` constructor calls `Entity.registerEntity()`.
 Registration is decentralized — each Repository registers itself.
@@ -342,7 +342,7 @@ record EntityRegistration(
 ) {}
 ```
 
-### 4b.2 HeirloomEntity Interface
+### 6b.2 HeirloomEntity Interface
 
 Modeled on OpenMetadata's `EntityInterface` — mandatory fields plus default-null optional fields.
 
@@ -367,7 +367,7 @@ public interface HeirloomEntity {
 }
 ```
 
-### 4b.3 EntityService Interface
+### 6b.3 EntityService Interface
 
 ```java
 public interface EntityService<E extends HeirloomEntity> {
@@ -383,7 +383,7 @@ public interface EntityService<E extends HeirloomEntity> {
 `prepareInternal()` in EntityRepository is structural validation (TypeValidator).
 Both run during `create()`, in that order.
 
-### 4b.4 EntityRepository — Wrapping Spring Data JPA
+### 6b.4 EntityRepository — Wrapping Spring Data JPA
 
 `EntityRepository<E>` is NOT a Spring Data interface. It is a wrapper class
 that holds a reference to `JpaRepository<E, Long>` and adds lifecycle hooks.
@@ -473,7 +473,7 @@ public class TypeRepository extends EntityRepository<ResourceType> {
 }
 ```
 
-### 4b.5 EntityResource — Gets Repository from EntityRegistry (OM pattern)
+### 6b.5 EntityResource — Gets Repository from EntityRegistry (OM pattern)
 
 **Problem:** Spring MVC cannot see generic type parameters at runtime due to
 type erasure. `@RequestBody CreateRequest<E>` would be erased to `Object`.
@@ -563,7 +563,7 @@ public class CreateTypeRequest extends CreateRequest<ResourceType> {
 }
 ```
 
-### 4b.6 ChangeEventInterceptor — Automatic Audit (Spring equivalent of OM's ChangeEventHandler)
+### 6b.6 ChangeEventInterceptor — Automatic Audit (Spring equivalent of OM's ChangeEventHandler)
 
 Spring `ResponseBodyAdvice` intercepts all non-GET responses containing
 `HeirloomEntity` and writes `ChangeEvent` to `EventLogRepository` in an
@@ -626,7 +626,7 @@ public enum EventType {
 }
 ```
 
-### 4b.7 Discovery as Platform Entity
+### 6b.7 Discovery as Platform Entity
 
 **DiscoverySource** — a configured data source for automated schema discovery.
 Standard CRUD via `EntityResource<DiscoverySource>`. Fields: `name`, `sourceType`,
@@ -641,51 +641,79 @@ Standard CRUD via `EntityResource<DiscoverySource>`. Fields: `name`, `sourceType
 - `POST /v1/discovery/sources/{sourceFQN}/run` — trigger scan
 - `GET /v1/discovery/reports?source={fqn}` — scan history
 
-**DiscoveryService.runDiscovery()** full lifecycle:
+**DiscoveryService.runDiscovery()** full lifecycle with dual output:
 
 ```java
 public DiscoveryReport runDiscovery(String sourceFQN) {
-    // 1. Load source entity
     DiscoverySource source = sourceRepo.findByFQN(sourceFQN);
-
-    // 2. Create report (status: RUNNING) — ChangeEventInterceptor auto-logs
     DiscoveryReport report = DiscoveryReport.start(source);
     reportRepo.create(report);
 
+    int metadataCreated = 0, proposalsGenerated = 0, registered = 0;
+
     try {
-        // 3. Phase 1: Extract raw schema
         SchemaExtractor extractor = extractors.get(source.getSourceType());
         extractor.prepare(source.toConfig());
         RawSchema schema = runner.run(extractor, getTopology());
 
-        // 4. Incremental check (contentHash comparison)
         if (isUnchanged(sourceFQN, schema.getContentHash())) {
             return reportRepo.markSkipped(report);
         }
 
-        // 5. Phase 2: Infer proposals
-        List<ResourceTypeProposal> proposals = inference.infer(schema);
+        // Ensure metadata hierarchy exists
+        DatabaseService dbSvc = ensureDatabaseService(source);
+        Database db = ensureDatabase(dbSvc, schema);
+        DatabaseSchema dbSchema = ensureDatabaseSchema(db, schema);
 
-        // 6. Register — split by confidence
-        int registered = 0;
-        for (ResourceTypeProposal p : proposals) {
-            if (p.isHighConfidence()) {
-                typeRepo.create(p.toResourceType());     // Auto-register
-                registered++;
-            } else {
-                proposalRepo.create(p.toProposal());     // Awaiting approval
+        // Path ①: Metadata entities
+        for (RawTable rawTable : schema.tables()) {
+            try {
+                TableEntity table = buildTableEntity(rawTable, dbSvc, db, dbSchema);
+                tableRepo.create(table);
+                metadataCreated++;
+
+                for (RawConstraint c : rawTable.constraints()) {
+                    if (c.type() == ConstraintType.FOREIGN_KEY) {
+                        lineageRepo.create(buildLineage(table, c));
+                    }
+                }
+            } catch (Exception e) {
+                report.addError(rawTable.tableName(), "METADATA", e);
             }
-            mappingRepo.create(p.toMappingRule());       // Field → source mapping
         }
 
-        return reportRepo.markSuccess(report, proposals.size(), registered);
+        // Path ② + ③: Semantic inference + Mapping rules
+        List<ResourceTypeProposal> proposals = inference.infer(schema);
+        proposalsGenerated = proposals.size();
+
+        for (ResourceTypeProposal p : proposals) {
+            try {
+                if (p.isHighConfidence()) {
+                    typeRepo.create(p.toResourceType());
+                    registered++;
+                } else {
+                    proposalRepo.create(p.toProposal());
+                }
+                for (FieldProposal fp : p.fields()) {
+                    mappingRepo.create(MappingRule.builder()
+                        .typeFQN(p.getFullyQualifiedName())
+                        .fieldName(fp.name())
+                        .columnFQN(buildColumnFQN(p.sourceTable(), fp.sourceColumn()))
+                        .build());
+                }
+            } catch (Exception e) {
+                report.addError(p.proposedTypeName(), "SEMANTIC", e);
+            }
+        }
+
+        return reportRepo.markSuccess(report, metadataCreated, proposalsGenerated, registered);
     } catch (Exception e) {
         return reportRepo.markFailed(report, e);
     }
 }
 ```
 
-### 4b.8 InferencePipeline — Rule Chain + Proposal Merging
+### 6b.8 InferencePipeline — Rule Chain + Proposal Merging
 
 Multiple rules may produce partial proposals for the same table. The pipeline
 merges them by `proposedTypeName` using `LinkedHashMap.merge()`.
@@ -769,7 +797,7 @@ timestamp→TIMESTAMP, unknown→STRING).
 
 ---
 
-### 4b.9 Metadata Entity JPA Models
+### 6b.9 Metadata Entity JPA Models
 
 Metadata layer entities implement `HeirloomEntity` and follow OpenMetadata's
 hierarchical FQN pattern: `{service}.{database}.{schema}.{table}`.
@@ -786,7 +814,7 @@ hierarchical FQN pattern: `{service}.{database}.{schema}.{table}`.
 **Key design decision:** Column is embedded JSONB (Phase 0 simplification — avoids JOIN overhead).
 Lineage uses FQN strings instead of JPA @ManyToOne (from/to may point to different entity types).
 
-### 4b.10 Discovery Engine Dual Output
+### 6b.10 Discovery Engine Dual Output
 
 One scan produces three parallel output streams:
 
@@ -799,7 +827,7 @@ One scan produces three parallel output streams:
 Each path has per-table error isolation — one table failure does not abort the scan.
 ContentHash-based incremental detection applies to all three paths.
 
-### 4b.11 Mapping Engine — Field to Column FQN Bridge
+### 6b.11 Mapping Engine — Field to Column FQN Bridge
 
 `MappingRule` stores `columnFQN` (not raw physical path). This enables the Query
 Resolver to look up full metadata context: TableProfile (freshness, nullRate),
@@ -816,7 +844,7 @@ Schema drift: when underlying Column changes, contentHash mismatch triggers
 re-scan. MappingRule's columnFQN remains stable; the ResourceType Proposal
 captures the semantic change for human review.
 
-### 4b.12 Generalized Proposal
+### 6b.12 Generalized Proposal
 
 `Proposal` applies to any entity type (not just ResourceType). Fields:
 - `targetEntityType` — "resourceType" / "table" / "glossaryTerm" / ...
@@ -831,7 +859,7 @@ Phase 2: multi-level approval chains, notifications, expiry.
 `ProposalService.applyProposal()` resolves the target EntityRepository from
 EntityRegistry and applies changes (create/update/delete).
 
-### 4b.13 Perspective Engine + Agent SDK
+### 6b.13 Perspective Engine + Agent SDK
 
 Perspective Engine does two things:
 1. **Field-level visibility**: crop fields based on Role configuration
@@ -843,7 +871,7 @@ Agent SDK (Python/TypeScript) provides three operations:
 - `query(jsonDsl)` — structured semantic query → JSON result with metadata context
 - `action(type, action, params)` — safe write operation through Action engine (Phase 2)
 
-### 4b.14 Error Handling and Transaction Boundaries
+### 6b.14 Error Handling and Transaction Boundaries
 
 **Exception propagation**: EntityResource → EntityService.validateCreate() →
 EntityRepository.create(). Each layer throws typed exceptions caught by
@@ -860,7 +888,7 @@ the audit event persists (we want to know the attempt was made).
 **Discovery partial failure**: per-table try/catch. One table's metadata
 registration failure does not affect others. DiscoveryReport records all errors.
 
-### 4b.15 ResourceType Lifecycle
+### 6b.15 ResourceType Lifecycle
 
 Six stages: DISCOVERED → ACTIVE → EVOLVING → STALE → DEPRECATED → DELETED.
 
@@ -874,7 +902,7 @@ Six stages: DISCOVERED → ACTIVE → EVOLVING → STALE → DEPRECATED → DELE
 Phase 0: manual lifecycle transitions via Proposal approval.
 Phase 1+: automatic stale detection during Discovery scans.
 
-### 4b.16 Query Resolver — JSON DSL to SQL
+### 6b.16 Query Resolver — JSON DSL to SQL
 
 Translation steps for a semantic query:
 1. SchemaRegistryService validates ResourceType exists, Agent has QUERY capability
@@ -888,7 +916,7 @@ $and/$or/$not, orderBy, limit/offset, single-step traverse (JOIN).
 Phase 1+: aggregation ($count/$sum/$avg, groupBy), subqueries.
 Phase 2+: multi-source queries (PostgreSQL + REST API, in-memory JOIN).
 
-### 4b.17 Stale Entity Detection, Security, Testing
+### 6b.17 Stale Detection, Security, Testing
 
 **Stale detection** (Phase 1+): after each scan, compare discovered FQNs against
 previously registered FQNs. Entities in the DB but not in the source → soft-delete
@@ -905,7 +933,7 @@ and generate Deprecation Proposal.
 
 ---
 
-## 5. Key Design Decisions
+## 7. Key Design Decisions
 
 ### 5.1 Why EntityRegistry instead of Spring's built-in dependency injection?
 
@@ -949,19 +977,24 @@ because:
 
 ---
 
-## 6. Phase 0 Scope
+## 8. Phase 0 Scope
 
 ### 6.1 Deliverables
 
-1. **EntityRegistry** with all Phase 0 entity types registered
+1. **EntityRegistry** with all Phase 0 entity types registered (11 types)
 2. **HeirloomEntity** interface + **EntityRepository** base class
-3. **TypeRepository** refactored to extend EntityRepository
+3. **TypeRepository** refactored to extend EntityRepository; **TypeService** implements EntityService<ResourceType>
 4. **TypeResource** using EntityResource base (standard CRUD)
 5. **ChangeEventInterceptor** for automatic audit
 6. **NoopAuthorizer** for Phase 0 auth (allow all)
-7. **DiscoverySource** + **DiscoveryReport** entities (CRUD via standard endpoints)
-8. **PostgresSchemaExtractor** + **DiscoveryRunner** + **TypeNameInference** + **FieldMapperInference**
-9. **DiscoveryResource** with `POST /v1/discovery/run`
+7. **Metadata layer entities**: DatabaseService, Database, DatabaseSchema, TableEntity — JPA models + Repository + Resource
+8. **DiscoverySource** + **DiscoveryReport** entities (CRUD via standard endpoints)
+9. **PostgresSchemaExtractor** + **DiscoveryRunner** with dual output:
+   - Metadata entities: TableEntity (with embedded ColumnEntity), LineageEntity
+   - Semantic proposals: TypeNameInference + FieldMapperInference (HIGH confidence)
+10. **MappingRule** creation from discovery (field → Column FQN)
+11. **DiscoveryResource** with `POST /v1/discovery/sources/{fqn}/run`
+12. **Database migration**: V1 (existing) + V2 (12 tables, see V2__platform_metadata_semantic.sql)
 
 ### 6.2 Out of Scope (Phase 1+)
 
@@ -974,7 +1007,7 @@ because:
 
 ---
 
-## 7. Migration from Current Codebase
+## 9. Migration from Current Codebase
 
 ### 7.1 Files to Keep (refactored)
 
@@ -987,7 +1020,7 @@ because:
 | `StateTransition.java` | No change |
 | `TypeValidator.java` | No change (called from `TypeRepository.prepareInternal()`) |
 | `TypeController.java` | Replace with `TypeResource extends EntityResource<ResourceType>` (constructor: `Authorizer` only) |
-| `SchemaRegistryService.java` | Refactor to implement `EntityService<ResourceType>` |
+| `SchemaRegistryService.java` | Refactor to `TypeService.java` implementing `EntityService<ResourceType>` |
 
 ### 7.2 Files to Add
 
@@ -1052,37 +1085,14 @@ CREATE TABLE discovery_reports (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- New table: proposals
-CREATE TABLE proposals (
-  id BIGSERIAL PRIMARY KEY,
-  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
-  target_type_fqn VARCHAR(512),
-  proposed_changes JSONB NOT NULL,
-  status VARCHAR(32) DEFAULT 'PENDING',
-  description TEXT,
-  owner VARCHAR(256),
-  version BIGINT DEFAULT 1,
-  change_hash VARCHAR(64),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- See V2__platform_metadata_semantic.sql for full migration.
+-- Summary: 12 tables total (1 existing extended + 11 new)
+-- Platform: discovery_sources, discovery_reports, event_log
+-- Metadata: database_services, metadata_databases, metadata_schemas, metadata_tables, metadata_lineage
+-- Semantic: proposals, mapping_rules
+-- resource_types table extended with fully_qualified_name, domain, change_hash, deleted columns.
 
--- New table: mapping_rules
-CREATE TABLE mapping_rules (
-  id BIGSERIAL PRIMARY KEY,
-  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
-  type_fqn VARCHAR(512) NOT NULL,
-  field_name VARCHAR(256) NOT NULL,
-  source_id VARCHAR(512) NOT NULL,
-  physical_path VARCHAR(1024) NOT NULL,
-  description TEXT,
-  version BIGINT DEFAULT 1,
-  change_hash VARCHAR(64),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- New table: event_log (append-only)
+-- New table: event_log (append-only, shown here; full migration in V2 SQL)
 CREATE TABLE event_log (
   id BIGSERIAL PRIMARY KEY,
   entity_type VARCHAR(64) NOT NULL,
@@ -1133,7 +1143,7 @@ POST /v1/resourceTypes  { "name": "Customer", "domain": "crm", ... }
 
 ---
 
-## 8. Open Questions
+## 10. Open Questions
 
 1. **Schema layer format:** Phase 0 uses Java interfaces + JPA annotations. Should
    we introduce JSON Schema definitions as the source of truth (like OpenMetadata's
