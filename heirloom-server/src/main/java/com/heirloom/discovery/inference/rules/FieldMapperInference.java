@@ -26,7 +26,7 @@ public class FieldMapperInference implements InferenceRule {
 
     private FieldType mapType(String raw) {
         return switch (raw.toLowerCase()) {
-            case "integer", "bigint", "smallint", "serial", "bigserial" -> FieldType.NUMBER;
+            case "integer", "bigint", "smallint", "serial", "bigserial", "numeric", "decimal", "real", "double precision" -> FieldType.NUMBER;
             case "boolean" -> FieldType.BOOLEAN;
             case "timestamp", "timestamptz", "date", "time" -> FieldType.TIMESTAMP;
             default -> FieldType.STRING;
