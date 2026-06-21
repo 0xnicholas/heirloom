@@ -1,21 +1,22 @@
-# ADR-011: EntityRegistry——中央实体注册表
+# ADR-011: EntityRegistry——中央实体注册表（元数据+语义）
 
 ## 状态
 Accepted
 
 ## 日期
-2026-06-21
+2026-06-21 (updated 2026-06-21)
 
 ## 上下文
 
-Heirloom 平台上有多种实体类型：ResourceType、Proposal、DiscoverySource、
-DiscoveryReport、MappingRule、ChangeEvent 等。每种实体需要关联其 Java 类、
-Repository、Service、API 路径和 FQN 模板。需要一个中央注册表来管理这些关联。
+Heirloom 平台上有两类实体：
+- **元数据实体**：Table、Column、Database、Schema、Lineage、GlossaryTerm 等（对标 OpenMetadata）
+- **语义实体**：ResourceType、Proposal、Role、Action、Function 等（Heirloom 独有）
+
+两类实体共存于同一个平台，共用同一套 EntityRegistry、EntityResource、EntityRepository 基础设施。
 
 ## 决策
 
-**创建 `EntityRegistry` 类作为中央注册表。** 所有实体类型字符串常量集中定义，
-通过 `getRepository(entityType)` 和 `getService(entityType)` 进行运行时查找。
+**创建 `EntityRegistry` 类作为中央注册表，统一注册元数据实体和语义实体。**
 
 ### 核心设计
 

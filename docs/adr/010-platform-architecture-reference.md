@@ -1,4 +1,4 @@
-# ADR-010: 平台架构参考——OpenMetadata 分层模式
+# ADR-010: 平台架构参考——OpenMetadata 分层模式 + 两层融合
 
 ## 状态
 Accepted
@@ -8,12 +8,23 @@ Accepted
 
 ## 上下文
 
-Heirloom 需要从「单个 Java 服务 + 基本 CRUD」演进为「完整平台」。参考 OpenMetadata
-的 8 层架构模式，识别 Heirloom 需要采用的平台层和不需要采用的层。
+Heirloom 需要从「单个 Java 服务 + 语义操作」演进为完整平台。参考 OpenMetadata
+的 8 层架构模式，同时保留 Heirloom 独有的语义操作层。关键决策：元数据层和语义层
+是两个逻辑层，共存在同一个平台内——不拆分为两个独立系统。
 
-## 决策
+### 两层架构
 
-**以 OpenMetadata 的平台架构为参考，但不全盘复制。** 采用以下 6 层，舍弃 2 层：
+Heirloom 不是「Heirloom + OpenMetadata 两个系统分工协作」。而是 Heirloom 自身
+包含完整的元数据层（对标 OpenMetadata）+ 语义操作层（Heirloom 独有）。
+
+- **元数据层**：自动发现和采集数据源 schema、血缘、质量、所有权、术语表
+- **语义操作层**：在元数据之上提供 ResourceType、Abilities、StateMachine、
+  Relationship、Action、Function——为 AI Agent 提供类型安全的操作界面
+
+两层共存在同一个平台上：共享 EntityRegistry、EntityResource、EntityRepository、
+ChangeEventInterceptor、Authorizer、FQN 体系。
+
+### 采用的 OM 层
 
 ### 采用的层
 

@@ -1,25 +1,21 @@
-# ADR-018: Discovery Engine 作为平台 Entity
+# ADR-018: Discovery Engine——双重产出（元数据实体 + 语义 Proposal）
 
 ## 状态
 Accepted
 
 ## 日期
-2026-06-21
+2026-06-21 (updated 2026-06-21)
 
 ## 上下文
 
-Discovery Engine 的核心功能是扫描数据源 schema 并生成 ResourceTypeProposal。
-有两种架构位置：
-1. 作为独立脚本/工具——通过 CLI 调用，产出文件
-2. 作为平台 Entity——DiscoverySource/DiscoveryReport 是标准 Entity，CRUD 走标准端点
-
-方案 1 的问题是：无法通过平台 API 查询扫描历史、无法在 UI 中管理数据源配置、
-无法定时调度、无法与其他平台功能（审计、授权）集成。
+Discovery Engine 连接数据源。一次扫描需要同时产出两类实体：
+1. **元数据实体**（Table、Column、Lineage）——对标 OpenMetadata 的元数据目录
+2. **语义 Proposal**（ResourceType、Abilities、Relationship）——Heirloom 独有的语义层
 
 ## 决策
 
-**Discovery Engine 作为平台 Entity。** `DiscoverySource` 和 `DiscoveryReport`
-实现 `HeirloomEntity`，走标准 `EntityResource`/`EntityRepository` 路径。
+**Discovery Engine 一次扫描，双重产出。** Phase 1 (TopologyRunner) 提取 RawMetadata，
+然后分两条路径处理。
 
 ### DiscoverySource（对标 OM 的 IngestionPipeline）
 
