@@ -1,0 +1,11 @@
+com/heirloom/schema/SchemaRegistryIntegrationTest.class
+com/heirloom/schema/TypeValidatorTest$ValidType.class
+com/heirloom/schema/SchemaRegistryIntegrationTest$GetType.class
+com/heirloom/schema/TypeValidatorTest.class
+com/heirloom/schema/TypeValidatorTest$Naming.class
+com/heirloom/schema/TypeValidatorTest$Abilities.class
+com/heirloom/schema/TypeValidatorTest$OrphanStates.class
+com/heirloom/schema/TypeValidatorTest$DuplicateFields.class
+com/heirloom/schema/TypeValidatorTest$RelationshipTargets.class
+com/heirloom/schema/SchemaRegistryIntegrationTest$ListTypes.class
+com/heirloom/schema/SchemaRegistryIntegrationTest$CreateType.class
