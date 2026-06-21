@@ -1,20 +1,54 @@
 # Heirloom Architecture Redesign — Design Specification
 
-**Date:** 2026-06-21
+**Date:** 2026-06-21 (updated 2026-06-21)
 **Status:** Draft
 **Reference:** OpenMetadata (open-metadata/OpenMetadata)
 
 ---
 
-## 1. Motivation
+## 1. Heirloom 的两层架构
 
-### 1.1 Problem
+Heirloom 是一个完整的平台，包含两层：
+
+### 第一层：元数据目录（对标 OpenMetadata）
+
+自动发现、采集和管理企业数据资产的元数据：
+- **技术元数据**：Database、Schema、Table、Column、Dashboard、Pipeline、Topic
+- **血缘**：表级血缘、列级血缘（通过 dbt、Airflow、OpenLineage 等）
+- **数据质量**：freshness、nullCount、uniqueCount、profiling
+- **治理**：Ownership、Domain、GlossaryTerm、Tag、DataProduct
+- **使用统计**：查询频率、最近使用
+
+### 第二层：语义操作层（Heirloom 独有）
+
+在元数据之上，为 AI Agent 提供类型安全的操作界面：
+- **ResourceType**：将元数据实体包装为带安全边界的业务实体
+- **Abilities**：类型级能力标记（QUERY、MUTATE、DROP、FREEZE 等）——在类型定义时声明
+- **StateMachine**：实体生命周期状态图——非法迁移在类型层被拒绝
+- **Relationship**：三级语义（Ownership/Reference/Association）——比元数据层的 FK 更有语义
+- **Action**：唯一写入路径——九步校验流水线
+- **Function**：无副作用计算
+- **Role → Capability → Action**：Agent 与人类平权的授权链
+
+### 两层关系
+
+语义层引用元数据层。例如：
+- `Customer` ResourceType 的 `tier` 字段映射到 `analytics.public.customers.tier` Column
+- Agent 查询 ResourceType 时，Query Resolver 翻译为底层 SQL，Perspective Engine 根据 Role 裁剪字段
+- 元数据层提供上下文（数据新鲜度、空值率），语义层提供安全边界（不能删 Customer）
+
+---
+
+## 2. Motivation
+
+### 2.1 Problem
 
 The current Heirloom architecture has the following structural gaps when compared
 to production-grade metadata platforms like OpenMetadata:
 
 | Gap | Current State | Consequence |
 |-----|--------------|-------------|
+| No metadata catalog | No Table, Column, Lineage, Quality entities | Agent has no way to discover what data exists |
 | No Entity registry | Types scattered across JPA entities with no central lookup | Adding a new entity type requires ad-hoc wiring; no standard discoverability |
 | No standard REST pattern | Each Controller hand-written with inconsistent pagination, field filtering, error handling | Developer overhead per endpoint; inconsistent API surface |
 | No standard Repository lifecycle | Spring Data JPA `save()` used directly, no `prepare()` / `storeRelationships()` | Cross-entity consistency logic lives in Service layer (duplicated or forgotten) |
@@ -22,100 +56,107 @@ to production-grade metadata platforms like OpenMetadata:
 | No pluggable authorization | Hardcoded or absent | Cannot evolve from dev-mode (no auth) to production (RBAC) |
 | Discovery as tool, not entity | Discovery Engine designed as a standalone callback | Cannot query, schedule, or govern discovery through the platform API |
 
-### 1.2 Goal
+### 2.2 Goal
 
-Redesign Heirloom's architecture using OpenMetadata's platform patterns as reference,
-while preserving Heirloom's unique value: **AI Agent as first-class data consumer with
-type-level safety guarantees.**
-
----
-
-## 2. Reference Platform: OpenMetadata Architecture
-
-OpenMetadata's architecture is organized into 8 layers. The layers Heirloom should
-adopt (with Heirloom-specific adaptations) are:
-
-### Layer 1: Entity Registry (`Entity.java`)
-
-A central singleton registry where every entity type is registered with its
-Java class, Repository, Service, collection path, and FQN template.
-
-**Heirloom adaptation:** `EntityRegistry` class with constants for:
-- Core: `RESOURCE_TYPE`, `PROPOSAL`, `MAPPING_RULE`
-- Discovery: `DISCOVERY_SOURCE`, `DISCOVERY_REPORT`
-- Governance (future): `ROLE`, `CAPABILITY`, `ACTION`, `FUNCTION`
-- Audit: `EVENT`, `ACTOR`
-
-### Layer 2: Entity Interface (`EntityInterface`)
-
-All entities implement a common interface providing: `getId()`, `getEntityType()`,
-`getFullyQualifiedName()`, `getName()`, `getDescription()`, `getOwner()`,
-`getVersion()`, `getCreatedAt()`, `getUpdatedAt()`, `getChangeHash()`.
-
-**Heirloom adaptation:** `HeirloomEntity` interface. Existing `ResourceType` and
-all new entities implement it.
-
-### Layer 3: Entity Repository (`EntityRepository<E>`)
-
-Abstract base class providing standard lifecycle methods:
-- `prepare(entity, isUpdate)` — validate references, resolve owner
-- `setFullyQualifiedName(entity)` — build FQN from parent context
-- `storeEntity(entity, isUpdate)` — persist with change hash
-- `storeRelationships(entity)` — persist cross-entity relationships
-- Template methods: `create()` and `update()` orchestrate the above
-
-**Heirloom adaptation:** Java abstract class wrapping Spring Data JPA.
-`TypeRepository`, `ProposalRepository`, `DiscoverySourceRepository`,
-`DiscoveryReportRepository`, `MappingRuleRepository` all extend this base.
-
-### Layer 4: Entity Resource (`EntityResource<E>`)
-
-Abstract REST controller providing standard CRUD endpoints:
-- `GET /v1/{type}s` — paginated list with field filtering
-- `GET /v1/{type}s/{id}` — get by ID
-- `GET /v1/{type}s/name/{fqn}` — get by FQN
-- `POST /v1/{type}s` — create
-- `PATCH /v1/{type}s/{id}` — partial update (JSON Patch)
-- `DELETE /v1/{type}s/{id}` — soft delete
-
-**Heirloom adaptation:** Java abstract class using Spring MVC annotations.
-
-### Layer 5: Change Event Interceptor
-
-A Spring `ResponseBodyAdvice` that intercepts all non-GET responses containing
-`HeirloomEntity` and automatically produces `ChangeEvent` entries. Resource
-developers never call event logging directly.
-
-### Layer 6: Authorizer (Pluggable)
-
-An `Authorizer` interface with `authorize(actor, entityType, operation, fqn)`.
-Phase 0 uses `NoopAuthorizer`. Phase 2 switches to `RoleBasedAuthorizer` using
-Heirloom's Role → Capability → Action model.
+Build Heirloom as a complete platform with two layers:
+1. **Metadata catalog layer** (OpenMetadata parity) — discover, catalog, and govern data assets
+2. **Semantic operating layer** (Heirloom unique) — type-safe operating interface for AI agents
 
 ---
 
-## 3. Heirloom Entity Catalog
+## 3. Reference Platform: OpenMetadata Architecture (for Metadata Layer)
 
-### 3.1 Phase 0 Entities
+OpenMetadata's architecture is organized into 8 layers. Heirloom's **metadata layer**
+adopts the same patterns. Heirloom's **semantic layer** is built on top.
 
-| Entity Type | FQN Pattern | Purpose |
-|-------------|------------|---------|
-| `resourceType` | `{domain}.{name}` | Business semantic type definition (Customer, Order, etc.) |
-| `proposal` | `{domain}.{name}.proposal-{id}` | Schema change proposal for review/approval |
-| `discoverySource` | `{env}.{serviceName}` | A configured data source for automated schema discovery |
-| `discoveryReport` | `{sourceFQN}.{timestamp}` | Result of one discovery scan |
-| `mappingRule` | `{typeFQN}.{field}` | Field → physical data source mapping |
+### Layers Heirloom Adopts (for metadata catalog)
 
-### 3.2 Future Phase Entities
+| OM Layer | Heirloom Adaptation |
+|----------|-------------------|
+| Entity Registry (`Entity.java`) | `EntityRegistry` — 20+ entity type constants for both metadata and semantic entities |
+| Entity Interface (`EntityInterface`) | `HeirloomEntity` — unified contract for all entities |
+| Entity Repository (`EntityRepository<T>`) | `EntityRepository<E>` — standard lifecycle wrapping JPA |
+| Entity Resource (`EntityResource<T,K>`) | `EntityResource<E>` — standard REST CRUD base |
+| Change Event Handler | `ChangeEventInterceptor` — Spring ResponseBodyAdvice |
+| Authorizer | `Authorizer` — pluggable (Phase 0 Noop, Phase 2 RoleBased) |
+| Schema Layer (`openmetadata-spec`) | JSON Schema definitions → code generation (Phase 1) |
+| Search Infrastructure (Elasticsearch) | pgvector for semantic search (Phase 3) |
 
-| Entity Type | Purpose |
-|-------------|---------|
-| `role` | Actor permission boundary definition |
-| `capability` | Temporary access ticket derived from Role |
-| `action` | Write operation definition (the only write path) |
-| `function` | Pure computation definition |
-| `event` | Immutable audit log entry |
-| `actor` | Human user / AI Agent / Automation identity |
+---
+
+## 4. Heirloom Entity Catalog
+
+### 4.1 Metadata Layer Entities (对标 OpenMetadata)
+
+| Entity Type | FQN Pattern | Purpose | Phase |
+|-------------|------------|---------|-------|
+| `databaseService` | `{name}` | Database connection config (PG, MySQL, ...) | 0 |
+| `database` | `{service}.{name}` | Database instance | 0 |
+| `databaseSchema` | `{service}.{db}.{name}` | Schema namespace | 0 |
+| `table` | `{service}.{db}.{schema}.{name}` | Table or view metadata | 0 |
+| `column` | `{tableFQN}.{name}` | Column metadata (type, nullable, comment) | 0 |
+| `tableProfile` | `{tableFQN}.profile` | Data quality profile (freshness, nulls, unique) | 1 |
+| `lineage` | `{fromEntity}.{toEntity}.{type}` | Upstream/downstream lineage edge | 1 |
+| `glossaryTerm` | `{glossary}.{name}` | Business term definition | 2 |
+| `tag` | `{classification}.{name}` | Classification tag (PII, sensitive, ...) | 2 |
+| `domain` | `{name}` | Data domain (Marketing, Finance, ...) | 1 |
+| `dataProduct` | `{domain}.{name}` | Logical grouping of data assets | 2 |
+
+### 4.2 Semantic Layer Entities (Heirloom 独有)
+
+| Entity Type | FQN Pattern | Purpose | Phase |
+|-------------|------------|---------|-------|
+| `resourceType` | `{domain}.{name}` | Business semantic type definition | 0 |
+| `proposal` | `{typeFQN}.proposal-{uuid}` | Schema change proposal for review | 0 |
+| `mappingRule` | `{typeFQN}.{field}` | Field → physical column mapping | 0 |
+| `role` | `{name}` | Actor permission boundary | 2 |
+| `capability` | `{role}.{entityType}.{ability}` | Temporary access ticket | 2 |
+| `action` | `{type}.{name}` | Write operation definition | 2 |
+| `function` | `{name}` | Pure computation definition | 2 |
+
+### 4.3 Platform Entities (共用)
+
+| Entity Type | FQN Pattern | Purpose | Phase |
+|-------------|------------|---------|-------|
+| `discoverySource` | `{env}.{name}` | Configured data source for discovery | 0 |
+| `discoveryReport` | `{sourceFQN}.{timestamp}` | Result of one discovery scan | 0 |
+| `event` | `event.{id}` | Immutable audit log entry | 0 |
+| `actor` | `{type}.{name}` | Human user / AI Agent / Automation | 2 |
+
+---
+
+## 3. Adjustments to Original Heirloom Design
+
+Adding the metadata layer requires recalibrating the original Heirloom concepts.
+Core semantic concepts (Abilities, StateMachine, Relationship, Action, Function,
+Role→Capability) are UNCHANGED. What changes is their positioning within the
+larger platform.
+
+### What Changes
+
+| Original | Problem | Adjustment |
+|----------|---------|------------|
+| ResourceType is the sole representation of data | Now Table/Column metadata entities also exist | ResourceType is a **semantic wrapper** around Table. Table describes structure; ResourceType describes safety boundaries |
+| Schema Registry is the only registry | Now EntityRegistry is the platform-level registry | SchemaRegistryService becomes the **type management service** within the semantic layer, not the sole registry |
+| Proposal only for ResourceType changes | Metadata entities may also need change approval | Proposal generalized to any Entity type |
+| MappingRule: field → physical path | Need access to metadata context (quality, lineage) | MappingRule: field → Column FQN, enabling metadata context lookup |
+| Discovery not in original design | Entirely new | Discovery Engine joins Semantic Core as 5th member |
+| Manual Event Log calls | Unreliable | ChangeEventInterceptor auto-audits all Entity changes |
+
+### What Stays the Same
+
+Abilities (type-level safety), StateMachine (declarative state transitions),
+Relationship (Ownership/Reference/Association semantics), Action (9-step pipeline),
+Function (pure computation), Role→Capability→Action (Agent-human parity),
+Semantic Core architecture (now 5 members, not 4).
+
+### Semantic Core: 5 Members (was 4)
+
+1. **Discovery Engine** (NEW) — metadata ingestion + semantic inference
+2. **SchemaRegistryService** (was Schema Registry) — ResourceType CRUD and validation
+3. **Mapping Engine** — field → Column FQN mapping (enhanced)
+4. **Query Resolver** — semantic query → SQL translation
+5. **Perspective Engine** — Role-based field visibility filtering
 
 ---
 
@@ -154,18 +195,36 @@ heirloom-server/src/main/java/com/heirloom/
   ├── Authorizer.java              Pluggable auth interface
   └── NoopAuthorizer.java          Phase 0: allow all
 
-  schema/                          *** REFACTORED ***
+  schema/                          *** REFACTORED — semantic layer type management ***
   ├── domain/
-  │   ├── ResourceType.java        → implements HeirloomEntity
+  │   ├── ResourceType.java        → implements HeirloomEntity (semantic wrapper around Table)
   │   ├── Proposal.java            NEW
   │   ├── Field.java               (unchanged)
   │   ├── Ability.java             (unchanged)
-  │   ├── Relationship.java        (unchanged)
+  │   ├── Relationship.java        (unchanged — semantic, not data lineage)
   │   ├── StateTransition.java     (unchanged)
   │   └── FieldType.java           (unchanged)
   ├── service/
-  │   ├── TypeService.java         → implements EntityService
-  │   └── TypeValidator.java       (unchanged, called from TypeRepository.prepare())
+  │   ├── TypeService.java         → implements EntityService (was SchemaRegistryService)
+  │   └── TypeValidator.java       (unchanged)
+
+  metadata/                        *** NEW — metadata catalog (OpenMetadata parity) ***
+  ├── domain/
+  │   ├── DatabaseService.java     → implements HeirloomEntity
+  │   ├── Database.java
+  │   ├── DatabaseSchema.java
+  │   ├── Table.java
+  │   ├── Column.java
+  │   ├── Lineage.java             // Data lineage edge (upstream→downstream)
+  │   ├── TableProfile.java        // Data quality profile
+  │   └── GlossaryTerm.java
+  ├── repository/
+  │   ├── TableRepository.java     → extends EntityRepository<Table>
+  │   ├── ColumnRepository.java
+  │   └── ...
+  └── web/
+      ├── TableResource.java       → extends EntityResource<Table>
+      └── ...
 
   discovery/                       *** NEW — Discovery as platform entity ***
   ├── domain/
