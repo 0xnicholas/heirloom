@@ -9,5 +9,6 @@ public enum FieldType {
     BOOLEAN,
     ENUM,
     DATE,
+    TIMESTAMP,
     RID
 }
