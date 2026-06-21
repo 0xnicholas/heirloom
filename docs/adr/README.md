@@ -56,6 +56,19 @@ Perspective Engine。
 - 平台层的 `ChangeEventInterceptor` 自动审计所有语义层的变更
 - 平台层的 `Authorizer` 在 Phase 2 实现语义层的 Role → Capability → Action 授权
 
+### 子系统深挖 ADR（新增——基于 Spec 深挖章节，2026-06-21）
+
+| 编号 | 标题 | 状态 |
+|------|------|------|
+| 024 | [Metadata Entity Models — JPA + JSONB](./024-metadata-entity-models.md) | Accepted |
+| 025 | [MappingRule — Column FQN vs Physical Path](./025-mapping-column-fqn.md) | Accepted |
+| 026 | [ResourceType Lifecycle — Six Stages](./026-resourcetype-lifecycle.md) | Accepted |
+| 027 | [Perspective Engine — Metadata Context Injection](./027-perspective-metadata-context.md) | Accepted |
+| 028 | [Error Handling — Typed Exceptions + Audit](./028-error-handling.md) | Accepted |
+| 029 | [Query Resolver — JSON DSL to SQL](./029-query-resolver.md) | Accepted |
+| 030 | [Security — Connection Config Encryption](./030-security-encryption.md) | Accepted |
+| 031 | [Testing Strategy](./031-testing-strategy.md) | Accepted |
+
 ## 版本历史
 
 | 日期 | 说明 |
