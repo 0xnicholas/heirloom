@@ -201,6 +201,473 @@ heirloom-server/src/main/java/com/heirloom/
 
 ---
 
+## 4b. Component Deep-Dives
+
+### 4b.1 EntityRegistry — Spring @Component + @PostConstruct
+
+OpenMetadata uses `static {}` block for entity registration because JDBI3 DAOs
+are created with `new`, not via DI. Heirloom uses Spring — repositories are
+`@Repository` beans that don't exist when `static {}` executes.
+
+**Solution:** `EntityRegistry` is itself a `@Component`. All Repository and
+Service beans are injected via constructor. Registration happens in
+`@PostConstruct` after the Spring context is fully initialized.
+
+```java
+@Component
+public class EntityRegistry {
+
+    // Entity type constants — static final, no DI dependency
+    public static final String RESOURCE_TYPE    = "resourceType";
+    public static final String PROPOSAL         = "proposal";
+    public static final String DISCOVERY_SOURCE = "discoverySource";
+    public static final String DISCOVERY_REPORT = "discoveryReport";
+    public static final String MAPPING_RULE     = "mappingRule";
+
+    // Common field constants
+    public static final String FIELD_OWNER       = "owner";
+    public static final String FIELD_DESCRIPTION = "description";
+    public static final String FIELD_FQN         = "fullyQualifiedName";
+    public static final String FIELD_VERSION     = "version";
+    public static final String FQN_SEPARATOR     = ".";
+
+    // Internal registry — populated in @PostConstruct
+    private final Map<String, EntityRegistration> registry = new LinkedHashMap<>();
+
+    // All Repository and Service beans injected via constructor
+    private final TypeRepository typeRepo;
+    private final TypeService typeService;
+    // ... other repositories and services
+
+    public EntityRegistry(TypeRepository typeRepo, TypeService typeService, ...) {
+        this.typeRepo = typeRepo;
+        this.typeService = typeService;
+        // ...
+    }
+
+    @PostConstruct
+    public void init() {
+        register(RESOURCE_TYPE, ResourceType.class, typeRepo, typeService,
+            "{domain}.{name}", "/v1/resourceTypes");
+        register(PROPOSAL, Proposal.class, proposalRepo, null,
+            "{typeFQN}.proposal-{uuid}", "/v1/proposals");
+        register(DISCOVERY_SOURCE, DiscoverySource.class, discoverySourceRepo, discoveryService,
+            "{env}.{name}", "/v1/discovery/sources");
+        register(DISCOVERY_REPORT, DiscoveryReport.class, discoveryReportRepo, discoveryService,
+            "{sourceFQN}.{timestamp}", "/v1/discovery/reports");
+        register(MAPPING_RULE, MappingRule.class, mappingRuleRepo, null,
+            "{typeFQN}.{field}", "/v1/mappings");
+    }
+
+    // Query methods return raw types (Java generics erasure limitation)
+    public EntityRepository<?> getRepository(String entityType) { ... }
+    public EntityService<?>    getService(String entityType)    { ... }
+    public Class<?>            getEntityClass(String entityType) { ... }
+    public Set<String>         getAllEntityTypes()              { ... }
+}
+
+record EntityRegistration(
+    String entityType,
+    Class<?> entityClass,
+    EntityRepository<?> repository,
+    EntityService<?> service,
+    String fqnTemplate,
+    String collectionPath
+) {}
+```
+
+### 4b.2 EntityService Interface
+
+```java
+public interface EntityService<E extends HeirloomEntity> {
+    E buildEntity(CreateRequest<E> request);
+    void validateCreate(E entity);
+    void validateUpdate(E existing, E incoming);
+    void validateDelete(E entity);
+    Map<String, Object> toResponse(E entity, Set<String> fields);
+}
+```
+
+`validateCreate()` is business validation (uniqueness, authorization).
+`prepareInternal()` in EntityRepository is structural validation (TypeValidator).
+Both run during `create()`, in that order.
+
+### 4b.3 EntityRepository — Wrapping Spring Data JPA
+
+`EntityRepository<E>` is NOT a Spring Data interface. It is a wrapper class
+that holds a reference to `JpaRepository<E, Long>` and adds lifecycle hooks.
+
+```java
+public abstract class EntityRepository<E extends HeirloomEntity> {
+
+    protected final String entityType;
+    protected final String collectionPath;
+    protected final Class<E> entityClass;
+    protected final JpaRepository<E, Long> jpaRepository;
+
+    // Abstract — each concrete repository must implement
+    protected abstract void setFullyQualifiedName(E entity);
+    protected abstract void prepareInternal(E entity, boolean isUpdate);
+
+    // Overridable with defaults
+    protected void storeEntity(E entity, boolean isUpdate) {
+        if (entity instanceof ResourceType rt) {
+            rt.setChangeHash(computeHash(rt));
+        }
+        jpaRepository.save(entity);
+    }
+
+    protected void storeRelationships(E entity) {
+        // Default no-op. Override when Graph Store is introduced.
+    }
+
+    // Template methods (final — subclasses do NOT override)
+    @Transactional
+    public final E create(E entity) {
+        setFullyQualifiedName(entity);       // 1. Build FQN
+        prepareInternal(entity, false);      // 2. Structural validation
+        storeEntity(entity, false);          // 3. Persist entity
+        storeRelationships(entity);          // 4. Persist relationships
+        return entity;
+    }
+
+    @Transactional
+    public final E update(E entity) {
+        setFullyQualifiedName(entity);
+        prepareInternal(entity, true);
+        storeEntity(entity, true);
+        storeRelationships(entity);
+        return entity;
+    }
+
+    // Standard queries delegate to JPA
+    public Optional<E> findById(Long id) { return jpaRepository.findById(id); }
+    public Page<E> list(Pageable pageable) { return jpaRepository.findAll(pageable); }
+    @Transactional
+    public void delete(Long id) { jpaRepository.deleteById(id); }
+}
+```
+
+**TypeRepository example** — `prepareInternal()` calls existing `TypeValidator`:
+
+```java
+@Repository
+public class TypeRepository extends EntityRepository<ResourceType> {
+    private final ResourceTypeJpaRepository jpa;
+
+    public TypeRepository(ResourceTypeJpaRepository jpa) {
+        super(EntityRegistry.RESOURCE_TYPE, "/v1/resourceTypes", ResourceType.class, jpa);
+        this.jpa = jpa;
+    }
+
+    @Override
+    protected void setFullyQualifiedName(ResourceType type) {
+        String domain = type.getDomain() != null ? type.getDomain() : "default";
+        type.setFullyQualifiedName(domain + EntityRegistry.FQN_SEPARATOR + type.getName());
+    }
+
+    @Override
+    protected void prepareInternal(ResourceType type, boolean isUpdate) {
+        Map<String, ResourceType> knownTypes = new HashMap<>();
+        jpa.findAll().forEach(t -> knownTypes.put(t.getFullyQualifiedName(), t));
+        List<TypeValidator.Diagnostic> diags = TypeValidator.validate(type, knownTypes);
+        boolean hasErrors = diags.stream()
+            .anyMatch(d -> d.severity() == TypeValidator.Severity.ERROR);
+        if (hasErrors) throw new TypeValidationException(diags);
+    }
+
+    public Optional<ResourceType> findByFQN(String fqn) {
+        return jpa.findByFullyQualifiedName(fqn);
+    }
+}
+```
+
+### 4b.4 EntityResource — Generics + Spring MVC
+
+**Problem:** Spring MVC cannot see generic type parameters at runtime due to
+type erasure. `@RequestBody CreateRequest<E>` would be erased to `Object`.
+
+**Solution:** Each concrete Resource declares its own `@RequestMapping` methods
+with concrete parameter types, then delegates to `EntityResource` base logic.
+
+```java
+public abstract class EntityResource<E extends HeirloomEntity> {
+
+    protected final String entityType;
+    protected final EntityRepository<E> repository;
+    protected final EntityService<E> service;
+    protected final Authorizer authorizer;
+
+    // Protected template methods that subclasses delegate to
+    protected ResponseEntity<EntityList<E>> list(String fields, int limit,
+                                                  String before, String after) { ... }
+    protected ResponseEntity<E> getById(Long id, String fields) { ... }
+    protected ResponseEntity<E> getByFQN(String fqn, String fields) { ... }
+    protected ResponseEntity<E> create(CreateRequest<E> request) { ... }
+    protected ResponseEntity<Void> delete(Long id) { ... }
+
+    // Subclass provides FQN lookup
+    protected abstract E findEntityByFQN(String fqn);
+}
+```
+
+**Concrete Resource** — Spring sees concrete types:
+
+```java
+@RestController
+@RequestMapping("/v1/resourceTypes")
+public class TypeResource extends EntityResource<ResourceType> {
+
+    public TypeResource(TypeRepository repo, TypeService svc, Authorizer auth) {
+        super(EntityRegistry.RESOURCE_TYPE, repo, svc, auth);
+    }
+
+    @GetMapping
+    public ResponseEntity<EntityList<ResourceType>> list(
+        @RequestParam(defaultValue="*") String fields, ...) {
+        return super.list(fields, limit, before, after);
+    }
+
+    @PostMapping
+    public ResponseEntity<ResourceType> create(
+        @RequestBody CreateTypeRequest request) {  // Concrete type!
+        return super.create(request);
+    }
+}
+```
+
+**CreateRequest pattern** — `CreateTypeRequest extends CreateRequest<ResourceType>`:
+
+```java
+public abstract class CreateRequest<E extends HeirloomEntity> {
+    private String name, description, owner;
+    public abstract E toEntity();
+}
+
+public class CreateTypeRequest extends CreateRequest<ResourceType> {
+    private String domain;
+    private List<Field> fields;
+    private List<Ability> abilities;
+    private List<StateTransition> stateMachine;
+    private List<Relationship> relationships;
+
+    @Override
+    public ResourceType toEntity() {
+        ResourceType type = new ResourceType(getName());
+        type.setDomain(domain);
+        type.setFields(fields);
+        // ...
+        return type;
+    }
+}
+```
+
+### 4b.5 ChangeEventInterceptor — Automatic Audit
+
+Spring `ResponseBodyAdvice` intercepts all non-GET responses containing
+`HeirloomEntity` and writes `ChangeEvent` to `EventLogRepository` in an
+independent transaction (`Propagation.REQUIRES_NEW`).
+
+```java
+@Component
+public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
+
+    private final EventLogRepository eventLog;
+
+    @Override
+    public Object beforeBodyWrite(Object body, ...) {
+        if (isReadOnly(httpMethod)) return body;
+        if (!(body instanceof HeirloomEntity entity)) return body;
+
+        ChangeEvent event = ChangeEvent.builder()
+            .entityType(entity.getEntityType())
+            .entityId(entity.getId())
+            .entityFQN(entity.getFullyQualifiedName())
+            .eventType(resolveEventType(httpMethod))
+            .actor(getCurrentActor())
+            .timestamp(Instant.now())
+            .version(entity.getVersion())
+            .changeHash(entity.getChangeHash())
+            .build();
+
+        eventLog.append(event);  // Independent transaction
+        return body;
+    }
+}
+```
+
+**Rejected operations** are logged from `@ExceptionHandler`:
+
+```java
+@ExceptionHandler(UnauthorizedException.class)
+public ResponseEntity<ErrorResponse> handleUnauthorized(
+    UnauthorizedException ex, HttpServletRequest request) {
+    eventInterceptor.logRejected(ex.getEntityType(), ex.getOperation(),
+        getActor(), ex.getMessage());
+    return ResponseEntity.status(403).body(new ErrorResponse(ex.getMessage()));
+}
+```
+
+**EventLogRepository** — append-only, independent transactions:
+
+```java
+@Repository
+public class EventLogRepository {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void append(ChangeEvent event) { jpa.save(event); }
+    public List<ChangeEvent> findByEntity(String type, String fqn, Instant from, Instant to) { ... }
+    public List<ChangeEvent> findByActor(String actor, Instant from, Instant to) { ... }
+}
+
+public enum EventType {
+    ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED,
+    ENTITY_DENIED, ENTITY_NO_CHANGE
+}
+```
+
+### 4b.6 Discovery as Platform Entity
+
+**DiscoverySource** — a configured data source for automated schema discovery.
+Standard CRUD via `EntityResource<DiscoverySource>`. Fields: `name`, `sourceType`,
+`connectionConfig`, `schedule`, `status` (ACTIVE/PAUSED/ERROR).
+
+**DiscoveryReport** — result of one scan. Fields: `sourceFQN`, `status`
+(RUNNING/SUCCESS/PARTIAL_SUCCESS/FAILED/SKIPPED), `tablesScanned`, `tablesFailed`,
+`proposalsGenerated`, `proposalsRegistered`, `contentHash`, `durationMs`,
+`partialSuccess`.
+
+**DiscoveryResource** provides custom endpoints beyond standard CRUD:
+- `POST /v1/discovery/sources/{sourceFQN}/run` — trigger scan
+- `GET /v1/discovery/reports?source={fqn}` — scan history
+
+**DiscoveryService.runDiscovery()** full lifecycle:
+
+```java
+public DiscoveryReport runDiscovery(String sourceFQN) {
+    // 1. Load source entity
+    DiscoverySource source = sourceRepo.findByFQN(sourceFQN);
+
+    // 2. Create report (status: RUNNING) — ChangeEventInterceptor auto-logs
+    DiscoveryReport report = DiscoveryReport.start(source);
+    reportRepo.create(report);
+
+    try {
+        // 3. Phase 1: Extract raw schema
+        SchemaExtractor extractor = extractors.get(source.getSourceType());
+        extractor.prepare(source.toConfig());
+        RawSchema schema = runner.run(extractor, getTopology());
+
+        // 4. Incremental check (contentHash comparison)
+        if (isUnchanged(sourceFQN, schema.getContentHash())) {
+            return reportRepo.markSkipped(report);
+        }
+
+        // 5. Phase 2: Infer proposals
+        List<ResourceTypeProposal> proposals = inference.infer(schema);
+
+        // 6. Register — split by confidence
+        int registered = 0;
+        for (ResourceTypeProposal p : proposals) {
+            if (p.isHighConfidence()) {
+                typeRepo.create(p.toResourceType());     // Auto-register
+                registered++;
+            } else {
+                proposalRepo.create(p.toProposal());     // Awaiting approval
+            }
+            mappingRepo.create(p.toMappingRule());       // Field → source mapping
+        }
+
+        return reportRepo.markSuccess(report, proposals.size(), registered);
+    } catch (Exception e) {
+        return reportRepo.markFailed(report, e);
+    }
+}
+```
+
+### 4b.7 InferencePipeline — Rule Chain + Proposal Merging
+
+Multiple rules may produce partial proposals for the same table. The pipeline
+merges them by `proposedTypeName` using `LinkedHashMap.merge()`.
+
+```java
+public class InferencePipeline {
+    private final List<InferenceRule> rules;
+
+    public List<ResourceTypeProposal> infer(RawSchema schema) {
+        Map<String, ResourceTypeProposal> proposals = new LinkedHashMap<>();
+
+        for (InferenceRule rule : rules) {
+            try {
+                for (ResourceTypeProposal incoming : rule.infer(schema)) {
+                    proposals.merge(incoming.proposedTypeName(), incoming,
+                        (existing, inc) -> existing.merge(inc));
+                }
+            } catch (Exception e) {
+                log.warn("Rule {} failed: {}", rule.getClass(), e.getMessage());
+            }
+        }
+
+        proposals.values().forEach(ResourceTypeProposal::computeGlobalConfidence);
+        return new ArrayList<>(proposals.values());
+    }
+}
+```
+
+**ResourceTypeProposal** supports incremental merging — each rule adds its
+fields (fields, relationships, abilities, stateMachine) to the proposal.
+Confidence is tracked per-field and the global confidence is the minimum
+across all fields.
+
+```java
+public class ResourceTypeProposal {
+    private String proposedTypeName;      // Merge key
+    private String sourceTable;
+    private List<Field> fields = new ArrayList<>();
+    private List<Relationship> relationships = new ArrayList<>();
+    private List<Ability> abilities = new ArrayList<>();
+    private List<StateTransition> stateMachine = new ArrayList<>();
+
+    // Per-field confidence
+    private Confidence fieldsConfidence = Confidence.NONE;
+    private Confidence relationshipsConfidence = Confidence.NONE;
+    private Confidence abilitiesConfidence = Confidence.NONE;
+    private Confidence stateMachineConfidence = Confidence.NONE;
+
+    public ResourceTypeProposal merge(ResourceTypeProposal incoming) {
+        if (incoming.fields != null) this.fields.addAll(incoming.fields);
+        if (incoming.relationships != null) this.relationships.addAll(incoming.relationships);
+        if (incoming.abilities != null) this.abilities.addAll(incoming.abilities);
+        if (incoming.stateMachine != null) this.stateMachine.addAll(incoming.stateMachine);
+        // Confidence: take minimum
+        this.fieldsConfidence = min(this.fieldsConfidence, incoming.fieldsConfidence);
+        return this;
+    }
+
+    public boolean isHighConfidence() {
+        return fieldsConfidence != Confidence.LOW
+            && abilitiesConfidence == Confidence.NONE;
+    }
+}
+
+public enum Confidence { HIGH, MEDIUM, LOW, NONE }
+```
+
+**InferenceRule interface:**
+
+```java
+public interface InferenceRule {
+    Confidence confidence();
+    List<ResourceTypeProposal> infer(RawSchema schema);
+}
+```
+
+**TypeNameInference** (Phase 0, HIGH confidence): maps `customer_orders` → `"CustomerOrder"`.
+**FieldMapperInference** (Phase 0, HIGH confidence): maps column name + type → `Field`,
+with PostgreSQL → `FieldType` mapping (integer→NUMBER, text→STRING, boolean→BOOLEAN,
+timestamp→TIMESTAMP, unknown→STRING).
+
+---
+
 ## 5. Key Design Decisions
 
 ### 5.1 Why EntityRegistry instead of Spring's built-in dependency injection?
@@ -276,32 +743,156 @@ because:
 
 | Current File | Action |
 |-------------|--------|
-| `ResourceType.java` | Add `implements HeirloomEntity`. Add `fqn`, `changeHash`, `domain` fields. |
+| `ResourceType.java` | Add `implements HeirloomEntity`. Add `fullyQualifiedName`, `changeHash`, `domain` fields. |
 | `Field.java` | No change |
 | `Ability.java` | No change |
 | `Relationship.java` | No change |
 | `StateTransition.java` | No change |
-| `TypeValidator.java` | No change (called from `TypeRepository.prepare()`) |
+| `TypeValidator.java` | No change (called from `TypeRepository.prepareInternal()`) |
 | `TypeController.java` | Replace with `TypeResource extends EntityResource<ResourceType>` |
+| `SchemaRegistryService.java` | Refactor to implement `EntityService<ResourceType>` |
 
 ### 7.2 Files to Add
 
 All files listed in Section 4 under `entity/`, `repository/`, `web/`, `interceptor/`,
-`auth/`, and `discovery/`.
+`auth/`, and `discovery/`. Approximately 35 new files across 6 new packages.
 
-### 7.3 Database Migration
+### 7.3 Full Database Migration SQL
 
-Add columns to `resource_types` table:
-- `fully_qualified_name VARCHAR(512) UNIQUE`
-- `change_hash VARCHAR(64)`
-- `domain VARCHAR(128)`
+```sql
+-- Modify existing resource_types table (backward compatible)
+ALTER TABLE resource_types
+  ADD COLUMN fully_qualified_name VARCHAR(512),
+  ADD COLUMN domain VARCHAR(128) DEFAULT 'default',
+  ADD COLUMN change_hash VARCHAR(64);
 
-New tables:
-- `proposals`
-- `discovery_sources`
-- `discovery_reports`
-- `mapping_rules`
-- `event_log` (or extend existing)
+-- Backfill FQN for existing data
+UPDATE resource_types
+  SET fully_qualified_name = 'default.' || name
+  WHERE fully_qualified_name IS NULL;
+
+ALTER TABLE resource_types
+  ADD CONSTRAINT uq_resource_types_fqn UNIQUE (fully_qualified_name);
+
+-- New table: discovery_sources
+CREATE TABLE discovery_sources (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(256) NOT NULL,
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  source_type VARCHAR(64) NOT NULL,
+  environment VARCHAR(64) DEFAULT 'prod',
+  connection_config JSONB,
+  schedule VARCHAR(64) DEFAULT 'manual',
+  status VARCHAR(32) DEFAULT 'ACTIVE',
+  description TEXT,
+  owner VARCHAR(256),
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- New table: discovery_reports
+CREATE TABLE discovery_reports (
+  id BIGSERIAL PRIMARY KEY,
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  source_fqn VARCHAR(512) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  tables_scanned INTEGER DEFAULT 0,
+  tables_skipped INTEGER DEFAULT 0,
+  tables_failed INTEGER DEFAULT 0,
+  proposals_generated INTEGER DEFAULT 0,
+  proposals_registered INTEGER DEFAULT 0,
+  content_hash VARCHAR(64),
+  duration_ms BIGINT,
+  error_summary JSONB,
+  partial_success BOOLEAN DEFAULT FALSE,
+  description TEXT,
+  owner VARCHAR(256),
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- New table: proposals
+CREATE TABLE proposals (
+  id BIGSERIAL PRIMARY KEY,
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  target_type_fqn VARCHAR(512),
+  proposed_changes JSONB NOT NULL,
+  status VARCHAR(32) DEFAULT 'PENDING',
+  description TEXT,
+  owner VARCHAR(256),
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- New table: mapping_rules
+CREATE TABLE mapping_rules (
+  id BIGSERIAL PRIMARY KEY,
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  type_fqn VARCHAR(512) NOT NULL,
+  field_name VARCHAR(256) NOT NULL,
+  source_id VARCHAR(512) NOT NULL,
+  physical_path VARCHAR(1024) NOT NULL,
+  description TEXT,
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- New table: event_log (append-only)
+CREATE TABLE event_log (
+  id BIGSERIAL PRIMARY KEY,
+  entity_type VARCHAR(64) NOT NULL,
+  entity_id BIGINT,
+  entity_fqn VARCHAR(512),
+  event_type VARCHAR(32) NOT NULL,
+  actor VARCHAR(256),
+  version BIGINT,
+  change_hash VARCHAR(64),
+  denied_reason TEXT,
+  denied_operation VARCHAR(64),
+  timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_event_log_entity ON event_log(entity_type, entity_fqn, timestamp DESC);
+CREATE INDEX idx_event_log_actor  ON event_log(actor, timestamp DESC);
+```
+
+### 7.4 Complete Call Chain Example: POST /v1/resourceTypes
+
+```
+POST /v1/resourceTypes  { "name": "Customer", "domain": "crm", ... }
+│
+├─ TypeResource.create(@RequestBody CreateTypeRequest)
+│   │  Spring deserializes CreateTypeRequest (concrete type)
+│   │
+│   ├─ authorizer.authorize(actor, "resourceType", "CREATE", null)
+│   │
+│   ├─ [EntityService layer]
+│   │   ├─ typeService.buildEntity(request)  → new ResourceType("Customer")
+│   │   └─ typeService.validateCreate(entity) // Business: uniqueness check
+│   │
+│   ├─ [EntityRepository layer]
+│   │   └─ typeRepo.create(entity)            // Template method (final)
+│   │       ├─ setFullyQualifiedName(entity)   → "crm.Customer"
+│   │       ├─ prepareInternal(entity, false)  → TypeValidator.validate()
+│   │       ├─ storeEntity(entity, false)      → computeHash() → jpa.save()
+│   │       └─ storeRelationships(entity)      → no-op (embedded JSONB)
+│   │
+│   └─ return ResponseEntity.status(201).body(entity)
+│
+├─ [ChangeEventInterceptor auto-fires]
+│   └─ body instanceof HeirloomEntity + non-GET →
+│       build ChangeEvent(ENTITY_CREATED) → eventLog.append()
+│
+└─ Response: 201 Created { id: 1, fqn: "crm.Customer", ... }
+```
 
 ---
 
