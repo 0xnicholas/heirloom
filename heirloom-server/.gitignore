@@ -1,0 +1,21 @@
+# Maven build output
+target/
+
+# IDE / editor scratch
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Local secrets
+.env
+.env.local
+
+# OS junk
+.DS_Store
+
+# Logs
+*.log
+logs/
