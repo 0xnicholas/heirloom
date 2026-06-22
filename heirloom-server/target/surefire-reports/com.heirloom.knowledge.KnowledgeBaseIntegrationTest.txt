@@ -1,0 +1,24 @@
+-------------------------------------------------------------------------------
+Test set: com.heirloom.knowledge.KnowledgeBaseIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 4, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 15.22 s <<< FAILURE! -- in com.heirloom.knowledge.KnowledgeBaseIntegrationTest
+com.heirloom.knowledge.KnowledgeBaseIntegrationTest.missingTypeFile -- Time elapsed: 0.089 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 1
+ but was: 0
+	at com.heirloom.knowledge.KnowledgeBaseIntegrationTest.missingTypeFile(KnowledgeBaseIntegrationTest.java:176)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+com.heirloom.knowledge.KnowledgeBaseIntegrationTest.getByFQN -- Time elapsed: 0.108 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 200 OK
+ but was: 404 NOT_FOUND
+	at com.heirloom.knowledge.KnowledgeBaseIntegrationTest.getByFQN(KnowledgeBaseIntegrationTest.java:208)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
