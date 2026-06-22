@@ -1,6 +1,7 @@
 package com.heirloom.knowledge.sync;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.domain.KnowledgeSource;
+import com.heirloom.knowledge.domain.EntityReference;
 import com.heirloom.knowledge.repository.KnowledgeArticleRepository;
 import java.io.IOException;
 import java.nio.file.*;
@@ -10,6 +11,8 @@ public class KnowledgeSyncEngine {
     private final KnowledgeArticleRepository articleRepo;
     private final FileScanner fileScanner = new FileScanner();
     private final FrontmatterParser parser = new FrontmatterParser();
+    private final ResourceResolver resourceResolver = new ResourceResolver();
+    private final LinkResolver linkResolver = new LinkResolver();
     private SyncDiff lastDiff;
     public KnowledgeSyncEngine(KnowledgeArticleRepository r) { articleRepo = r; }
     public SyncDiff getLastDiff() { return lastDiff; }
@@ -55,6 +58,13 @@ public class KnowledgeSyncEngine {
         a.setStatus(Objects.toString(p.frontmatter().get("status"),"published"));
         a.setDomain(src.getName()!=null?src.getName():"default");
         a.setAuthor(Objects.toString(p.frontmatter().get("x_author"),null));
+        // Resolve @FQN resource reference
+        EntityReference resRef = resourceResolver.resolve(a.getResource());
+        if (resRef != null) a.getReferences().add(resRef);
+        // Resolve Markdown links in body
+        LinkResolver.ResolvedLinks links = linkResolver.resolve(a.getBody());
+        a.getReferences().addAll(links.references());
+        a.getCitations().addAll(links.citations());
         a.setOkfVersion("0.1"); a.setLastSyncedAt(Instant.now());
         if (p.hasErrors()) { a.setSyncStatus("PARSE_ERROR"); a.setSyncError(p.errors().get(0).message()); }
         else if (!p.hasType()) { a.setSyncStatus("MISSING_TYPE"); a.setSyncError("Missing type"); }
