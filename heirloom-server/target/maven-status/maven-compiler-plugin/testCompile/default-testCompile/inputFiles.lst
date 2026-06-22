@@ -1,5 +1,10 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/discovery/DiscoveryE2ETest.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/knowledge/KnowledgeSyncEngineDirectTest.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/knowledge/domain/KnowledgeSourceTest.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/knowledge/domain/KnowledgeStatusTest.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/knowledge/repository/KnowledgeSourceJpaRepositoryTest.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/knowledge/sync/FrontmatterParserTest.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/knowledge/sync/IndexLogGeneratorTest.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/query/AggregationQueryTest.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/schema/SchemaRegistryIntegrationTest.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/test/java/com/heirloom/schema/TypeValidatorTest.java

@@ -1,0 +1,6 @@
+com/heirloom/knowledge/domain/KnowledgeStatusTest.class
+com/heirloom/knowledge/sync/IndexLogGeneratorTest.class
+com/heirloom/knowledge/repository/KnowledgeSourceJpaRepositoryTest.class
+com/heirloom/knowledge/KnowledgeSyncEngineDirectTest.class
+com/heirloom/knowledge/sync/FrontmatterParserTest.class
+com/heirloom/knowledge/domain/KnowledgeSourceTest.class
