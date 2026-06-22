@@ -12,6 +12,7 @@ com/heirloom/discovery/domain/DiscoverySource.class
 com/heirloom/repository/MappingRuleRepository.class
 com/heirloom/discovery/extractor/SchemaExtractor.class
 com/heirloom/discovery/extractor/mysql/MySqlSchemaExtractor.class
+com/heirloom/discovery/inference/rules/DescriptionInference.class
 com/heirloom/discovery/model/RawRelationship.class
 com/heirloom/query/AggregationQuery.class
 com/heirloom/schema/service/TypeNotFoundException.class
