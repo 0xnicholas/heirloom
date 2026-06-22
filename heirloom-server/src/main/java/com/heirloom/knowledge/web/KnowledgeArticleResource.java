@@ -1,9 +1,12 @@
 package com.heirloom.knowledge.web;
+
 import com.heirloom.auth.Authorizer;
 import com.heirloom.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.repository.KnowledgeArticleJpaRepository;
 import com.heirloom.knowledge.service.KnowledgeGraphService;
+import com.heirloom.knowledge.service.KnowledgePerspectiveFilter;
+import com.heirloom.knowledge.service.KnowledgePerspectiveFilter.AccessPolicy;
 import com.heirloom.knowledge.service.KnowledgeQualityScorer;
 import com.heirloom.knowledge.service.KnowledgePromotionEngine;
 import com.heirloom.knowledge.service.QuerySanitizer;
@@ -14,6 +17,8 @@ import com.heirloom.web.EntityResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/v1/knowledge")
 public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
@@ -24,19 +29,76 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     private final EmbeddingProvider embeddingProvider;
     private final RrfScorer rrfScorer = new RrfScorer();
     private final StaleArticleScanner staleScanner;
-    public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j, KnowledgeGraphService gs, KnowledgeQualityScorer qs, KnowledgePromotionEngine pe, EmbeddingProvider ep, StaleArticleScanner sas) { super(EntityRegistry.KNOWLEDGE_ARTICLE, a); jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe; embeddingProvider=ep; staleScanner=sas; }
-    @GetMapping public ResponseEntity<List<KnowledgeArticle>> list() { return ResponseEntity.ok(jpa.findAll()); }
-    @GetMapping("/{id}") public ResponseEntity<KnowledgeArticle> getById(@PathVariable Long id) { return jpa.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
-    @GetMapping("/name/{fqn}") public ResponseEntity<KnowledgeArticle> getByFQN(@PathVariable String fqn) { return jpa.findByFullyQualifiedName(fqn).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
+    private final KnowledgePerspectiveFilter perspectiveFilter;
+
+    public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j,
+                                    KnowledgeGraphService gs, KnowledgeQualityScorer qs,
+                                    KnowledgePromotionEngine pe, EmbeddingProvider ep,
+                                    StaleArticleScanner sas,
+                                    KnowledgePerspectiveFilter kpf) {
+        super(EntityRegistry.KNOWLEDGE_ARTICLE, a);
+        jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe;
+        embeddingProvider=ep; staleScanner=sas; perspectiveFilter=kpf;
+    }
+
+    // === Read endpoints (all pass through KnowledgePerspectiveFilter) ===
+
+    @GetMapping
+    public ResponseEntity<List<KnowledgeArticle>> list(
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
+        AccessPolicy policy = resolvePolicy(role, agentId, user);
+        if (!policy.canRead()) return ResponseEntity.ok(List.of());
+        List<KnowledgeArticle> all = jpa.findAll();
+        return ResponseEntity.ok(perspectiveFilter.filterByPolicy(all, policy));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<KnowledgeArticle> getById(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
+        AccessPolicy policy = resolvePolicy(role, agentId, user);
+        if (!policy.canRead()) return ResponseEntity.notFound().build();
+        return jpa.findById(id)
+                .filter(a -> perspectiveFilter.canSee(a, policy))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/name/{fqn}")
+    public ResponseEntity<KnowledgeArticle> getByFQN(
+            @PathVariable String fqn,
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
+        AccessPolicy policy = resolvePolicy(role, agentId, user);
+        if (!policy.canRead()) return ResponseEntity.notFound().build();
+        return jpa.findByFullyQualifiedName(fqn)
+                .filter(a -> perspectiveFilter.canSee(a, policy))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     @GetMapping("/search")
-    public ResponseEntity<?> search(@RequestParam(required=false) String q,
-                                     @RequestParam(required=false) String ref,
-                                     @RequestParam(defaultValue="fts") String mode,
-                                     @RequestParam(defaultValue="20") int limit,
-                                     @RequestParam(defaultValue="0") int offset) {
+    public ResponseEntity<?> search(
+            @RequestParam(required=false) String q,
+            @RequestParam(required=false) String ref,
+            @RequestParam(defaultValue="fts") String mode,
+            @RequestParam(defaultValue="20") int limit,
+            @RequestParam(defaultValue="0") int offset,
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
+
+        AccessPolicy policy = resolvePolicy(role, agentId, user);
+        if (!policy.canRead()) return ResponseEntity.ok(List.of());
+
         if (ref != null && !ref.isBlank()) {
-            return ResponseEntity.ok(jpa.findByEntityRef("[{\"fqn\":\"" + ref + "\"}]"));
+            List<KnowledgeArticle> raw = jpa.findByEntityRef("[{\"fqn\":\"" + ref + "\"}]");
+            return ResponseEntity.ok(perspectiveFilter.filterByPolicy(raw, policy));
         }
         if (q == null || q.isBlank()) return ResponseEntity.badRequest().body(Map.of("error","Provide q or ref"));
 
@@ -49,32 +111,60 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
             effectiveMode = "fts";
         }
 
-        return switch (effectiveMode) {
+        Object rawResult = switch (effectiveMode) {
             case "vector" -> {
                 float[] qe = embeddingProvider.embed(q);
-                yield ResponseEntity.ok(jpa.vectorSearch(arrayToString(qe), limit, offset));
+                yield jpa.vectorSearch(arrayToString(qe), limit, offset);
             }
             case "hybrid" -> {
                 float[] qe = embeddingProvider.embed(q);
                 List<KnowledgeArticle> fts = jpa.search(tsQuery, limit * 2, 0);
                 List<KnowledgeArticle> vec = jpa.vectorSearch(arrayToString(qe), limit * 2, 0);
                 var fused = rrfScorer.fuse(fts, vec);
-                yield ResponseEntity.ok(fused.stream().limit(limit).map(r -> Map.of("article",r.article(),"score",r.score())).toList());
+                yield fused.stream().limit(limit)
+                        .map(r -> Map.of("article", r.article(), "score", r.score()))
+                        .collect(Collectors.toList());
             }
-            default -> ResponseEntity.ok(jpa.search(tsQuery, limit, offset));
+            default -> jpa.search(tsQuery, limit, offset);
         };
-    }
 
-    private String arrayToString(float[] arr) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i=0;i<arr.length;i++) { if(i>0)sb.append(","); sb.append(arr[i]); }
-        sb.append("]");
-        return sb.toString();
+        // Apply perspective filter on the way out.
+        if (rawResult instanceof List<?> list) {
+            List<KnowledgeArticle> articles = list.stream()
+                    .filter(KnowledgeArticle.class::isInstance)
+                    .map(KnowledgeArticle.class::cast)
+                    .toList();
+            List<KnowledgeArticle> filtered = perspectiveFilter.filterByPolicy(articles, policy);
+            // Preserve hybrid shape (article + score map entries) when present.
+            if (effectiveMode.equals("hybrid")) {
+                return ResponseEntity.ok(list.stream()
+                        .filter(o -> o instanceof Map<?, ?> m
+                                && m.get("article") instanceof KnowledgeArticle a
+                                && perspectiveFilter.canSee(a, policy))
+                        .limit(limit)
+                        .toList());
+            }
+            return ResponseEntity.ok(filtered);
+        }
+        return ResponseEntity.ok(rawResult);
     }
 
     @GetMapping("/graph/traverse")
-    public ResponseEntity<?> traverse(@RequestParam String from, @RequestParam(defaultValue="2") int maxDepth) {
-        return ResponseEntity.ok(graphService.traverse(from, maxDepth));
+    public ResponseEntity<?> traverse(
+            @RequestParam String from,
+            @RequestParam(defaultValue = "2") int maxDepth,
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
+
+        AccessPolicy policy = resolvePolicy(role, agentId, user);
+        if (!policy.canRead()) return ResponseEntity.ok(Map.of("nodes", List.of()));
+
+        int effectiveDepth = maxDepth;
+        int cap = perspectiveFilter.maxDepth(policy);
+        if (cap >= 0) effectiveDepth = Math.min(maxDepth, cap);
+
+        return ResponseEntity.ok(graphService.traverse(from, effectiveDepth));
     }
 
     @GetMapping("/{id}/quality")
@@ -106,5 +196,32 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
                 "maxReferences", maxReferences,
                 "candidateCount", candidates.size(),
                 "candidates", candidates));
+    }
+
+    // === Helpers ===
+
+    private String arrayToString(float[] arr) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i=0;i<arr.length;i++) { if(i>0)sb.append(","); sb.append(arr[i]); }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    /**
+     * Resolve the AccessPolicy from headers. Order of preference:
+     * {@code X-Agent-Role} (explicit role name) → {@code X-Agent-Id}
+     * (treated as role name) → {@code X-User} (treated as role name) →
+     * {@code "system"} (no role, falls through to default no-restriction policy).
+     */
+    private AccessPolicy resolvePolicy(String role, String agentId, String user) {
+        String actorId = pickActor(role, agentId, user);
+        return perspectiveFilter.resolvePolicy(actorId);
+    }
+
+    private static String pickActor(String role, String agentId, String user) {
+        if (role != null && !role.isBlank()) return role;
+        if (agentId != null && !agentId.isBlank()) return agentId;
+        if (user != null && !user.isBlank()) return user;
+        return "system";
     }
 }
