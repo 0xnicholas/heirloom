@@ -1,5 +1,6 @@
 package com.heirloom.discovery.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heirloom.discovery.domain.DiscoveryReport;
 import com.heirloom.discovery.domain.DiscoverySource;
 import com.heirloom.discovery.extractor.DiscoveryConfig;
@@ -57,6 +58,25 @@ public class DiscoveryService {
 
             report.setTablesScanned(schema.tables().size());
 
+            // Phase 1b: Create metadata entities
+            int metadataCreated = 0;
+            for (var rawTable : schema.tables()) {
+                try {
+                    TableEntity table = new TableEntity();
+                    table.setName(rawTable.tableName());
+                    table.setDatabaseServiceFQN(source.getFullyQualifiedName());
+                    table.setTableType("BASE TABLE");
+                    table.setColumnsJson(toJson(rawTable.columns()));
+                    table.setDescription(rawTable.comment());
+                    // FQN is set by TableRepository.setFullyQualifiedName()
+                    tableRepo.create(table);
+                    metadataCreated++;
+                } catch (Exception e) {
+                    log.warn("Failed to create metadata entity for {}", rawTable.tableName(), e);
+                }
+            }
+            report.setMetadataCreated(metadataCreated);
+
             // Phase 2: Infer
             List<ResourceTypeProposal> proposals = inference.infer(schema);
             report.setProposalsGenerated(proposals.size());
@@ -87,6 +107,13 @@ public class DiscoveryService {
         }
 
         return report;
+    }
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    private String toJson(Object obj) {
+        try { return objectMapper.writeValueAsString(obj); }
+        catch (Exception e) { return "[]"; }
     }
 
     private void detectStaleEntities(DiscoverySource source, RawSchema schema) {
