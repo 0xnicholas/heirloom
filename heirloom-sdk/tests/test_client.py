@@ -234,3 +234,41 @@ class TestProposalsNamespace:
             "http://localhost:8080/v1/proposals/7/reject",
             json={"reason": "missing evidence"},
         )
+
+
+class TestFunctionsNamespace:
+    def test_invoke(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.post = Mock(return_value=_mock_response(
+            {"functionName": "risk_score", "outputType": "NUMBER", "result": 0.87}))
+        result = client.functions.invoke(
+            "risk_score", inputs={"amount": 1000, "tier": "gold"})
+        assert result == 0.87
+        client._session.post.assert_called_with(
+            "http://localhost:8080/v1/functions/name/risk_score/invoke",
+            json={"inputs": {"amount": 1000, "tier": "gold"}},
+        )
+
+    def test_invoke_no_inputs(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.post = Mock(return_value=_mock_response(
+            {"functionName": "pi", "result": 3.14159}))
+        result = client.functions.invoke("pi")
+        assert result == 3.14159
+        _, kwargs = client._session.post.call_args
+        assert kwargs["json"] == {"inputs": {}}
+
+    def test_get(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.get = Mock(return_value=_mock_response(
+            {"name": "risk_score", "code": "#amount * 0.1"}))
+        fn = client.functions.get("risk_score")
+        assert fn["code"] == "#amount * 0.1"
+
+    def test_create(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.post = Mock(return_value=_mock_response(
+            {"id": 1, "name": "discount", "code": "#price * 0.9"}))
+        created = client.functions.create(
+            {"name": "discount", "code": "#price * 0.9", "outputType": "NUMBER"})
+        assert created["name"] == "discount"

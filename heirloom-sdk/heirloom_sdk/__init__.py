@@ -73,6 +73,7 @@ class HeirloomClient:
         self._knowledge: Optional["KnowledgeNamespace"] = None
         self._knowledge_sources: Optional["KnowledgeSourceNamespace"] = None
         self._proposals: Optional["ProposalsNamespace"] = None
+        self._functions: Optional["FunctionsNamespace"] = None
 
     # --- Namespace accessors ---
 
@@ -93,6 +94,12 @@ class HeirloomClient:
         if self._proposals is None:
             self._proposals = ProposalsNamespace(self)
         return self._proposals
+
+    @property
+    def functions(self) -> "FunctionsNamespace":
+        if self._functions is None:
+            self._functions = FunctionsNamespace(self)
+        return self._functions
 
     # === Discovery ===
 
@@ -399,6 +406,58 @@ class ProposalsNamespace:
         r = self._client._session.post(
             f"{self._client.base_url}/v1/proposals/{proposal_id}/reject",
             json={"reason": reason},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+@dataclass
+class FunctionsNamespace:
+    """Function engine — ``client.functions.*``.
+
+    Functions are sandboxed, read-only computations defined by a SpEL expression.
+    Invoke them by name with a JSON-serialisable input map; the server returns
+    the computed result. Functions may emit audit events depending on their
+    ``auditEnabled`` flag.
+    """
+
+    _client: HeirloomClient
+
+    def list(self) -> List[Dict[str, Any]]:
+        """List all registered Functions."""
+        r = self._client._session.get(f"{self._client.base_url}/v1/functions")
+        r.raise_for_status()
+        return r.json()
+
+    def get(self, name: str) -> Dict[str, Any]:
+        """Get a Function definition by name."""
+        r = self._client._session.get(f"{self._client.base_url}/v1/functions/name/{name}")
+        r.raise_for_status()
+        return r.json()
+
+    def invoke(self, name: str, inputs: Optional[Dict[str, Any]] = None) -> Any:
+        """Execute a Function in the server-side sandbox.
+
+        ``inputs`` is bound as SpEL variables referenced via ``#name`` in the
+        function's expression. Returns the raw result; Function output type
+        is documented in the function definition (``NUMBER`` / ``STRING`` /
+        ``BOOLEAN`` / ``OBJECT``).
+        """
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/functions/name/{name}/invoke",
+            json={"inputs": inputs or {}},
+        )
+        r.raise_for_status()
+        return r.json().get("result")
+
+    def create(self, definition: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a new Function.
+
+        ``definition`` keys: ``name``, ``description``, ``code`` (SpEL expression),
+        ``inputType``, ``outputType``, optional ``timeoutMs`` and ``auditEnabled``.
+        """
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/functions", json=definition
         )
         r.raise_for_status()
         return r.json()
