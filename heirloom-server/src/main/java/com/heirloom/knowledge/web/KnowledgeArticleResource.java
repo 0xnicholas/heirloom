@@ -9,6 +9,7 @@ import com.heirloom.knowledge.service.KnowledgePromotionEngine;
 import com.heirloom.knowledge.service.QuerySanitizer;
 import com.heirloom.knowledge.service.EmbeddingProvider;
 import com.heirloom.knowledge.service.RrfScorer;
+import com.heirloom.knowledge.service.StaleArticleScanner;
 import com.heirloom.web.EntityResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +23,8 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     private final KnowledgePromotionEngine promotionEngine;
     private final EmbeddingProvider embeddingProvider;
     private final RrfScorer rrfScorer = new RrfScorer();
-    public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j, KnowledgeGraphService gs, KnowledgeQualityScorer qs, KnowledgePromotionEngine pe, EmbeddingProvider ep) { super(EntityRegistry.KNOWLEDGE_ARTICLE, a); jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe; embeddingProvider=ep; }
+    private final StaleArticleScanner staleScanner;
+    public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j, KnowledgeGraphService gs, KnowledgeQualityScorer qs, KnowledgePromotionEngine pe, EmbeddingProvider ep, StaleArticleScanner sas) { super(EntityRegistry.KNOWLEDGE_ARTICLE, a); jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe; embeddingProvider=ep; staleScanner=sas; }
     @GetMapping public ResponseEntity<List<KnowledgeArticle>> list() { return ResponseEntity.ok(jpa.findAll()); }
     @GetMapping("/{id}") public ResponseEntity<KnowledgeArticle> getById(@PathVariable Long id) { return jpa.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
     @GetMapping("/name/{fqn}") public ResponseEntity<KnowledgeArticle> getByFQN(@PathVariable String fqn) { return jpa.findByFullyQualifiedName(fqn).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
@@ -85,5 +87,24 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     @PostMapping("/promote")
     public ResponseEntity<?> promote(@RequestParam String sourceFqn) {
         return ResponseEntity.ok(promotionEngine.promote(sourceFqn));
+    }
+
+    @PostMapping("/stale-articles/scan")
+    public ResponseEntity<?> scanStaleArticles(
+            @RequestParam(defaultValue = "180") int staleAfterDays,
+            @RequestParam(defaultValue = "1") int maxReferences,
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            @RequestHeader(value = "X-Agent-Id", required = false) String agentId) {
+        var candidates = staleScanner.scan(
+                java.time.Duration.ofDays(staleAfterDays),
+                maxReferences,
+                dryRun,
+                agentId != null ? "agent:" + agentId : "user:admin");
+        return ResponseEntity.ok(java.util.Map.of(
+                "dryRun", dryRun,
+                "staleAfterDays", staleAfterDays,
+                "maxReferences", maxReferences,
+                "candidateCount", candidates.size(),
+                "candidates", candidates));
     }
 }
