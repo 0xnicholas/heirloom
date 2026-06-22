@@ -190,17 +190,53 @@ GET /v1/knowledge/sources/{sourceId}/import/diff
 
 #### 4.1 触发时机
 
-Discovery Engine 完成扫描后，已创建/更新了元数据实体（Table、Column、Lineage）。此时触发知识生成：
+Discovery Engine 完成扫描后，已创建/更新了元数据实体（Table、Column、Lineage）。此时通过 **Spring 事件机制**触发知识生成。
+
+**前提：需要重构 `DiscoveryService.runDiscovery()` 增加事件发布**
 
 ```java
-@Service
+// DiscoveryService.java 末尾添加
+@Autowired
+private ApplicationEventPublisher eventPublisher;
+
+public DiscoveryReport runDiscovery(DiscoverySource source) {
+    // ... existing discovery logic ...
+    
+    // 发布完成事件（新增）
+    eventPublisher.publishEvent(new DiscoveryCompletedEvent(
+        source.getFullyQualifiedName(),
+        discoveredTables,
+        discoveredLineages
+    ));
+    
+    return report;
+}
+```
+
+接收端在 `KnowledgeBootstrapper` 中：
+
+```java
+@Component
 public class KnowledgeBootstrapper {
 
     /**
-     * 在 DiscoveryService.runDiscovery() 结束后调用。
-     * 接收元数据实体列表，为每类实体选择模板，生成知识文件。
+     * 监听 Discovery 完成事件，自动为发现的新表/血缘生成知识草稿。
+     * 使用 @EventListener 实现松耦合——KnowledgeBootstrapper 不修改 DiscoveryService。
      */
-    public BootstrapReport bootstrapFromMetadata(
+    @EventListener
+    public void onDiscoveryCompleted(DiscoveryCompletedEvent event) {
+        KnowledgeSource activeSource = findActiveKnowledgeSource();
+        if (activeSource == null) {
+            log.info("No active KnowledgeSource — skipping bootstrap");
+            return;
+        }
+        
+        BootstrapReport report = bootstrapFromMetadata(
+            event.getTables(), event.getLineages(), activeSource.getPath());
+        
+        log.info("Bootstrap completed: {} tables, {} lineages generated",
+            report.getTablesGenerated(), report.getLineagesGenerated());
+    }
         List<TableEntity> tables,
         List<LineageEntity> lineages,
         String knowledgeSourcePath
@@ -235,6 +271,9 @@ public class KnowledgeBootstrapper {
 #### 4.2 模板系统
 
 使用 Mustache（Java 生态最轻量），每个实体类型一个模板。生产者可以自定义模板。
+
+**Maven 坐标**：`com.github.spullara.mustache.java:compiler:0.9.14`（零额外依赖，与 Spring Boot 无冲突）。
+选型理由：Heirloom 项目当前未使用 Thymeleaf 或 FreeMarker——引入 Mustache 不造成模板引擎冲突。
 
 **默认模板 `table-knowledge.mustache`**：
 
@@ -559,9 +598,66 @@ public class PromotionReport implements HeirloomEntity {
 ```sql
 -- V4__knowledge_conversion_pipeline.sql
 
-CREATE TABLE IF NOT EXISTS knowledge_import_reports ( ... );
-CREATE TABLE IF NOT EXISTS knowledge_bootstrap_reports ( ... );
-CREATE TABLE IF NOT EXISTS knowledge_promotion_reports ( ... );
+CREATE TABLE IF NOT EXISTS knowledge_import_reports (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(256),
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  source_fqn VARCHAR(512) NOT NULL,              -- FK to knowledge_sources
+  importer_type VARCHAR(64) NOT NULL,
+  status VARCHAR(32) DEFAULT 'IN_PROGRESS',
+  entries_total INTEGER DEFAULT 0,
+  entries_imported INTEGER DEFAULT 0,
+  entries_failed INTEGER DEFAULT 0,
+  entries_skipped INTEGER DEFAULT 0,
+  error_summary JSONB DEFAULT '[]',
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  deleted BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_bootstrap_reports (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(256),
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  source_fqn VARCHAR(512) NOT NULL,
+  strategy VARCHAR(64) NOT NULL,                  -- 'new_tables_only' | 'full_regenerate' | 'update_metadata_blocks'
+  status VARCHAR(32) DEFAULT 'IN_PROGRESS',
+  tables_generated INTEGER DEFAULT 0,
+  tables_updated INTEGER DEFAULT 0,
+  tables_skipped INTEGER DEFAULT 0,
+  lineages_generated INTEGER DEFAULT 0,
+  error_summary JSONB DEFAULT '[]',
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  deleted BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_promotion_reports (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(256),
+  fully_qualified_name VARCHAR(512) NOT NULL UNIQUE,
+  source_fqn VARCHAR(512) NOT NULL,
+  status VARCHAR(32) DEFAULT 'IN_PROGRESS',
+  candidates_total INTEGER DEFAULT 0,
+  proposals_created INTEGER DEFAULT 0,
+  duplicates_skipped INTEGER DEFAULT 0,
+  candidate_details JSONB DEFAULT '[]',
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  version BIGINT DEFAULT 1,
+  change_hash VARCHAR(64),
+  deleted BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 ### 8. 分阶段计划

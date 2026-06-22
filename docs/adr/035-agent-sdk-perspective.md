@@ -212,7 +212,22 @@ public PrerequisiteContext getPrerequisites(String actionFqn) {
 }
 ```
 
-#### 3.5 summarize — 上下文窗口优化
+#### 3.5 summarize — 上下文窗口优化（可选功能，依赖 LLM Provider）
+
+**前提**：`summarize` 需要 `AgentConfig.llmProvider` 配置才会启用。若未配置 LLM，回退为简单截断：
+
+```python
+# 初始化时指定 LLM provider（可选）
+agent = HeirloomAgent(
+    role="data-analyst",
+    llm_provider="anthropic/claude-sonnet-4"  # 启用 summarize 功能
+)
+
+# 未配置 LLM 时，summarize 回退为文本截断
+agent_no_llm = HeirloomAgent(role="data-analyst")
+summary = agent_no_llm.knowledge.summarize(fqn="...", max_tokens=500)
+# → 返回前 500 tokens 的原文截断，而非 AI 摘要
+```
 
 当知识条目正文很长时，Agent 的上下文窗口可能不够。SDK 提供 LLM 摘要能力：
 

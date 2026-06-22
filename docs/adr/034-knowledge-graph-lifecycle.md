@@ -261,40 +261,30 @@ status: review
 
 ### 7. 审批集成
 
-发布审批通过 Heirloom 的 **Proposal 系统**（ADR-002）实现，而非知识库独立机制：
+**Phase 0-2 不做审批集成**。review→published 状态转换通过文件修改完成（作者编辑 frontmatter → git push → sync），与 draft→published（小改动直达）一样。
+
+**Phase 2 引入审批的前提**：Heirloom 具备通过 Git API 写文件的能力。审批流程为：
 
 ```java
 /**
- * 当 KnowledgeSyncEngine 检测到状态从 review → published 时：
- *   1. 自动创建 Proposal（targetEntityType = "knowledgeArticle"）
- *   2. Proposal 状态 = PENDING_REVIEW
- *   3. 审批人批准 Proposal → 状态正式生效
- *   4. 如果 Proposal 被拒绝 → 文件中 status 被回退为 draft
+ * Phase 2 审批流程（前提：Heirloom 可通过 Git API 修改知识文件）
  * 
- * 当状态从 draft → published（小改动跳过审批）时：
- *   直接生效，不创建 Proposal
+ * 1. 作者修改文件 status: review → git push → sync
+ * 2. 系统检测到 review 状态 → 创建 Proposal(targetEntityType=knowledgeArticle, status=PENDING)
+ * 3. 审批人批准 → Proposal 状态变更为 APPROVED
+ * 4. 系统通过 Git API 修改文件中的 status: published → commit + push
+ * 5. 下次 sync 后数据库状态更新为 published
+ * 
+ * 如果 Proposal 被拒：
+ * 6. 审批人拒绝 → Proposal 状态变更为 REJECTED
+ * 7. 系统在文件中追加 rejection comment（或创建 review comment Issue）
+ * 8. 作者收到通知，自行修改文件
+ * 
+ * 注意：步骤 4 的 Git 写操作可能在 git push 时因冲突失败——
+ * 需要重试机制和人工回退路径。
  */
 public class KnowledgeApprovalIntegrator {
-
-    @EventListener
-    public void onStatusTransition(KnowledgeStatusChangedEvent event) {
-        if (event.from() == REVIEW && event.to() == PUBLISHED) {
-            // 创建提案以供审批
-            Proposal proposal = new Proposal();
-            proposal.setTargetEntityType("knowledgeArticle");
-            proposal.setTargetEntityFqn(event.articleFqn());
-            proposal.setChangeType("STATUS_CHANGE");
-            proposal.setProposedChanges(Map.of(
-                "from", "review",
-                "to", "published",
-                "sourceFile", event.filePath()
-            ));
-            proposal.setStatus("PENDING");
-            proposalRepo.create(proposal);
-            log.info("Approval required: {} review→published", event.articleFqn());
-        }
-    }
-}
+    // Phase 2 only — requires Git write capability
 ```
 
 ---
@@ -434,9 +424,21 @@ public class KnowledgeGovernanceScheduler {
     public void onSyncCompleted(SyncCompletedEvent event) {
         for (var article : event.getUpdatedArticles()) {
             QualityScore score = scorer.score(article, graphService.getStats(article.getFqn()));
-            // 评分存储到 knowledge_articles.quality_score JSONB
             articleRepo.updateQualityScore(article.getId(), score);
         }
+        
+        // 异步刷新覆盖物化视图
+        refreshCoverageView();
+    }
+
+    /**
+     * 刷新知识覆盖物化视图。
+     * 使用 CONCURRENTLY 避免阻塞读取查询。
+     */
+    @Async
+    public void refreshCoverageView() {
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY knowledge_coverage");
+        log.debug("Coverage materialized view refreshed");
     }
 }
 ```
@@ -463,6 +465,8 @@ private Instant reviewedAt;
 private Integer incomingRefCount = 0;            // 被引用次数（所有类型引用之和）
 private Integer outgoingRefCount = 0;            // 引用次数
 private Integer entityRefCount = 0;              // 引向 Heirloom 实体的数量
+private Integer resolvedRefCount = 0;            // outgoing 中能解析到有效实体的数量
+private Integer totalLinkCount = 0;              // body 中所有 Markdown 链接总数（含未解析）
 
 // === 质量评分 ===
 @Type(JsonType.class)
@@ -485,6 +489,8 @@ CREATE INDEX IF NOT EXISTS idx_ka_status ON knowledge_articles(status, domain);
 ALTER TABLE knowledge_articles ADD COLUMN IF NOT EXISTS incoming_ref_count INTEGER DEFAULT 0;
 ALTER TABLE knowledge_articles ADD COLUMN IF NOT EXISTS outgoing_ref_count INTEGER DEFAULT 0;
 ALTER TABLE knowledge_articles ADD COLUMN IF NOT EXISTS entity_ref_count INTEGER DEFAULT 0;
+ALTER TABLE knowledge_articles ADD COLUMN IF NOT EXISTS resolved_ref_count INTEGER DEFAULT 0;
+ALTER TABLE knowledge_articles ADD COLUMN IF NOT EXISTS total_link_count INTEGER DEFAULT 0;
 ALTER TABLE knowledge_articles ADD COLUMN IF NOT EXISTS quality_score JSONB;
 
 -- 按连接度排序（热门知识条目）
@@ -514,6 +520,11 @@ LEFT JOIN knowledge_articles ka
 GROUP BY mt.fully_qualified_name, mt.name;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_coverage_fqn ON knowledge_coverage(entity_fqn);
+
+-- 刷新策略：每次 sync 完成后异步刷新（避免阻塞同步）
+-- 对应 Java: KnowledgeGovernanceScheduler.refreshCoverageView()
+-- 使用 CONCURRENTLY 避免锁表
+-- REFRESH MATERIALIZED VIEW CONCURRENTLY knowledge_coverage;
 ```
 
 ---

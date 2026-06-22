@@ -23,6 +23,7 @@ public class EntityRegistry {
     public static final String DATABASE_SCHEMA  = "databaseSchema";
     public static final String TABLE            = "table";
     public static final String LINEAGE          = "lineage";
+    public static final String ROLE             = "role";
 
     // Semantic layer (Heirloom unique)
     public static final String RESOURCE_TYPE    = "resourceType";

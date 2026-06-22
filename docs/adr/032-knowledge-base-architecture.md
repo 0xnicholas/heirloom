@@ -475,6 +475,8 @@ GET    /v1/knowledge/name/{fqn}                 # 按 FQN 获取
 
 #### 6.3 搜索端点
 
+**输入清洗**：`q` 参数在传入 PostgreSQL `to_tsquery()` 之前需要经过 `toTsQuery()` 清洗（详见 ADR-032b §4.2），移除特殊字符并添加前缀匹配通配符。未清洗的原始输入可能触发 PostgreSQL 语法错误。
+
 ```
 GET /v1/knowledge/search
   ?q={query}                                    # 全文搜索关键词
@@ -625,3 +627,57 @@ public static final String KNOWLEDGE_ARTICLE = "knowledgeArticle";
 - ADR-011: EntityRegistry
 - ADR-012: HeirloomEntity
 - ADR-014: EntityResource
+
+---
+
+## 附录 A：KnowledgeArticle 完整字段清单
+
+此附录汇总跨 ADR 定义的所有字段，为最终权威视图。
+
+| 字段 | 类型 | 定义来源 | Phase |
+|------|------|---------|-------|
+| `id` | Long | HeirloomEntity（ADR-012） | 0.5 |
+| `name` | String | HeirloomEntity | 0.5 |
+| `fullyQualifiedName` | String | HeirloomEntity, ADR-020 FQN | 0.5 |
+| `entityType` | String | HeirloomEntity → 固定 "knowledgeArticle" | 0.5 |
+| `filePath` | String | ADR-032 §3.2 | 0.5 |
+| `fileHash` | String (SHA-256) | ADR-032 §3.2 | 0.5 |
+| `sourceFqn` | String | ADR-032 §3.2 | 0.5 |
+| `type` | String (OKF 自由类型) | ADR-032 §3.2, §3.5 frontmatter | 0.5 |
+| `title` | String | ADR-032 §3.2, §3.5 frontmatter | 0.5 |
+| `description` | String | ADR-032 §3.2, §3.5 | 0.5 |
+| `resource` | String | ADR-032 §3.2, §3.5 | 0.5 |
+| `body` | TEXT | ADR-032 §3.2 | 0.5 |
+| `frontmatterRaw` | TEXT | ADR-032 §3.2 | 0.5 |
+| `frontmatter` | JSONB | ADR-032 §3.2, ADR-032b §2 | 0.5 |
+| `tags` | JSONB (List&lt;String&gt;) | ADR-032 §3.2 | 0.5 |
+| `references` | JSONB (List&lt;EntityReference&gt;) | ADR-032 §3.2, ADR-032b §3 | 0.5 |
+| `citations` | JSONB (List&lt;ExternalCitation&gt;) | ADR-032 §3.2, ADR-032b §3 | 0.5 |
+| `embedding` | VECTOR(1536) | ADR-032 §3.2 | 3 |
+| `domain` | String | ADR-032 §3.2 | 0.5 |
+| `author` | String | ADR-032 §3.2 | 0.5 |
+| `okfVersion` | String | ADR-032 §3.2 | 0.5 |
+| `status` | String (draft/review/published/archived) | ADR-034 §4, ADR-032b §2（解析） | 0.5 |
+| `reviewedBy` | String | ADR-034 §12 | 2 |
+| `reviewedAt` | Instant | ADR-034 §12 | 2 |
+| `incomingRefCount` | Integer | ADR-034 §12 | 1 |
+| `outgoingRefCount` | Integer | ADR-034 §12 | 1 |
+| `entityRefCount` | Integer | ADR-034 §12 | 1 |
+| `resolvedRefCount` | Integer | ADR-034 §9（评分用，= references 中可解析的条目数） | 1 |
+| `totalLinkCount` | Integer | ADR-034 §9（评分用，= body 中所有 Markdown 链接数） | 1 |
+| `qualityScore` | JSONB | ADR-034 §12 | 1 |
+| `lastSyncedAt` | Instant | ADR-032 §3.2 | 0.5 |
+| `syncStatus` | String (OK/PARSE_ERROR/MISSING_TYPE) | ADR-032 §3.2 | 0.5 |
+| `syncError` | String | ADR-032 §3.2 | 0.5 |
+| `owner` | String | HeirloomEntity（optional） | 0.5 |
+| `version` | Long | HeirloomEntity | 0.5 |
+| `changeHash` | String | HeirloomEntity（optional） | 0.5 |
+| `deleted` | Boolean | HeirloomEntity（optional） | 0.5 |
+| `createdAt` | Instant | HeirloomEntity | 0.5 |
+| `updatedAt` | Instant | HeirloomEntity | 0.5 |
+
+**字段全集**：36 个字段。
+- Phase 0.5 实现 24 个（基础实体 + 文件指针 + OKF 兼容 + HeirloomEntity 标准字段）
+- Phase 1 追加 4 个（引用计数缓存 + 质量评分）
+- Phase 2 追加 2 个（审批字段）
+- Phase 3 追加 1 个（embedding）

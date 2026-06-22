@@ -14,6 +14,8 @@ com/heirloom/discovery/inference/ResourceTypeProposal.class
 com/heirloom/schema/service/TypeService.class
 com/heirloom/auth/Authorizer$Actor.class
 com/heirloom/discovery/topology/DiscoveryStage.class
+com/heirloom/repository/RoleJpaRepository.class
+com/heirloom/security/domain/Role.class
 com/heirloom/web/DiscoveryResource.class
 com/heirloom/discovery/domain/DiscoverySource.class
 com/heirloom/repository/MappingRuleRepository.class
@@ -61,6 +63,7 @@ com/heirloom/repository/LineageJpaRepository.class
 com/heirloom/schema/domain/RelationshipSemantics.class
 com/heirloom/interceptor/ChangeEventInterceptor.class
 com/heirloom/discovery/inference/InferenceRule$Confidence.class
+com/heirloom/repository/RoleRepository.class
 com/heirloom/repository/DiscoverySourceJpaRepository.class
 com/heirloom/discovery/model/RawColumn.class
 com/heirloom/auth/NoopAuthorizer.class

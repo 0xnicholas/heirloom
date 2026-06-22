@@ -156,10 +156,12 @@ public record SyncDiff(
     List<String> changedFiles,    // 文件系统有，DB 有但 hash 不同
     List<String> removedFiles,    // DB 有，文件系统无
     List<String> unchangedFiles,  // hash 完全一致，跳过
+    List<String> recreatedFiles,  // 删除后重建的同名文件（走 syncUpsert 而非 create）
     int total                      // 扫描到的文件总数
 ) {
     public boolean hasChanges() {
-        return !newFiles.isEmpty() || !changedFiles.isEmpty() || !removedFiles.isEmpty();
+        return !newFiles.isEmpty() || !changedFiles.isEmpty() || !removedFiles.isEmpty()
+            || !recreatedFiles.isEmpty();
     }
 }
 
@@ -193,7 +195,21 @@ public SyncDiff diff(
         }
     }
 
-    return new SyncDiff(newFiles, changedFiles, removedFiles, unchangedFiles, current.size());
+    // 边界处理：同一路径先删后加 → 恢复旧条目而非创建新条目
+    // 这类文件在 newFiles 和 removedFiles 中都出现。
+    List<String> recreatedFiles = new ArrayList<>();
+    for (String path : newFiles) {
+        if (removedFiles.contains(path)) {
+            recreatedFiles.add(path);
+        }
+    }
+    newFiles.removeAll(recreatedFiles);
+    removedFiles.removeAll(recreatedFiles);
+    // recreatedFiles 在调用方走 syncUpsert 路径（恢复 + 更新 hash）
+    // 由 SyncEngine.processBatch 中对 recreated 文件的特殊处理实现
+
+    return new SyncDiff(newFiles, changedFiles, removedFiles, unchangedFiles, 
+                        recreatedFiles, current.size());
 }
 ```
 
@@ -303,6 +319,7 @@ public Map<String, Object> normalizeFrontmatter(Map<String, Object> raw) {
     normalized.put("tags",       normalizeTags(raw.remove("tags")));
     normalized.put("resource",   stringOrNull(raw.remove("resource")));
     normalized.put("timestamp",  stringOrNull(raw.remove("timestamp")));
+    normalized.put("status",     stringOrNull(raw.remove("status")));  // ADR-034 lifecycle
     
     // 所有剩余字段作为扩展字段保留
     for (var entry : raw.entrySet()) {
@@ -538,6 +555,29 @@ public String toTsQuery(String rawQuery) {
      return sorted[:limit]
 ```
 
+**SearchResult 数据结构**：
+
+```java
+/**
+ * 统一的搜索结果——FTS 和向量搜索共用。
+ * FTS 结果填充 rank 字段，向量结果填充 similarity 字段。
+ */
+public record SearchResult(
+    Long id,                          // KnowledgeArticle.id
+    String fqn,                       // fullyQualifiedName
+    String type,
+    String title,
+    String description,
+    String body,                      // 完整正文（用于 RAG 上下文）
+    String snippet,                   // 搜索摘要（含高亮标记）
+    Double rank,                      // FTS rank（ts_rank）
+    Double similarity,                // 向量余弦相似度（1 - distance）
+    Double fusionScore,               // RRF 融合分数（仅 hybrid 模式非空）
+    List<String> highlights,          // 高亮片段
+    List<String> references            // 引用的 Heirloom 实体 FQN
+) {}
+```
+
 **倒数排名融合 (RRF)**：
 
 ```java
@@ -743,6 +783,7 @@ private void copySyncFields(KnowledgeArticle source, KnowledgeArticle target) {
     target.setSyncError(source.getSyncError());
     target.setLastSyncedAt(Instant.now());
     target.setUpdatedAt(Instant.now());
+    target.setStatus(source.getStatus());
 }
 ```
 
