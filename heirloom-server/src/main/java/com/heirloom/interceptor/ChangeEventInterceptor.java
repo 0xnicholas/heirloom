@@ -2,26 +2,32 @@ package com.heirloom.interceptor;
 
 import com.heirloom.domain.ChangeEvent;
 import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.knowledge.service.AgentExperienceCapture;
 import com.heirloom.repository.EventLogRepository;
-import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 @Component
 public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
 
     private static final Logger log = LoggerFactory.getLogger(ChangeEventInterceptor.class);
-    private final EventLogRepository eventLog;
 
-    public ChangeEventInterceptor(EventLogRepository eventLog) { this.eventLog = eventLog; }
+    private final EventLogRepository eventLog;
+    private final AgentExperienceCapture agentExperienceCapture;
+
+    public ChangeEventInterceptor(EventLogRepository eventLog,
+                                  AgentExperienceCapture agentExperienceCapture) {
+        this.eventLog = eventLog;
+        this.agentExperienceCapture = agentExperienceCapture;
+    }
 
     @Override
     public boolean supports(MethodParameter returnType, Class converterType) { return true; }
@@ -42,7 +48,19 @@ public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
         };
         if (eventType == null) return body;
 
-        eventLog.append(ChangeEvent.created(entity, "system"));
+        String caller = resolveCaller(request);
+        eventLog.append(ChangeEvent.created(entity, caller));
+
+        // Phase 3.3: auto-capture agent experience as a draft KnowledgeArticle.
+        // No-op for non-agent callers; idempotent for repeat events from the
+        // same actor + entity + event-type combination.
+        try {
+            agentExperienceCapture.captureIfAgent(entity, eventType, caller);
+        } catch (Exception e) {
+            // Don't let capture failures break the user-facing write.
+            log.warn("Agent experience capture failed for {} {}: {}",
+                    eventType, entity.getFullyQualifiedName(), e.getMessage());
+        }
         return body;
     }
 
@@ -57,17 +75,20 @@ public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
         eventLog.append(e);
     }
 
+    private static String resolveCaller(ServerHttpRequest request) {
+        if (request == null) return "system";
+        var agentId = request.getHeaders().getFirst("X-Agent-Id");
+        if (agentId != null && !agentId.isBlank()) return "agent:" + agentId;
+        var user = request.getHeaders().getFirst("X-User");
+        if (user != null && !user.isBlank()) return "user:" + user;
+        return "system";
+    }
+
     private String getMethod() {
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) {
-                log.debug("No request context available, cannot determine HTTP method");
-                return null;
-            }
-            return attrs.getRequest().getMethod();
-        } catch (Exception e) {
-            log.warn("Failed to determine HTTP method for audit", e);
-            return null;
+        var attrs = RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof ServletRequestAttributes sra) {
+            return sra.getRequest().getMethod();
         }
+        return null;
     }
 }
