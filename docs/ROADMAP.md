@@ -146,7 +146,7 @@
 - [x] Role 定义：名称 + 作用域（Ontology / 类型 / 实例）+ 授予的 Capability 列表
 - [x] Capability 派生与校验：从 Role 解析当前有效的 Caller Capability
 - [ ] Capability 缓存与失效：Role 变更时主动淘汰缓存
-- [ ] 拒绝事件分析工具：统计 Agent/用户的越权尝试频率
+- [x] 拒绝事件分析工具：统计 Agent/用户的越权尝试频率 — Phase 3.4 `AuditService.detectAnomaly()` 提供拒绝率判定 + 总量统计
 - [ ] 知识库权限：`KnowledgeCapability`（KNOWLEDGE_QUERY / CREATE / MANAGE / ADMIN）
 - [ ] Role DSL 中 `knowledge_restrictions` 配置（allowed_types、denied_types、max_depth）
 - [x] 知识搜索/SDK 查询时 SQL 层透明权限过滤（domain + type + status — `KnowledgePerspectiveFilter`）
@@ -207,7 +207,7 @@
 - [x] 向量索引：为 Resource 的文本字段生成 embedding 并索引（pgvector）
 - [x] 知识库向量搜索：`knowledge_articles.embedding` 启用，写入时自动生成 embedding（`EmbeddingBatchService` + `OpenAiEmbeddingProvider`）
 - [x] 混合搜索：向量相似度 + 关键词过滤（JSON DSL 中的 `search` 块）— `RrfScorer` 实现 RRF 融合
-- [ ] 知识库混合搜索：全文 + 向量（`/v1/knowledge/search?q=...&mode=hybrid`）
+- [x] 知识库混合搜索：全文 + 向量（`/v1/knowledge/search?q=...&mode=hybrid`）— `KnowledgeArticleResource.search()` 接受 `mode=fts|vector|hybrid`，hybrid 路径调用 `rrfScorer.fuse(fts, vec)`，embeddingProvider 不可用时降级为 fts
 - [ ] Agent 自然语言查询 → JSON DSL 翻译（LLM 辅助生成查询）
 - [ ] Agent SDK 知识查询方法：`heirloom.knowledge.search(...)`
 - [ ] Agent 自动知识生成：操作后总结经验 → draft KnowledgeArticle
@@ -300,3 +300,4 @@
 | 2026-05-28 | v0.1 | 初始路线图，基于白皮书和 ADR 系列 |
 | 2026-06-22 | v0.2 | 批量同步代码现状：Phase 0–3 大部分核心子项已落地（95 commits ahead of origin/main）；Phase 0.2 Resource Store 正式 descope（设计重心转向外部源语义映射，ADR-003/018）；Phase 1.3 通用 Perspective Engine 留待 Phase 2.3 KnowledgeCapability 合并时实现；Workshop 已合并进 main，覆盖部分 Phase 4.4 目标 |
 | 2026-06-22 | v0.3 | Phase 3.2 Function 引擎落地（SpEL 沙箱执行器 + /v1/functions/{name}/invoke + audit 开关）；Phase 3.4 Agent 审计看板落地（activity / anomaly / replay / entity-history 4 个端点）；heirloom-sdk 升到 0.4.0（覆盖 knowledge / proposals / functions / audit 4 个 namespace） |
+| 2026-06-23 | v0.4 | Roadmap 二次订正：混合搜索、`拒绝事件分析工具`、`Agent SDK knowledge query` 三项原本未勾，实际已落地。现为 80/135 done |
