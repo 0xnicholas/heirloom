@@ -29,29 +29,38 @@
 - [ ] REST API：Resource 创建、读取、更新（此时无 Action 校验——直接写入存储层）
 - [ ] 基础 GraphQL 端点（可选）
 
-### 0.4 知识库基础（Knowledge Base Foundation）
+### 0.4a 知识库核心管线（Knowledge Core Pipeline）
 
 **设计前提**：知识的主要生产方式来自文件——数据团队在 `knowledge/` 目录中编写 Markdown。Heirloom 的角色是**发现、索引、搜索、服务**这些文件，而非编辑它们。
 
-- [ ] `KnowledgeSource` Entity — 注册文件目录/仓库配置（类似 DiscoverySource）
-- [ ] `KnowledgeArticle` Entity — 对文件系统的索引条目（只读查询 API）
-- [ ] `KnowledgeSyncEngine` — 扫描目录 → 解析 frontmatter → 写入索引（复用 Discovery Engine 拓扑模式）
+- [ ] `KnowledgeSource` Entity + Repository + Resource — 注册文件目录配置
+- [ ] `KnowledgeArticle` Entity + Repository + Resource — 只读查询 API
+- [ ] `KnowledgeSyncEngine` + `KnowledgeSyncService` — 扫描→diff→parse→upsert
+- [ ] `FileScanner` — 目录遍历 + SHA-256 hash
+- [ ] `FrontmatterParser` — YAML 解析 + type 校验 + 标签规范化
+- [ ] `SyncDiff` / `SyncReport` — 增量 diff 计算 + 同步结果报告
 - [ ] 数据库迁移 V3：`knowledge_sources` + `knowledge_articles` 表
-- [ ] 文件变更检测（SHA-256 `fileHash`）——增量同步
 - [ ] 手动触发同步：`POST /v1/knowledge/sources/{id}/sync`
-- [ ] `KnowledgeSyncReport` — 同步结果汇总（created / updated / deleted / errors）
-- [ ] 管道 B（元数据自举）：Discovery 完成后自动为 Table/Lineage 生成 .md 知识草稿
-- [ ] Mustache 模板引擎 + `table-knowledge.mustache` 默认模板
-- [ ] `_generated/discovery/` 目录——自动生成区域
-- [ ] `index.md` 自动生成器（每目录，遵循 OKF §6）
-- [ ] `log.md` 变更日志生成器（根目录，遵循 OKF §7）
-- [ ] frontmatter `resource` → Heirloom FQN 自动解析（`@metadata_tables.xxx.yyy`）
-- [ ] `status` 字段 + 状态机（draft→review→published→archived）
-- [ ] 图分析缓存字段（incomingRefCount 等）——同步时计算
-- [ ] 单元测试 + 集成测试
-- [ ] 设计参考：[ADR-032 知识库模块架构](../docs/adr/032-knowledge-base-architecture.md)、[ADR-033 转换管道](../docs/adr/033-knowledge-conversion-pipeline.md)
+- [ ] Unit tests: 5 个测试类（Source, Article, Parser, Scanner, Engine）
+- [ ] Integration test: 端到端同步 + 审计验证
+- [ ] Spec: [Phase 0.5a 实现规格](../docs/superpowers/specs/2026-06-22-knowledge-base-phase-0.5a.md)
+- [ ] 设计参考：[ADR-032](../docs/adr/032-knowledge-base-architecture.md)
 
-**退出标准**：能够通过 API 注册知识源、触发同步、查询已索引的知识条目。文件即真相源，数据库为索引层。
+**退出标准**：能够通过 API 注册知识源、触发同步、查询已索引的知识条目。增量同步正确（未变更文件跳过）。
+
+### 0.4b 知识库增强（Knowledge Enhancement）
+
+- [ ] 管道 B（元数据自举）：Discovery 完成后自动生成 .md 草稿
+- [ ] Mustache 模板引擎 + `table-knowledge.mustache` 默认模板
+- [ ] `_generated/discovery/` 目录
+- [ ] `index.md` 自动生成器（OKF §6）
+- [ ] `log.md` 变更日志生成器（OKF §7）
+- [ ] frontmatter `resource` → Heirloom FQN 自动解析
+- [ ] `status` 字段 + 状态机（draft→review→published→archived）
+- [ ] 图分析缓存字段（incomingRefCount 等）
+- [ ] 设计参考：[ADR-033 转换管道](../docs/adr/033-knowledge-conversion-pipeline.md)
+
+**退出标准**：Discovery 扫描后自动生成知识草稿；index.md/log.md 自动维护；文件目录完全 OKF 自足。
 
 ---
 

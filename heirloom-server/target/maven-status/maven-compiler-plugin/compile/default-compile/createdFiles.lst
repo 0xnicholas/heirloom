@@ -50,6 +50,7 @@ com/heirloom/schema/domain/FieldType.class
 com/heirloom/entity/EntityRegistry.class
 com/heirloom/discovery/inference/rules/FieldMapperInference.class
 com/heirloom/security/domain/Capability.class
+com/heirloom/discovery/inference/rules/AbilityInference.class
 com/heirloom/repository/LineageRepository.class
 com/heirloom/metadata/domain/TableEntity.class
 com/heirloom/repository/MappingRuleJpaRepository.class
@@ -73,6 +74,7 @@ com/heirloom/repository/CapabilityRepository.class
 com/heirloom/repository/ProposalRepository.class
 com/heirloom/web/QueryController.class
 com/heirloom/service/EntityService.class
+com/heirloom/discovery/inference/rules/StateMachineInference.class
 com/heirloom/metadata/domain/DomainEntity.class
 com/heirloom/repository/FunctionJpaRepository.class
 com/heirloom/security/domain/Action.class

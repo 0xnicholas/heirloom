@@ -28,10 +28,11 @@ public record ResourceTypeProposal(String proposedTypeName, String sourceTable,
     }
 
     public boolean isHighConfidence() {
+        // Auto-register if core fields (type name + field mapping) are high confidence.
+        // Supplementary rules (abilities, state machine) provide LOW-confidence suggestions
+        // but should not block auto-registration.
         return (fieldsConfidence == InferenceRule.Confidence.HIGH || fieldsConfidence == InferenceRule.Confidence.NONE)
-            && relationshipsConfidence != InferenceRule.Confidence.LOW
-            && abilitiesConfidence != InferenceRule.Confidence.LOW
-            && stateMachineConfidence != InferenceRule.Confidence.LOW;
+            && relationshipsConfidence != InferenceRule.Confidence.LOW;
     }
 
     private static InferenceRule.Confidence min(InferenceRule.Confidence a, InferenceRule.Confidence b) {
