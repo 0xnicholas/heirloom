@@ -145,7 +145,7 @@
 
 - [x] Role 定义：名称 + 作用域（Ontology / 类型 / 实例）+ 授予的 Capability 列表
 - [x] Capability 派生与校验：从 Role 解析当前有效的 Caller Capability
-- [ ] Capability 缓存与失效：Role 变更时主动淘汰缓存
+- [x] Capability 缓存与失效：Role 变更时主动淘汰缓存 — `RoleCapabilityCache` (ConcurrentHashMap) + RoleRepository.create/update/delete override 调用 invalidate
 - [x] 拒绝事件分析工具：统计 Agent/用户的越权尝试频率 — Phase 3.4 `AuditService.detectAnomaly()` 提供拒绝率判定 + 总量统计
 - [ ] 知识库权限：`KnowledgeCapability`（KNOWLEDGE_QUERY / CREATE / MANAGE / ADMIN）
 - [ ] Role DSL 中 `knowledge_restrictions` 配置（allowed_types、denied_types、max_depth）
@@ -172,7 +172,7 @@
 - [x] 知识反哺 Proposal 生成 → 人类审批流程
 - [x] API：`POST /v1/knowledge/promote`
 - [x] review → published 审批集成（Proposal 系统）
-- [ ] 自动归档建议（stale published articles）
+- [x] 自动归档建议（stale published articles） — `StaleArticleScanner` + `POST /v1/knowledge/stale-articles/scan?dryRun=true|false` 创建 ARCHIVE_KNOWLEDGE_ARTICLE Proposal，过现有 governance 流程
 - [ ] 知识覆盖物化视图
 
 **退出标准**：所有写入经 Action 层执行，Abilities 约束在类型层生效，Role 控制人类用户的 Capability。Event Log 记录全部写入和拒绝事件。
@@ -210,7 +210,7 @@
 - [x] 知识库混合搜索：全文 + 向量（`/v1/knowledge/search?q=...&mode=hybrid`）— `KnowledgeArticleResource.search()` 接受 `mode=fts|vector|hybrid`，hybrid 路径调用 `rrfScorer.fuse(fts, vec)`，embeddingProvider 不可用时降级为 fts
 - [ ] Agent 自然语言查询 → JSON DSL 翻译（LLM 辅助生成查询）
 - [ ] Agent SDK 知识查询方法：`heirloom.knowledge.search(...)`
-- [ ] Agent 自动知识生成：操作后总结经验 → draft KnowledgeArticle
+- [x] Agent 自动知识生成：操作后总结经验 → draft KnowledgeArticle — `AgentExperienceCapture` 监听 ChangeEventInterceptor，agent 调用 create/update/delete 时生成 DRAFT 状态 KnowledgeArticle（idempotent, 去重 key = actor + event + entity FQN）
 
 ### 3.4 Agent 审计与监控
 
@@ -301,3 +301,4 @@
 | 2026-06-22 | v0.2 | 批量同步代码现状：Phase 0–3 大部分核心子项已落地（95 commits ahead of origin/main）；Phase 0.2 Resource Store 正式 descope（设计重心转向外部源语义映射，ADR-003/018）；Phase 1.3 通用 Perspective Engine 留待 Phase 2.3 KnowledgeCapability 合并时实现；Workshop 已合并进 main，覆盖部分 Phase 4.4 目标 |
 | 2026-06-22 | v0.3 | Phase 3.2 Function 引擎落地（SpEL 沙箱执行器 + /v1/functions/{name}/invoke + audit 开关）；Phase 3.4 Agent 审计看板落地（activity / anomaly / replay / entity-history 4 个端点）；heirloom-sdk 升到 0.4.0（覆盖 knowledge / proposals / functions / audit 4 个 namespace） |
 | 2026-06-23 | v0.4 | Roadmap 二次订正：混合搜索、`拒绝事件分析工具`、`Agent SDK knowledge query` 三项原本未勾，实际已落地。现为 80/135 done |
+| 2026-06-23 | v0.5 | Capability 缓存与失效（Phase 2.3）、Stale 文章自动归档建议（Phase 2.6）、Agent 经验自动捕获（Phase 3.3）三项落地；同时清理 256 个 tracked build artifacts + env files。Server tests 131/131，SDK 34/34。现为 83/135 done |
