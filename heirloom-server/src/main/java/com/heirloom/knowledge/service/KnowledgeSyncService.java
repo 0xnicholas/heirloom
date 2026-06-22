@@ -13,7 +13,8 @@ public class KnowledgeSyncService {
     private final KnowledgeSourceJpaRepository sourceJpa;
     private final KnowledgeArticleJpaRepository articleJpa;
     private final KnowledgeArticleRepository articleRepo;
-    public KnowledgeSyncService(KnowledgeSourceJpaRepository sj, KnowledgeArticleJpaRepository aj, KnowledgeArticleRepository ar) { sourceJpa=sj; articleJpa=aj; articleRepo=ar; }
+    private final EmbeddingBatchService embeddingBatchService;
+    public KnowledgeSyncService(KnowledgeSourceJpaRepository sj, KnowledgeArticleJpaRepository aj, KnowledgeArticleRepository ar, EmbeddingBatchService eb) { sourceJpa=sj; articleJpa=aj; articleRepo=ar; embeddingBatchService=eb; }
     public SyncReport sync(String sourceFqn) {
         KnowledgeSource s = sourceJpa.findByFullyQualifiedName(sourceFqn).orElseThrow(()->new IllegalArgumentException("Source not found: "+sourceFqn));
         KnowledgeSyncEngine engine = new KnowledgeSyncEngine(articleRepo);
@@ -26,6 +27,8 @@ public class KnowledgeSyncService {
                 new LogGenerator().appendLog(root, engine.getLastDiff(), report);
             }
         } catch (Exception e) { log.warn("Post-sync generation failed: {}", e.getMessage()); }
+        // Post-sync: generate embeddings for new/changed articles
+        try { embeddingBatchService.generateAll(sourceFqn); } catch (Exception e) { log.warn("Embedding generation failed: {}", e.getMessage()); }
         return report;
     }
 }

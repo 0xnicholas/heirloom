@@ -29,6 +29,7 @@ public class KnowledgeArticle implements HeirloomEntity {
     @Column(length = 256) private String author;
     @Column(length = 256) private String owner;
     @Column(name = "okf_version", length = 16) private String okfVersion = "0.1";
+    @Column(columnDefinition = "vector(1536)") private float[] embedding;
     @Column(length = 32) private String status = "published";
     @Column(name = "sync_status", length = 32) private String syncStatus = "OK";
     @Column(name = "sync_error", columnDefinition = "text") private String syncError;
@@ -71,6 +72,8 @@ public class KnowledgeArticle implements HeirloomEntity {
     public void setCitations(List<ExternalCitation> c) { citations = c; }
     public void setAuthor(String a) { author = a; }
     public void setOkfVersion(String v) { okfVersion = v; }
+    public float[] getEmbedding() { return embedding; }
+    public void setEmbedding(float[] e) { embedding = e; }
     public void setOwner(String o) { owner = o; }
     public void setStatus(String s) { status = s; }
     public void setSyncStatus(String s) { syncStatus = s; }

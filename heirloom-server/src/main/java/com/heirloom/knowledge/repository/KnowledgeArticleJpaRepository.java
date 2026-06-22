@@ -16,4 +16,8 @@ public interface KnowledgeArticleJpaRepository extends JpaRepository<KnowledgeAr
 
     @Query(value = "SELECT a.* FROM knowledge_articles a WHERE a.references_jsonb @> CAST(:refFilter AS jsonb) AND a.deleted = false ORDER BY a.updated_at DESC", nativeQuery = true)
     List<KnowledgeArticle> findByEntityRef(@Param("refFilter") String refFilter);
+
+    @Query(value = "SELECT * FROM knowledge_articles WHERE embedding IS NOT NULL AND deleted = false AND status = 'published' ORDER BY embedding <=> CAST(:queryEmbedding AS vector) LIMIT :limit OFFSET :offset", nativeQuery = true)
+    List<KnowledgeArticle> vectorSearch(@Param("queryEmbedding") String queryEmbedding, @Param("limit") int limit, @Param("offset") int offset);
+
 }
