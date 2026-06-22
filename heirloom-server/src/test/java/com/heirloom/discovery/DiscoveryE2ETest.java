@@ -142,6 +142,23 @@ class DiscoveryE2ETest {
     }
 
     @Test
+    void shouldInferRelationships() {
+        RawSchema schema = extractor.extract(config);
+        InferencePipeline pipeline = new InferencePipeline();
+        List<ResourceTypeProposal> proposals = pipeline.infer(schema);
+
+        var orders = proposals.stream()
+            .filter(p -> p.proposedTypeName().equals("Orders"))
+            .findFirst().orElseThrow();
+
+        assertThat(orders.relationships()).isNotEmpty();
+        assertThat(orders.relationships().get(0).label()).isEqualTo("customer");
+        assertThat(orders.relationships().get(0).targetType()).isEqualTo("Customers");
+        assertThat(orders.relationships().get(0).semantics()).isEqualTo(
+            com.heirloom.schema.domain.RelationshipSemantics.REFERENCE);
+    }
+
+    @Test
     void shouldGenerateContentHash() {
         RawSchema schema1 = extractor.extract(config);
         RawSchema schema2 = extractor.extract(config);

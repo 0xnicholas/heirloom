@@ -3,6 +3,7 @@ package com.heirloom.discovery.inference;
 import com.heirloom.discovery.model.RawSchema;
 import com.heirloom.discovery.inference.rules.TypeNameInference;
 import com.heirloom.discovery.inference.rules.FieldMapperInference;
+import com.heirloom.discovery.inference.rules.RelationshipInference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.*;
@@ -12,7 +13,7 @@ public class InferencePipeline {
     private final List<InferenceRule> rules;
 
     public InferencePipeline() {
-        this.rules = List.of(new TypeNameInference(), new FieldMapperInference());
+        this.rules = List.of(new TypeNameInference(), new FieldMapperInference(), new RelationshipInference());
     }
 
     public InferencePipeline(List<InferenceRule> rules) { this.rules = rules; }

@@ -37,6 +37,7 @@ com/heirloom/repository/ProposalRepository.class
 com/heirloom/discovery/inference/rules/TypeNameInference.class
 com/heirloom/schema/domain/Relationship.class
 com/heirloom/domain/MappingRule.class
+com/heirloom/discovery/inference/rules/RelationshipInference.class
 com/heirloom/schema/service/TypeValidator.class
 com/heirloom/discovery/model/RawConstraint.class
 com/heirloom/discovery/service/DiscoveryService.class

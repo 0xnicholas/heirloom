@@ -11,6 +11,7 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/InferenceRule.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/ResourceTypeProposal.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/rules/FieldMapperInference.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/rules/RelationshipInference.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/rules/TypeNameInference.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/model/RawColumn.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/model/RawConstraint.java
