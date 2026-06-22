@@ -68,4 +68,5 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/service/EntityService.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/DiscoveryResource.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/EntityResource.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/QueryController.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/TypeResource.java
