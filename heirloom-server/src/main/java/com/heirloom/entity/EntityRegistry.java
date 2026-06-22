@@ -38,6 +38,10 @@ public class EntityRegistry {
     public static final String DISCOVERY_REPORT = "discoveryReport";
     public static final String EVENT            = "event";
 
+    // Knowledge layer
+    public static final String KNOWLEDGE_SOURCE  = "knowledgeSource";
+    public static final String KNOWLEDGE_ARTICLE = "knowledgeArticle";
+
     // === Common field constants (avoid hardcoded strings) ===
     public static final String FIELD_OWNER       = "owner";
     public static final String FIELD_DESCRIPTION = "description";
