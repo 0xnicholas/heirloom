@@ -2,9 +2,11 @@ package com.heirloom.repository;
 
 import com.heirloom.entity.EntityRegistry;
 import com.heirloom.schema.domain.ResourceType;
+import com.heirloom.schema.service.PerspectiveEngine;
 import com.heirloom.schema.service.TypeValidationException;
 import com.heirloom.schema.service.TypeValidator;
 import jakarta.annotation.PostConstruct;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -20,10 +22,12 @@ import java.util.*;
 public class TypeRepository extends EntityRepository<ResourceType> {
 
     private final ResourceTypeJpaRepository jpa;
+    private final PerspectiveEngine perspective;
 
-    public TypeRepository(ResourceTypeJpaRepository jpa) {
+    public TypeRepository(ResourceTypeJpaRepository jpa, @Lazy PerspectiveEngine perspective) {
         super(EntityRegistry.RESOURCE_TYPE, ResourceType.class, jpa);
         this.jpa = jpa;
+        this.perspective = perspective;
     }
 
     @PostConstruct
@@ -62,6 +66,28 @@ public class TypeRepository extends EntityRepository<ResourceType> {
         // Compute changeHash for incremental detection
         entity.setChangeHash(computeHash(entity));
         jpa.save(entity);
+    }
+
+    // === Phase 1.3: Perspective Engine cache invalidation ===
+
+    @Override
+    public ResourceType create(ResourceType entity) {
+        ResourceType saved = super.doCreate(entity);
+        perspective.invalidateType(saved.getName());
+        return saved;
+    }
+
+    @Override
+    public ResourceType update(ResourceType entity) {
+        ResourceType saved = super.doUpdate(entity);
+        perspective.invalidateType(saved.getName());
+        return saved;
+    }
+
+    @Override
+    public void delete(Long id) {
+        findById(id).ifPresent(t -> perspective.invalidateType(t.getName()));
+        super.delete(id);
     }
 
     public List<ResourceType> findAll() {

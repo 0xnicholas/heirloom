@@ -2,6 +2,7 @@ package com.heirloom.web;
 
 import com.heirloom.repository.MappingRuleRepository;
 import com.heirloom.repository.LineageRepository;
+import com.heirloom.schema.service.PerspectiveEngine;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import javax.sql.DataSource;
@@ -15,15 +16,22 @@ public class QueryController {
     private final MappingRuleRepository mappingRepo;
     private final LineageRepository lineageRepo;
     private final DataSource dataSource;
+    private final PerspectiveEngine perspective;
 
-    public QueryController(MappingRuleRepository mappingRepo, LineageRepository lineageRepo, DataSource dataSource) {
+    public QueryController(MappingRuleRepository mappingRepo, LineageRepository lineageRepo,
+                           DataSource dataSource, PerspectiveEngine perspective) {
         this.mappingRepo = mappingRepo;
         this.lineageRepo = lineageRepo;
         this.dataSource = dataSource;
+        this.perspective = perspective;
     }
 
     @PostMapping
-    public ResponseEntity<List<Map<String, Object>>> query(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<List<Map<String, Object>>> query(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
         try {
             String type = (String) request.get("type");
             @SuppressWarnings("unchecked")
@@ -32,6 +40,12 @@ public class QueryController {
             Map<String, Object> filter = (Map<String, Object>) request.get("filter");
             @SuppressWarnings("unchecked")
             List<Map<String, String>> traverse = (List<Map<String, String>>) request.get("traverse");
+
+            // Phase 1.3: Perspective Engine — strip fields the actor can't see.
+            // Done at the query plan stage (before SQL is generated) so the
+            // database only ever returns allowed columns.
+            String actorId = pickActor(role, agentId, user);
+            fields = perspective.filterFields(type, actorId, fields);
 
             // Resolve field → physical column
             Map<String, String> fieldToCol = new LinkedHashMap<>();
@@ -120,6 +134,13 @@ public class QueryController {
 
     private static boolean isValidSqlName(String name) {
         return name != null && name.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    }
+
+    private static String pickActor(String role, String agentId, String user) {
+        if (role != null && !role.isBlank()) return role;
+        if (agentId != null && !agentId.isBlank()) return agentId;
+        if (user != null && !user.isBlank()) return user;
+        return "system";
     }
 
     private String extractTable(String fqn) {

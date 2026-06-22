@@ -9,7 +9,9 @@ import org.hibernate.annotations.Type;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A Resource Type definition — the central entity in Heirloom's schema registry.
@@ -71,6 +73,16 @@ public class ResourceType implements HeirloomEntity {
     @Type(value = io.hypersistence.utils.hibernate.type.json.JsonType.class)
     @Column(columnDefinition = "jsonb", nullable = false)
     private List<Relationship> relationships = new ArrayList<>();
+
+    /**
+     * Phase 1.3: per-field visibility configuration. JSONB map of
+     * {@code fieldName → [roleName, ...]}. A field is visible to an actor
+     * when the actor's role (or {@code "*"} for wildcard) is in the list.
+     * Missing field or empty list = visible to everyone with read capability.
+     */
+    @Type(value = io.hypersistence.utils.hibernate.type.json.JsonType.class)
+    @Column(name = "field_visibility", columnDefinition = "jsonb")
+    private Map<String, List<String>> fieldVisibility = new HashMap<>();
 
     /**
      * Monotonically increasing version number. Incremented on
@@ -146,6 +158,9 @@ public class ResourceType implements HeirloomEntity {
 
     public List<Relationship> getRelationships() { return relationships; }
     public void setRelationships(List<Relationship> relationships) { this.relationships = relationships; }
+
+    public Map<String, List<String>> getFieldVisibility() { return fieldVisibility; }
+    public void setFieldVisibility(Map<String, List<String>> fieldVisibility) { this.fieldVisibility = fieldVisibility; }
 
     @Override
     public Long getVersion() { return (long) version; }
