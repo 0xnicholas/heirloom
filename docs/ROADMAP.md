@@ -174,7 +174,7 @@
 - [x] API：`POST /v1/knowledge/promote`
 - [x] review → published 审批集成（Proposal 系统）
 - [x] 自动归档建议（stale published articles） — `StaleArticleScanner` + `POST /v1/knowledge/stale-articles/scan?dryRun=true|false` 创建 ARCHIVE_KNOWLEDGE_ARTICLE Proposal，过现有 governance 流程
-- [ ] 知识覆盖物化视图
+- [x] 知识覆盖物化视图 — `KnowledgeCoverageService` + `GET /v1/knowledge/coverage` 返回总量 + 按 domain 分布 + 孤儿表列表；在内存聚合（未来可转 Postgres MATERIALIZED VIEW）
 
 **退出标准**：所有写入经 Action 层执行，Abilities 约束在类型层生效，Role 控制人类用户的 Capability。Event Log 记录全部写入和拒绝事件。
 
@@ -305,3 +305,4 @@
 | 2026-06-23 | v0.5 | Capability 缓存与失效（Phase 2.3）、Stale 文章自动归档建议（Phase 2.6）、Agent 经验自动捕获（Phase 3.3）三项落地；同时清理 256 个 tracked build artifacts + env files。Server tests 131/131，SDK 34/34。现为 83/135 done |
 | 2026-06-23 | v0.6 | KnowledgeCapability + knowledge_restrictions（Phase 2.3）落地：枚举能力 + Role.knowledgeRestrictions JSONB (V7) + KnowledgeCapabilityResolver + KnowledgePerspectiveFilter 接入 KnowledgeArticleResource 5 个 read 端点。现为 86/135 done |
 | 2026-06-23 | v0.7 | 通用 Perspective Engine（Phase 1.3）落地：ResourceType.fieldVisibility JSONB (V8) + PerspectiveEngine + cache + TypeRepository 失效挂钩；QueryController 在生成 SQL 前剥离隐藏字段。现为 89/135 done |
+| 2026-06-23 | v0.8 | 知识覆盖物化视图（Phase 2.6）落地：KnowledgeCoverageService + GET /v1/knowledge/coverage 返回总量/按 domain 分布/孤儿表。现为 90/135 done |
