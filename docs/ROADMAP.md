@@ -21,17 +21,27 @@
 
 ### 0.2 Resource Store
 
-- [ ] 基于 PostgreSQL JSONB 的 Resource 实例存储
-- [ ] 按 RID 点查、按类型批量扫、按属性值过滤
-- [ ] 乐观锁（version 字段）支持并发写入安全
-- [ ] 基础索引（RID、type、高频过滤字段）
-
-> **注**：Phase 0.2 暂被 descope。设计重心已从「自有 Resource 实例存储」转向「对外部数据源的语义映射查询」（见 ADR-003 存储层分离 + ADR-018 Discovery as Entity）。Resource 实例 CRUD 由外部数据源（PostgreSQL / REST API）承担，Heirloom 仅做语义层。如未来需要自有存储则重启此阶段。
+> **🛑 Out of scope (design descope)**
+>
+> Heirloom does not implement a Resource Store. Resource instances live in external
+> data sources (PostgreSQL / REST API) and Heirloom is the semantic layer on top.
+> ADR-003 (Storage separation) + ADR-018 (Discovery as Entity) justify the pivot:
+> building a JSONB Resource store would compete with the very databases Heirloom
+> is meant to integrate with.
+>
+> If a future use case genuinely requires Heirloom-owned instances, restart this
+> section as a new phase; the schema registry (Phase 0.1) already supports the
+> type definitions.
+>
+> ~~基于 PostgreSQL JSONB 的 Resource 实例存储~~
+> ~~按 RID 点查、按类型批量扫、按属性值过滤~~
+> ~~乐观锁（version 字段）支持并发写入安全~~
+> ~~基础索引（RID、type、高频过滤字段）~~
 
 ### 0.3 基础消费 API
 
 - [x] REST API：Resource 创建、读取、更新（通过 TypeResource + KnowledgeResource + DiscoveryResource；不含 0.2 意义上的 instance CRUD）
-- [ ] 基础 GraphQL 端点（可选）
+- [x] 基础 GraphQL 端点 — `spring-boot-starter-graphql` + `src/main/resources/graphql/schema.graphqls`；`/graphql` 路由自动启用
 
 ### 0.4a 知识库核心管线（Knowledge Core Pipeline）
 
@@ -306,3 +316,4 @@
 | 2026-06-23 | v0.6 | KnowledgeCapability + knowledge_restrictions（Phase 2.3）落地：枚举能力 + Role.knowledgeRestrictions JSONB (V7) + KnowledgeCapabilityResolver + KnowledgePerspectiveFilter 接入 KnowledgeArticleResource 5 个 read 端点。现为 86/135 done |
 | 2026-06-23 | v0.7 | 通用 Perspective Engine（Phase 1.3）落地：ResourceType.fieldVisibility JSONB (V8) + PerspectiveEngine + cache + TypeRepository 失效挂钩；QueryController 在生成 SQL 前剥离隐藏字段。现为 89/135 done |
 | 2026-06-23 | v0.8 | 知识覆盖物化视图（Phase 2.6）落地：KnowledgeCoverageService + GET /v1/knowledge/coverage 返回总量/按 domain 分布/孤儿表。现为 90/135 done |
+| 2026-06-23 | v0.9 | Phase 0 完全收官：0.2 Resource Store 正式标为 out-of-scope（ADR-003/018 设计 pivoted）；0.3 GraphQL 端点落地（spring-boot-starter-graphql，schema 覆盖 ResourceType/KnowledgeArticle/Search/Coverage）。Phase 0 现在 100% done |
