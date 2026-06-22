@@ -40,10 +40,22 @@ public abstract class EntityRepository<E extends HeirloomEntity> {
         // Default no-op. Override when Graph Store is introduced.
     }
 
-    // === Template methods (final — lifecycle enforced) ===
+    // === Template methods (subclasses may override to add lifecycle hooks
+    //     such as cache invalidation; the lifecycle body is delegated to
+    //     {@link #doCreate} / {@link #doUpdate} so subclasses don't need to
+    //     duplicate the steps.) ===
 
     @Transactional
-    public final E create(E entity) {
+    public E create(E entity) {
+        return doCreate(entity);
+    }
+
+    @Transactional
+    public E update(E entity) {
+        return doUpdate(entity);
+    }
+
+    protected final E doCreate(E entity) {
         setFullyQualifiedName(entity);
         prepareInternal(entity, false);
         storeEntity(entity, false);
@@ -51,8 +63,7 @@ public abstract class EntityRepository<E extends HeirloomEntity> {
         return entity;
     }
 
-    @Transactional
-    public final E update(E entity) {
+    protected final E doUpdate(E entity) {
         setFullyQualifiedName(entity);
         prepareInternal(entity, true);
         storeEntity(entity, true);
