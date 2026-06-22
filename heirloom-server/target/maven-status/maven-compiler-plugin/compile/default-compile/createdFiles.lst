@@ -6,6 +6,7 @@ com/heirloom/discovery/model/RawSchema.class
 com/heirloom/schema/service/SchemaRegistryService.class
 com/heirloom/discovery/model/RawTable.class
 com/heirloom/repository/EventLogRepository.class
+com/heirloom/repository/DiscoveryReportRepository.class
 com/heirloom/schema/domain/ResourceType.class
 com/heirloom/metadata/domain/TableProfileEntity.class
 com/heirloom/schema/domain/Ability.class
@@ -14,6 +15,7 @@ com/heirloom/discovery/inference/ResourceTypeProposal.class
 com/heirloom/schema/service/TypeService.class
 com/heirloom/auth/Authorizer$Actor.class
 com/heirloom/discovery/topology/DiscoveryStage.class
+com/heirloom/web/DiscoveryResource.class
 com/heirloom/discovery/domain/DiscoverySource.class
 com/heirloom/repository/MappingRuleRepository.class
 com/heirloom/discovery/extractor/SchemaExtractor.class
@@ -29,6 +31,7 @@ com/heirloom/schema/service/TypeNotFoundException.class
 com/heirloom/schema/domain/StateTransition.class
 com/heirloom/auth/Authorizer.class
 com/heirloom/repository/ResourceTypeJpaRepository.class
+com/heirloom/repository/DiscoverySourceRepository.class
 com/heirloom/entity/HeirloomEntity.class
 com/heirloom/web/TypeResource.class
 com/heirloom/repository/ProposalJpaRepository.class
@@ -56,12 +59,14 @@ com/heirloom/schema/domain/Field.class
 com/heirloom/schema/domain/RelationshipSemantics.class
 com/heirloom/interceptor/ChangeEventInterceptor.class
 com/heirloom/discovery/inference/InferenceRule$Confidence.class
+com/heirloom/repository/DiscoverySourceJpaRepository.class
 com/heirloom/discovery/model/RawColumn.class
 com/heirloom/auth/NoopAuthorizer.class
 com/heirloom/discovery/extractor/SchemaExtractor$ExtractorCapability.class
 com/heirloom/discovery/topology/DiscoveryNode.class
 com/heirloom/repository/TypeRepository.class
 com/heirloom/HeirloomApplication.class
+com/heirloom/repository/DiscoveryReportJpaRepository.class
 com/heirloom/discovery/inference/InferenceRule.class
 com/heirloom/schema/dto/CreateTypeRequest.class
 com/heirloom/schema/domain/FieldType.class

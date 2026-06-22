@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.heirloom.discovery.DiscoveryE2ETest
 -------------------------------------------------------------------------------
-Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.437 s -- in com.heirloom.discovery.DiscoveryE2ETest
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.388 s -- in com.heirloom.discovery.DiscoveryE2ETest

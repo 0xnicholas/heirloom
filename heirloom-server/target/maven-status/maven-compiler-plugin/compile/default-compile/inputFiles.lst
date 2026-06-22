@@ -33,6 +33,10 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/metadata/domain/DomainEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableProfileEntity.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/DiscoveryReportJpaRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/DiscoveryReportRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/DiscoverySourceJpaRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/DiscoverySourceRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/EventLogJpaRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/EventLogRepository.java
@@ -61,5 +65,6 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/schema/service/TypeValidator.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/schema/web/TypeController.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/service/EntityService.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/web/DiscoveryResource.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/web/EntityResource.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/web/TypeResource.java
