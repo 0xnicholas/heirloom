@@ -11,6 +11,7 @@ import com.heirloom.knowledge.service.KnowledgeQualityScorer;
 import com.heirloom.knowledge.service.KnowledgePromotionEngine;
 import com.heirloom.knowledge.service.QuerySanitizer;
 import com.heirloom.knowledge.service.EmbeddingProvider;
+import com.heirloom.knowledge.service.KnowledgeCoverageService;
 import com.heirloom.knowledge.service.RrfScorer;
 import com.heirloom.knowledge.service.StaleArticleScanner;
 import com.heirloom.web.EntityResource;
@@ -30,15 +31,18 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     private final RrfScorer rrfScorer = new RrfScorer();
     private final StaleArticleScanner staleScanner;
     private final KnowledgePerspectiveFilter perspectiveFilter;
+    private final KnowledgeCoverageService coverageService;
 
     public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j,
                                     KnowledgeGraphService gs, KnowledgeQualityScorer qs,
                                     KnowledgePromotionEngine pe, EmbeddingProvider ep,
                                     StaleArticleScanner sas,
-                                    KnowledgePerspectiveFilter kpf) {
+                                    KnowledgePerspectiveFilter kpf,
+                                    KnowledgeCoverageService kcs) {
         super(EntityRegistry.KNOWLEDGE_ARTICLE, a);
         jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe;
         embeddingProvider=ep; staleScanner=sas; perspectiveFilter=kpf;
+        coverageService=kcs;
     }
 
     // === Read endpoints (all pass through KnowledgePerspectiveFilter) ===
@@ -196,6 +200,16 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
                 "maxReferences", maxReferences,
                 "candidateCount", candidates.size(),
                 "candidates", candidates));
+    }
+
+    /**
+     * Phase 2.6: coverage snapshot — total tables, articles, per-domain
+     * breakdown, orphan tables. On-demand aggregation; cached at the
+     * service layer if this endpoint becomes hot.
+     */
+    @GetMapping("/coverage")
+    public ResponseEntity<KnowledgeCoverageService.CoverageReport> coverage() {
+        return ResponseEntity.ok(coverageService.computeReport());
     }
 
     // === Helpers ===
