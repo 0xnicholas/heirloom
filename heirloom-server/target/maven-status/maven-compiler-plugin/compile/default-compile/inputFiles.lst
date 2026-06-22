@@ -86,6 +86,7 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/security/domain/Capability.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/security/domain/Function.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/security/domain/Role.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/security/service/RoleBootstrapService.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/service/EntityService.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/DiscoveryResource.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/EntityResource.java

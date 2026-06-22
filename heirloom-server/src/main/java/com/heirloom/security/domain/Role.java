@@ -10,8 +10,8 @@ public class Role implements HeirloomEntity {
     @Id @GeneratedValue private Long id;
     @Column(name = "fully_qualified_name") private String fullyQualifiedName;
     private String name;
-    private String scope = "ontology"; // ontology | type:{typeName} | instance:{fqn}
-    @Column(columnDefinition = "jsonb") private String capabilities = "[]"; // [{"entityType":"resourceType","operation":"QUERY"},...]
+    private String scope = "ontology";
+    @Column(columnDefinition = "text") private String capabilities = "[]";
     private String description;
     @Version private Long version = 1L; private String changeHash;
     private Boolean deleted = false;

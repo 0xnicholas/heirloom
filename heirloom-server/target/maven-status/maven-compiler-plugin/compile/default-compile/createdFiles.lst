@@ -40,6 +40,7 @@ com/heirloom/repository/EventLogJpaRepository.class
 com/heirloom/domain/ChangeEvent.class
 com/heirloom/schema/domain/Field.class
 com/heirloom/repository/LineageJpaRepository.class
+com/heirloom/security/service/RoleBootstrapService.class
 com/heirloom/interceptor/ChangeEventInterceptor.class
 com/heirloom/discovery/model/RawColumn.class
 com/heirloom/web/ProposalResource.class
