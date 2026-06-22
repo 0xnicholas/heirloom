@@ -33,6 +33,7 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/DomainEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableProfileEntity.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/query/AggregationQuery.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/DiscoveryReportJpaRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/DiscoveryReportRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/DiscoverySourceJpaRepository.java

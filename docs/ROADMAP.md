@@ -31,15 +31,25 @@
 
 ### 0.4 知识库基础（Knowledge Base Foundation）
 
-- [ ] `KnowledgeArticle` JPA Entity + `HeirloomEntity` 实现
-- [ ] `KnowledgeArticleRepository` extends `EntityRepository`
-- [ ] `KnowledgeArticleResource` extends `EntityResource`（标准 CRUD）
-- [ ] 数据库迁移 V3：`knowledge_articles` 表
-- [ ] OKF 单文件导入/导出（Markdown + YAML frontmatter）
-- [ ] 单元测试 + 集成测试
-- [ ] 设计参考：[ADR-032 知识库模块架构](../docs/adr/032-knowledge-base-architecture.md)
+**设计前提**：知识的主要生产方式来自文件——数据团队在 `knowledge/` 目录中编写 Markdown。Heirloom 的角色是**发现、索引、搜索、服务**这些文件，而非编辑它们。
 
-**退出标准**：能够通过 API 定义一个 Resource Type、创建实例、读写字段。不涉及 Abilities、Action、关系。知识条目支持基本 CRUD 和 OKF 单文件互操作。
+- [ ] `KnowledgeSource` Entity — 注册文件目录/仓库配置（类似 DiscoverySource）
+- [ ] `KnowledgeArticle` Entity — 对文件系统的索引条目（只读查询 API）
+- [ ] `KnowledgeSyncEngine` — 扫描目录 → 解析 frontmatter → 写入索引（复用 Discovery Engine 拓扑模式）
+- [ ] 数据库迁移 V3：`knowledge_sources` + `knowledge_articles` 表
+- [ ] 文件变更检测（SHA-256 `fileHash`）——增量同步
+- [ ] 手动触发同步：`POST /v1/knowledge/sources/{id}/sync`
+- [ ] `KnowledgeSyncReport` — 同步结果汇总（created / updated / deleted / errors）
+- [ ] 管道 B（元数据自举）：Discovery 完成后自动为 Table/Lineage 生成 .md 知识草稿
+- [ ] Mustache 模板引擎 + `table-knowledge.mustache` 默认模板
+- [ ] `_generated/discovery/` 目录——自动生成区域
+- [ ] `index.md` 自动生成器（每目录，遵循 OKF §6）
+- [ ] `log.md` 变更日志生成器（根目录，遵循 OKF §7）
+- [ ] frontmatter `resource` → Heirloom FQN 自动解析（`@metadata_tables.xxx.yyy`）
+- [ ] 单元测试 + 集成测试
+- [ ] 设计参考：[ADR-032 知识库模块架构](../docs/adr/032-knowledge-base-architecture.md)、[ADR-033 转换管道](../docs/adr/033-knowledge-conversion-pipeline.md)
+
+**退出标准**：能够通过 API 注册知识源、触发同步、查询已索引的知识条目。文件即真相源，数据库为索引层。
 
 ---
 
@@ -81,12 +91,14 @@
 ### 1.5 知识搜索与引用（Knowledge Search & References）
 
 - [ ] PostgreSQL 全文检索搜索端点（`/v1/knowledge/search?q=...`）
-- [ ] 引用解析：导入时自动解析 Markdown 链接 → `EntityReference`
-- [ ] 反向引用查询（`GET /v1/knowledge?ref={fqn}`）
-- [ ] OKF bundle 批量导入（目录树 → 批量 KnowledgeArticle）
-- [ ] OKF bundle 批量导出（KnowledgeArticle → tar.gz 目录树）
+- [ ] 引用解析：同步时自动解析 Markdown 链接 → `EntityReference`（若目标 FQN 在 EntityRegistry 中存在）
+- [ ] 反向引用查询（`?ref={fqn}`）
+- [ ] Git webhook 触发自动同步（`on-commit` 模式）
+- [ ] OKF 导出端点——从文件系统直接打包 tar.gz
+- [ ] 管道 A（外部导入）：`HtmlImporter` + `ConfluenceImporter`
+- [ ] 管道 B 增强：`update_metadata_blocks` 增量策略（仅更新 Schema 区块）
 
-**退出标准**：可以通过 JSON DSL 查询跨 PostgreSQL + REST API 的数据，字段可见性受 Role 配置控制。所有操作记录到 Event Log。知识条目支持全文搜索和批量 OKF 互操作。
+**退出标准**：可以通过 JSON DSL 查询跨 PostgreSQL + REST API 的数据，字段可见性受 Role 配置控制。所有操作记录到 Event Log。知识条目支持全文搜索、引用解析、webhook 自动同步和外部文档导入。
 
 ---
 
@@ -133,6 +145,9 @@
 
 - [ ] Proposal 流程：Schema 变更需提案 → 评审 → 审批（ADR-002）
 - [ ] Schema 变更审计日志
+- [ ] 管道 C（知识反哺）：`GlossaryExtractor` + `MetricExtractor`
+- [ ] 知识反哺 Proposal 生成 → 人类审批流程
+- [ ] API：`POST /v1/knowledge/promote`
 
 **退出标准**：所有写入经 Action 层执行，Abilities 约束在类型层生效，Role 控制人类用户的 Capability。Event Log 记录全部写入和拒绝事件。
 
