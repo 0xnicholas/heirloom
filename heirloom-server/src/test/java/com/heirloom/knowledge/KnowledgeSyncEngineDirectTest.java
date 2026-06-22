@@ -17,10 +17,11 @@ import java.nio.file.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.NONE,classes=HeirloomApplication.class)
-@TestPropertySource(properties={"spring.flyway.enabled=false","spring.jpa.hibernate.ddl-auto=create"})
+@TestPropertySource(properties={"spring.flyway.enabled=false","spring.jpa.hibernate.ddl-auto=create","spring.sql.init.mode=always"})
+@org.springframework.test.context.jdbc.Sql(scripts = "/schema.sql", executionPhase = org.springframework.test.context.jdbc.Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 @Testcontainers
 class KnowledgeSyncEngineDirectTest {
-    @Container @ServiceConnection static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16-alpine");
+    @Container @ServiceConnection static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("pgvector/pgvector:pg16");
     @Autowired KnowledgeSourceJpaRepository srcJpa;
     @Autowired KnowledgeArticleRepository artRepo;
     @Autowired KnowledgeSyncService syncSvc;
