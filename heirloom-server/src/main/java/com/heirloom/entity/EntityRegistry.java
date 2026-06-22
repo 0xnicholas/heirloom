@@ -26,6 +26,7 @@ public class EntityRegistry {
     public static final String ROLE             = "role";
     public static final String ACTION           = "action";
     public static final String FUNCTION         = "function";
+    public static final String CAPABILITY       = "capability";
 
     // Semantic layer (Heirloom unique)
     public static final String RESOURCE_TYPE    = "resourceType";

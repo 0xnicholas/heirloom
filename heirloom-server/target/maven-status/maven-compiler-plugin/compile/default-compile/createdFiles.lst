@@ -48,6 +48,7 @@ com/heirloom/repository/ActionRepository.class
 com/heirloom/schema/domain/FieldType.class
 com/heirloom/entity/EntityRegistry.class
 com/heirloom/discovery/inference/rules/FieldMapperInference.class
+com/heirloom/security/domain/Capability.class
 com/heirloom/repository/LineageRepository.class
 com/heirloom/metadata/domain/TableEntity.class
 com/heirloom/repository/MappingRuleJpaRepository.class
@@ -56,6 +57,7 @@ com/heirloom/metadata/domain/TableProfileEntity.class
 com/heirloom/schema/domain/Ability.class
 com/heirloom/discovery/topology/DiscoveryContext.class
 com/heirloom/discovery/inference/ResourceTypeProposal.class
+com/heirloom/repository/CapabilityJpaRepository.class
 com/heirloom/auth/Authorizer$Actor.class
 com/heirloom/repository/RoleJpaRepository.class
 com/heirloom/security/domain/Role.class
@@ -66,6 +68,7 @@ com/heirloom/discovery/inference/InferencePipeline.class
 com/heirloom/schema/repository/ResourceTypeRepository.class
 com/heirloom/auth/RoleBasedAuthorizer.class
 com/heirloom/repository/DiscoverySourceRepository.class
+com/heirloom/repository/CapabilityRepository.class
 com/heirloom/repository/ProposalRepository.class
 com/heirloom/web/QueryController.class
 com/heirloom/service/EntityService.class
