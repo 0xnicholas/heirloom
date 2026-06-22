@@ -1,5 +1,8 @@
 package com.heirloom.knowledge.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.heirloom.discovery.model.RawColumn;
 import com.heirloom.knowledge.domain.KnowledgeSource;
 import com.heirloom.knowledge.repository.KnowledgeSourceJpaRepository;
 import com.heirloom.metadata.domain.TableEntity;
@@ -10,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -22,6 +26,9 @@ import java.util.List;
 @Component
 public class KnowledgeBootstrapper {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeBootstrapper.class);
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<List<RawColumn>> COLUMN_LIST = new TypeReference<>() {};
 
     private final KnowledgeSourceJpaRepository sourceJpa;
 
@@ -73,27 +80,100 @@ public class KnowledgeBootstrapper {
         }
     }
 
+    /**
+     * Render the knowledge draft markdown for a single table.
+     *
+     * Sections produced:
+     *  - YAML frontmatter (type, title, description, source, timestamps, resource link)
+     *  - Schema (rendered from {@link TableEntity#getColumnsJson()} — auto block tagged
+     *    HEIRLOOM_AUTO_START/HEIRLOOM_AUTO_END so {@code MetadataBlockUpdater} can
+     *    refresh just this block on re-discovery)
+     *  - Business Context (description, owner, service/schema path, table type)
+     *  - Discovery Provenance (FQN, row count, source FQN — auto block for future updates)
+     */
     String generateTableMarkdown(TableEntity table) {
+        List<RawColumn> columns = parseColumns(table.getColumnsJson());
         StringBuilder sb = new StringBuilder();
+
+        // --- Frontmatter ---
         sb.append("---\n");
         sb.append("type: BigQuery Table\n");
         sb.append("title: ").append(table.getName()).append("\n");
         if (table.getDescription() != null && !table.getDescription().isBlank()) {
             sb.append("description: ").append(table.getDescription()).append("\n");
         }
+        if (table.getOwner() != null && !table.getOwner().isBlank()) {
+            sb.append("owner: ").append(table.getOwner()).append("\n");
+        }
         sb.append("source: heirloom-discovery\n");
         sb.append("discovered_at: ").append(Instant.now()).append("\n");
         sb.append("resource: @").append(table.getFullyQualifiedName()).append("\n");
         sb.append("---\n\n");
+
+        // --- Schema (auto-refreshable block) ---
         sb.append("# Schema\n\n");
         sb.append("<!-- HEIRLOOM_AUTO_START: schema -->\n");
-        sb.append("| Column | Type | Description |\n");
-        sb.append("|--------|------|-------------|\n");
-        sb.append("<!-- TODO: Column details will be populated in a future update -->\n");
+        sb.append("| Column | Type | Nullable | Default | Description |\n");
+        sb.append("|--------|------|----------|---------|-------------|\n");
+        for (RawColumn col : columns) {
+            sb.append("| ").append(escapeCell(col.columnName()))
+              .append(" | ").append(escapeCell(col.rawType()))
+              .append(" | ").append(col.nullable() ? "YES" : "NO")
+              .append(" | ").append(escapeCell(col.defaultValue()))
+              .append(" | ").append(escapeCell(col.comment()))
+              .append(" |\n");
+        }
         sb.append("<!-- HEIRLOOM_AUTO_END: schema -->\n\n");
-        sb.append("# Usage Notes\n\n");
-        sb.append("<!-- TODO: Add business context -->\n");
+
+        // --- Business Context ---
+        sb.append("# Business Context\n\n");
+        if (table.getDescription() != null && !table.getDescription().isBlank()) {
+            sb.append(table.getDescription().trim()).append("\n\n");
+        } else {
+            sb.append("_No description has been provided for this table yet._\n\n");
+            sb.append("> **Action item:** add a short paragraph explaining what this table\n");
+            sb.append("> represents, who owns it, and the most common query patterns. This\n");
+            sb.append("> context is what agents see first when calling `knowledge.getContext()`.\n\n");
+        }
+        sb.append("**Owner:** ");
+        sb.append(table.getOwner() != null && !table.getOwner().isBlank()
+                ? table.getOwner() : "_unassigned_");
+        sb.append("\n\n");
+        sb.append("**Source:** `").append(
+                table.getDatabaseServiceFQN() != null ? table.getDatabaseServiceFQN() : "_unknown_")
+          .append("`\n\n");
+        if (table.getDatabaseSchemaFQN() != null) {
+            sb.append("**Schema:** `").append(table.getDatabaseSchemaFQN()).append("`\n\n");
+        }
+        sb.append("**Type:** ").append(table.getTableType() != null ? table.getTableType() : "TABLE")
+          .append("\n");
+
+        // --- Discovery Provenance (auto block for future updates) ---
+        sb.append("\n# Discovery Provenance\n\n");
+        sb.append("<!-- HEIRLOOM_AUTO_START: provenance -->\n");
+        sb.append("- **FQN:** `").append(table.getFullyQualifiedName()).append("`\n");
+        sb.append("- **Discovered at:** ").append(Instant.now()).append("\n");
+        sb.append("<!-- HEIRLOOM_AUTO_END: provenance -->\n");
 
         return sb.toString();
+    }
+
+    private static List<RawColumn> parseColumns(String columnsJson) {
+        if (columnsJson == null || columnsJson.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return MAPPER.readValue(columnsJson, COLUMN_LIST);
+        } catch (Exception e) {
+            log.warn("Failed to parse columnsJson, rendering empty schema block: {}",
+                    e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /** Escape pipe characters and newlines so markdown table cells stay one row. */
+    private static String escapeCell(String value) {
+        if (value == null) return "";
+        return value.replace("|", "\\|").replace("\n", " ").replace("\r", " ");
     }
 }
