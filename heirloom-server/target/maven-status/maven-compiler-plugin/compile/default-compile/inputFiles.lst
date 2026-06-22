@@ -45,6 +45,8 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/ProposalJpaRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/ProposalRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/ResourceTypeJpaRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/TableJpaRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/TableRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/TypeRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/schema/domain/Ability.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/schema/domain/Field.java

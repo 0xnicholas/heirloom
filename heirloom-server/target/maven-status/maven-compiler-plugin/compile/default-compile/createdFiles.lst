@@ -50,6 +50,7 @@ com/heirloom/entity/EntityRegistration.class
 com/heirloom/service/EntityService.class
 com/heirloom/discovery/runner/DiscoveryRunner.class
 com/heirloom/metadata/domain/DomainEntity.class
+com/heirloom/repository/TableJpaRepository.class
 com/heirloom/schema/service/TypeValidator$Severity.class
 com/heirloom/schema/domain/Proposal.class
 com/heirloom/repository/EventLogJpaRepository.class
@@ -66,6 +67,7 @@ com/heirloom/discovery/extractor/SchemaExtractor$ExtractorCapability.class
 com/heirloom/discovery/topology/DiscoveryNode.class
 com/heirloom/repository/TypeRepository.class
 com/heirloom/HeirloomApplication.class
+com/heirloom/repository/TableRepository.class
 com/heirloom/repository/DiscoveryReportJpaRepository.class
 com/heirloom/discovery/inference/InferenceRule.class
 com/heirloom/schema/dto/CreateTypeRequest.class

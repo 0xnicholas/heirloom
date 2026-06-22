@@ -27,11 +27,14 @@ public class DiscoveryService {
     private final MappingRuleRepository mappingRepo;
     private final InferencePipeline inference;
 
+    private final TableRepository tableRepo;
+
     public DiscoveryService(TypeRepository typeRepo, ProposalRepository proposalRepo,
-                           MappingRuleRepository mappingRepo) {
+                           MappingRuleRepository mappingRepo, TableRepository tableRepo) {
         this.typeRepo = typeRepo;
         this.proposalRepo = proposalRepo;
         this.mappingRepo = mappingRepo;
+        this.tableRepo = tableRepo;
         this.inference = new InferencePipeline();
     }
 
