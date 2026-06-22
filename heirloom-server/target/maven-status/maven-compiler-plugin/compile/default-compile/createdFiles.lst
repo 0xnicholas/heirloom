@@ -54,6 +54,7 @@ com/heirloom/service/EntityService.class
 com/heirloom/discovery/runner/DiscoveryRunner.class
 com/heirloom/metadata/domain/DomainEntity.class
 com/heirloom/repository/TableJpaRepository.class
+com/heirloom/security/domain/Action.class
 com/heirloom/schema/service/TypeValidator$Severity.class
 com/heirloom/schema/domain/Proposal.class
 com/heirloom/repository/EventLogJpaRepository.class
@@ -64,6 +65,7 @@ com/heirloom/repository/LineageJpaRepository.class
 com/heirloom/schema/domain/RelationshipSemantics.class
 com/heirloom/interceptor/ChangeEventInterceptor.class
 com/heirloom/auth/UnauthorizedException.class
+com/heirloom/repository/ActionJpaRepository.class
 com/heirloom/discovery/inference/InferenceRule$Confidence.class
 com/heirloom/repository/RoleRepository.class
 com/heirloom/repository/DiscoverySourceJpaRepository.class
@@ -78,6 +80,7 @@ com/heirloom/repository/TableRepository.class
 com/heirloom/repository/DiscoveryReportJpaRepository.class
 com/heirloom/discovery/inference/InferenceRule.class
 com/heirloom/schema/dto/CreateTypeRequest.class
+com/heirloom/repository/ActionRepository.class
 com/heirloom/schema/domain/FieldType.class
 com/heirloom/web/EntityResource.class
 com/heirloom/discovery/extractor/postgres/PostgresSchemaExtractor.class
