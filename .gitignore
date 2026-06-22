@@ -2,3 +2,5 @@
 .worktrees/
 .superpowers/
 _references/
+workshop/node_modules/
+workshop/dist/
