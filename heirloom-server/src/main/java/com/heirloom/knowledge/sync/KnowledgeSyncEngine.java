@@ -10,7 +10,9 @@ public class KnowledgeSyncEngine {
     private final KnowledgeArticleRepository articleRepo;
     private final FileScanner fileScanner = new FileScanner();
     private final FrontmatterParser parser = new FrontmatterParser();
+    private SyncDiff lastDiff;
     public KnowledgeSyncEngine(KnowledgeArticleRepository r) { articleRepo = r; }
+    public SyncDiff getLastDiff() { return lastDiff; }
     public SyncReport sync(KnowledgeSource source) {
         SyncReport report = SyncReport.start(source.getFullyQualifiedName());
         Path root = Path.of(source.getPath());
@@ -19,6 +21,7 @@ public class KnowledgeSyncEngine {
         report.setTotalFiles(currentHashes.size());
         Map<String,String> indexed = articleRepo.getIndexedFileHashes(source.getFullyQualifiedName());
         SyncDiff diff = computeDiff(currentHashes, indexed);
+        this.lastDiff = diff;
         report.setSkipped(diff.unchangedFiles().size());
         List<String> toProcess = new ArrayList<>(); toProcess.addAll(diff.newFiles()); toProcess.addAll(diff.changedFiles()); toProcess.addAll(diff.recreatedFiles());
         for (String fp : toProcess) {
