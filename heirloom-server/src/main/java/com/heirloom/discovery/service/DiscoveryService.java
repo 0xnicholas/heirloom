@@ -95,9 +95,19 @@ public class DiscoveryService {
             .map(t -> source.getFullyQualifiedName() + "." + t.schemaName() + "." + t.tableName())
             .collect(Collectors.toSet());
 
-        // Find previously registered tables for this source that are no longer present
-        // In Phase 0, we don't have TableRepository wired here — skip for now.
-        // Phase 1: wire TableRepository and compare FQN sets, soft-delete stale entities.
-        log.debug("Stale entity detection: {} tables discovered", discoveredFQNs.size());
+        // Find previously registered tables for this source
+        List<TableEntity> existingTables = tableRepo.findAll().stream()
+            .filter(t -> t.getFullyQualifiedName() != null
+                && t.getFullyQualifiedName().startsWith(source.getFullyQualifiedName()))
+            .toList();
+
+        // Tables in DB but not in current scan → stale
+        for (TableEntity existing : existingTables) {
+            if (!discoveredFQNs.contains(existing.getFullyQualifiedName())) {
+                existing.setDeleted(true);
+                tableRepo.update(existing);
+                log.info("Marked stale table: {}", existing.getFullyQualifiedName());
+            }
+        }
     }
 }
