@@ -74,6 +74,7 @@ class HeirloomClient:
         self._knowledge_sources: Optional["KnowledgeSourceNamespace"] = None
         self._proposals: Optional["ProposalsNamespace"] = None
         self._functions: Optional["FunctionsNamespace"] = None
+        self._audit: Optional["AuditNamespace"] = None
 
     # --- Namespace accessors ---
 
@@ -100,6 +101,12 @@ class HeirloomClient:
         if self._functions is None:
             self._functions = FunctionsNamespace(self)
         return self._functions
+
+    @property
+    def audit(self) -> "AuditNamespace":
+        if self._audit is None:
+            self._audit = AuditNamespace(self)
+        return self._audit
 
     # === Discovery ===
 
@@ -458,6 +465,64 @@ class FunctionsNamespace:
         """
         r = self._client._session.post(
             f"{self._client.base_url}/v1/functions", json=definition
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+@dataclass
+class AuditNamespace:
+    """Agent audit & monitoring — ``client.audit.*``.
+
+    Read-side projections over the Event Log for dashboard widgets and
+    operator debugging. Times are ISO-8601 (e.g. ``2026-06-22T00:00:00Z``);
+    ``since`` and ``until`` default to the last 24 hours.
+    """
+
+    _client: HeirloomClient
+
+    def activity(self, actor: str, since: Optional[str] = None,
+                 until: Optional[str] = None) -> Dict[str, Any]:
+        """Event counts for an actor grouped by type. Dashboard widget feed."""
+        params = {k: v for k, v in {"since": since, "until": until}.items() if v}
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/audit/actors/{actor}/activity",
+            params=params,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def anomaly(self, actor: str, since: Optional[str] = None,
+                until: Optional[str] = None) -> Dict[str, Any]:
+        """Denial-rate verdict for an actor. Returns ``flagged`` boolean +
+        ``deniedRate`` float + ``reason`` string. Use this to drive alerting."""
+        params = {k: v for k, v in {"since": since, "until": until}.items() if v}
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/audit/actors/{actor}/anomaly",
+            params=params,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def replay(self, actor: str, since: Optional[str] = None,
+               until: Optional[str] = None) -> Dict[str, Any]:
+        """Chronological event list for an actor — reconstructs the
+        decision chain in a session. For debugging and postmortem review."""
+        params = {k: v for k, v in {"since": since, "until": until}.items() if v}
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/audit/actors/{actor}/replay",
+            params=params,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def entity_history(self, entity_fqn: str, since: Optional[str] = None,
+                       until: Optional[str] = None) -> Dict[str, Any]:
+        """All events touching one entity. Forensics / lineage debugging."""
+        params = {k: v for k, v in {"since": since, "until": until}.items() if v}
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/audit/entities/{entity_fqn}/history",
+            params=params,
         )
         r.raise_for_status()
         return r.json()

@@ -198,9 +198,9 @@
 ### 3.2 Function 引擎
 
 - [x] Function 定义与注册：代码模板 + 参数 Schema + 返回类型（ADR-008 — `Function` entity + `FunctionRepository`）
-- [ ] Function 执行沙箱：受限的运行时环境（资源限制、超时、网络白名单）
-- [ ] Function 在 Action validate 内嵌调用：如 `risk_score()` 用于 `update_tier` 验证
-- [ ] Function 审计：可配置的审计开关（高风险 Function 开启，高频 UI Function 关闭）
+- [x] Function 执行沙箱：受限的运行时环境（资源限制、超时、网络白名单） — `SpelFunctionExecutor` 使用 `SimpleEvaluationContext.forReadOnlyDataBinding()` 禁止方法调用 / 构造器 / Bean 查找；`Future.get(timeout)` 强制超时（默认 5s，可配置）；网络由 SpEL 无 I/O API 实现"零"访问能力。物理 / OS 级网络白名单和内存硬限制待 Phase 4
+- [x] Function 在 Action validate 内嵌调用：如 `risk_score()` 用于 `update_tier` 验证 — `FunctionService.invoke()` 可被 Action 流水线调用，Action.validationRules JSONB 约定形如 `{"function": "risk_score", "inputs": {...}}`
+- [x] Function 审计：可配置的审计开关（高风险 Function 开启，高频 UI Function 关闭） — `Function.auditEnabled` 字段 + `FUNCTION_INVOKED` 事件类型
 
 ### 3.3 语义搜索
 
@@ -214,9 +214,9 @@
 
 ### 3.4 Agent 审计与监控
 
-- [ ] Agent 行为看板：查询频率、Action 调用、被拒操作趋势
-- [ ] Agent Role 异常检测：高频被拒 → 告警
-- [ ] Agent 操作回放：通过 Event Log 重建 Agent 在某任务中的完整决策链
+- [x] Agent 行为看板：查询频率、Action 调用、被拒操作趋势 — `/v1/audit/actors/{actor}/activity` 返回按事件类型分组的计数
+- [x] Agent Role 异常检测：高频被拒 → 告警 — `/v1/audit/actors/{actor}/anomaly` 基于拒绝率阈值（默认 25%）判定；高于阈值且样本量足够时 `flagged=true`
+- [x] Agent 操作回放：通过 Event Log 重建 Agent 在某任务中的完整决策链 — `/v1/audit/actors/{actor}/replay` 返回时序事件列表
 
 **退出标准**：Agent 可以在专用 Role 下查询、调用 Function 和执行有限 Action。被拒操作自动记录并进入审计看板。
 
@@ -299,3 +299,4 @@
 |------|------|------|
 | 2026-05-28 | v0.1 | 初始路线图，基于白皮书和 ADR 系列 |
 | 2026-06-22 | v0.2 | 批量同步代码现状：Phase 0–3 大部分核心子项已落地（95 commits ahead of origin/main）；Phase 0.2 Resource Store 正式 descope（设计重心转向外部源语义映射，ADR-003/018）；Phase 1.3 通用 Perspective Engine 留待 Phase 2.3 KnowledgeCapability 合并时实现；Workshop 已合并进 main，覆盖部分 Phase 4.4 目标 |
+| 2026-06-22 | v0.3 | Phase 3.2 Function 引擎落地（SpEL 沙箱执行器 + /v1/functions/{name}/invoke + audit 开关）；Phase 3.4 Agent 审计看板落地（activity / anomaly / replay / entity-history 4 个端点）；heirloom-sdk 升到 0.4.0（覆盖 knowledge / proposals / functions / audit 4 个 namespace） |

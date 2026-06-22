@@ -272,3 +272,54 @@ class TestFunctionsNamespace:
         created = client.functions.create(
             {"name": "discount", "code": "#price * 0.9", "outputType": "NUMBER"})
         assert created["name"] == "discount"
+
+
+class TestAuditNamespace:
+    def test_activity(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.get = Mock(return_value=_mock_response({
+            "actor": "agent:007",
+            "eventCounts": {"ENTITY_CREATED": 3, "ENTITY_DENIED": 7}}))
+        result = client.audit.activity("agent:007")
+        assert result["eventCounts"]["ENTITY_DENIED"] == 7
+
+    def test_activity_with_window(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.get = Mock(return_value=_mock_response({}))
+        client.audit.activity("agent:007",
+                              since="2026-06-21T00:00:00Z",
+                              until="2026-06-22T00:00:00Z")
+        _, kwargs = client._session.get.call_args
+        assert kwargs["params"]["since"] == "2026-06-21T00:00:00Z"
+        assert kwargs["params"]["until"] == "2026-06-22T00:00:00Z"
+
+    def test_anomaly(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.get = Mock(return_value=_mock_response({
+            "flagged": True, "deniedRate": 0.42,
+            "totalEvents": 50, "deniedEvents": 21,
+            "reason": "denied-rate 42% \u2265 25% threshold"}))
+        result = client.audit.anomaly("agent:007")
+        assert result["flagged"] is True
+        assert result["deniedRate"] == 0.42
+
+    def test_replay(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.get = Mock(return_value=_mock_response({
+            "actor": "agent:007", "eventCount": 2, "events": [
+                {"eventType": "FUNCTION_INVOKED"},
+                {"eventType": "ENTITY_UPDATED"}]}))
+        result = client.audit.replay("agent:007")
+        assert result["eventCount"] == 2
+        assert result["events"][0]["eventType"] == "FUNCTION_INVOKED"
+
+    def test_entity_history(self):
+        client = HeirloomClient("http://localhost:8080")
+        client._session.get = Mock(return_value=_mock_response({
+            "entityFQN": "crm.Customer", "eventCount": 5, "events": []}))
+        result = client.audit.entity_history("crm.Customer")
+        assert result["entityFQN"] == "crm.Customer"
+        client._session.get.assert_called_with(
+            "http://localhost:8080/v1/audit/entities/crm.Customer/history",
+            params={},
+        )

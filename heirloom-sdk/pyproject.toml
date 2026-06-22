@@ -1,5 +1,5 @@
 [project]
 name = "heirloom-sdk"
-version = "0.3.0"
+version = "0.4.0"
 requires-python = ">=3.11"
 dependencies = ["requests>=2.31"]
