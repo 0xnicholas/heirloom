@@ -28,8 +28,10 @@ public record ResourceTypeProposal(String proposedTypeName, String sourceTable,
     }
 
     public boolean isHighConfidence() {
-        return fieldsConfidence != InferenceRule.Confidence.LOW
-            && abilitiesConfidence == InferenceRule.Confidence.NONE;
+        return (fieldsConfidence == InferenceRule.Confidence.HIGH || fieldsConfidence == InferenceRule.Confidence.NONE)
+            && relationshipsConfidence != InferenceRule.Confidence.LOW
+            && abilitiesConfidence != InferenceRule.Confidence.LOW
+            && stateMachineConfidence != InferenceRule.Confidence.LOW;
     }
 
     private static InferenceRule.Confidence min(InferenceRule.Confidence a, InferenceRule.Confidence b) {

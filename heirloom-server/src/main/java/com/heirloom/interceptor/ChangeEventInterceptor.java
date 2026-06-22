@@ -12,10 +12,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
 
+    private static final Logger log = LoggerFactory.getLogger(ChangeEventInterceptor.class);
     private final EventLogRepository eventLog;
 
     public ChangeEventInterceptor(EventLogRepository eventLog) { this.eventLog = eventLog; }
@@ -27,10 +30,10 @@ public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
     public Object beforeBodyWrite(Object body, MethodParameter returnType,
                                    MediaType selectedContentType, Class selectedConverterType,
                                    ServerHttpRequest request, ServerHttpResponse response) {
-        if ("GET".equals(getMethod())) return body;
+        String method = getMethod();
+        if (method == null || "GET".equals(method)) return body;
         if (!(body instanceof HeirloomEntity entity)) return body;
 
-        String method = getMethod();
         ChangeEvent.EventType eventType = switch (method) {
             case "POST" -> ChangeEvent.EventType.ENTITY_CREATED;
             case "PUT", "PATCH" -> ChangeEvent.EventType.ENTITY_UPDATED;
@@ -57,9 +60,14 @@ public class ChangeEventInterceptor implements ResponseBodyAdvice<Object> {
     private String getMethod() {
         try {
             ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            return attrs != null ? attrs.getRequest().getMethod() : "GET";
+            if (attrs == null) {
+                log.debug("No request context available, cannot determine HTTP method");
+                return null;
+            }
+            return attrs.getRequest().getMethod();
         } catch (Exception e) {
-            return "GET";
+            log.warn("Failed to determine HTTP method for audit", e);
+            return null;
         }
     }
 }
