@@ -1,6 +1,7 @@
 package com.heirloom.web;
 
 import com.heirloom.repository.MappingRuleRepository;
+import com.heirloom.repository.LineageRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import javax.sql.DataSource;
@@ -12,10 +13,12 @@ import java.util.*;
 public class QueryController {
 
     private final MappingRuleRepository mappingRepo;
+    private final LineageRepository lineageRepo;
     private final DataSource dataSource;
 
-    public QueryController(MappingRuleRepository mappingRepo, DataSource dataSource) {
+    public QueryController(MappingRuleRepository mappingRepo, LineageRepository lineageRepo, DataSource dataSource) {
         this.mappingRepo = mappingRepo;
+        this.lineageRepo = lineageRepo;
         this.dataSource = dataSource;
     }
 
@@ -27,42 +30,65 @@ public class QueryController {
             List<String> fields = (List<String>) request.getOrDefault("fields", List.of());
             @SuppressWarnings("unchecked")
             Map<String, Object> filter = (Map<String, Object>) request.get("filter");
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> traverse = (List<Map<String, String>>) request.get("traverse");
 
-            // Resolve field → physical column via MappingRule
-            List<String> selectCols = new ArrayList<>();
+            // Resolve field → physical column
+            Map<String, String> fieldToCol = new LinkedHashMap<>();
             String table = null;
             for (String field : fields) {
                 var rule = mappingRepo.findByTypeAndField(type, field);
                 if (rule.isPresent()) {
                     String colFQN = rule.get().getColumnFQN();
-                    // Parse column FQN: service.db.schema.table.column → schema.table.column
                     String[] parts = colFQN.split("\\.");
                     if (parts.length >= 2) {
-                        table = parts[parts.length - 3] + "." + parts[parts.length - 2]; // schema.table
-                        selectCols.add(parts[parts.length - 1]); // column
+                        table = parts[parts.length - 3] + "." + parts[parts.length - 2];
+                        fieldToCol.put(field, parts[parts.length - 1]);
                     }
                 }
             }
 
-            if (table == null || selectCols.isEmpty()) {
-                return ResponseEntity.ok(List.of(Map.of("error", "No mapping found for type: " + type)));
+            if (table == null) return ResponseEntity.ok(List.of(Map.of("error", "No mapping for type: " + type)));
+
+            // Build SQL with optional traverse (JOIN)
+            StringBuilder sql = new StringBuilder("SELECT ");
+            List<String> selectParts = new ArrayList<>();
+            fieldToCol.forEach((f, c) -> selectParts.add("t0." + c + " AS \"" + f + "\""));
+            sql.append(String.join(", ", selectParts));
+            sql.append(" FROM ").append(table).append(" t0");
+
+            List<Object> params = new ArrayList<>();
+            int joinIdx = 1;
+
+            // Handle traverse — use LineageEntity for FK information
+            if (traverse != null) {
+                for (var step : traverse) {
+                    String rel = step.get("relationship"); // e.g., "placed" or "customer"
+                    String target = step.get("targetType"); // e.g., "Order"
+                    
+                    // Find lineage edges from this source
+                    var lineages = lineageRepo.findAll();
+                    for (var l : lineages) {
+                        String fromTable = extractTable(l.getFromEntityFQN());
+                        String toTable = extractTable(l.getToEntityFQN());
+                        if (table.endsWith(fromTable)) {
+                            sql.append(" LEFT JOIN ").append(toTable).append(" t").append(joinIdx)
+                               .append(" ON t0.id = t").append(joinIdx).append(".").append(rel).append("_id");
+                            joinIdx++;
+                            break;
+                        }
+                    }
+                }
             }
 
-            // Build SQL
-            StringBuilder sql = new StringBuilder("SELECT " + String.join(", ", selectCols) + " FROM " + table);
-            List<Object> params = new ArrayList<>();
-
             if (filter != null && filter.containsKey("field")) {
-                String op = mapOp((String) filter.get("op"));
-                sql.append(" WHERE ").append(filter.get("field")).append(" ").append(op).append(" ?");
+                String col = fieldToCol.getOrDefault(filter.get("field"), (String) filter.get("field"));
+                sql.append(" WHERE t0.").append(col).append(" ").append(mapOp((String) filter.get("op"))).append(" ?");
                 params.add(filter.get("value"));
             }
 
-            if (request.containsKey("limit")) {
-                sql.append(" LIMIT ").append(request.get("limit"));
-            }
+            if (request.containsKey("limit")) sql.append(" LIMIT ").append(request.get("limit"));
 
-            // Execute
             List<Map<String, Object>> results = new ArrayList<>();
             try (Connection conn = dataSource.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql.toString())) {
@@ -80,17 +106,22 @@ public class QueryController {
 
             return ResponseEntity.ok(results);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                .body(List.of(Map.of("error", e.getMessage())));
+            return ResponseEntity.internalServerError().body(List.of(Map.of("error", e.getMessage())));
         }
+    }
+
+    private String extractTable(String fqn) {
+        if (fqn == null) return "";
+        String[] parts = fqn.split("\\.");
+        if (parts.length >= 2) return parts[parts.length - 2] + "." + parts[parts.length - 1];
+        return fqn;
     }
 
     private String mapOp(String op) {
         return switch (op != null ? op : "$eq") {
             case "$eq" -> "="; case "$neq" -> "!="; case "$gt" -> ">";
             case "$gte" -> ">="; case "$lt" -> "<"; case "$lte" -> "<=";
-            case "$like" -> "LIKE"; case "$in" -> "IN";
-            default -> "=";
+            case "$like" -> "LIKE"; case "$in" -> "IN"; default -> "=";
         };
     }
 }
