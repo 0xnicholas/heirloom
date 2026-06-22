@@ -6,6 +6,8 @@ import com.heirloom.knowledge.domain.KnowledgeSource;
 import com.heirloom.knowledge.repository.KnowledgeSourceJpaRepository;
 import com.heirloom.knowledge.service.KnowledgeSyncService;
 import com.heirloom.knowledge.service.OkfExportService;
+import com.heirloom.knowledge.service.HtmlImporter;
+import com.heirloom.knowledge.service.KnowledgeImporter;
 import com.heirloom.knowledge.sync.SyncReport;
 import com.heirloom.web.EntityResource;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/v1/knowledge/sources")
@@ -22,11 +25,13 @@ public class KnowledgeSourceResource extends EntityResource<KnowledgeSource> {
     private final KnowledgeSourceJpaRepository jpa;
     private final KnowledgeSyncService syncService;
     private final OkfExportService exportService;
+    private final HtmlImporter htmlImporter;
 
     public KnowledgeSourceResource(Authorizer a, KnowledgeSourceJpaRepository j,
-                                    KnowledgeSyncService s, OkfExportService e) {
+                                    KnowledgeSyncService s, OkfExportService e,
+                                    HtmlImporter h) {
         super(EntityRegistry.KNOWLEDGE_SOURCE, a);
-        jpa = j; syncService = s; exportService = e;
+        jpa = j; syncService = s; exportService = e; htmlImporter = h;
     }
 
     @GetMapping
@@ -84,5 +89,28 @@ public class KnowledgeSourceResource extends EntityResource<KnowledgeSource> {
         return jpa.findByFullyQualifiedName(fqn)
             .map(s -> ResponseEntity.ok(syncService.sync(fqn)))
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Import external HTML content as a knowledge article. */
+    @PostMapping("/{id}/import")
+    public ResponseEntity<?> importHtml(@PathVariable Long id, @RequestBody Map<String,String> body) {
+        return jpa.findById(id).map(source -> {
+            try {
+                String title = body.getOrDefault("title", "Imported Document");
+                String html = body.get("html");
+                if (html == null || html.isBlank()) return ResponseEntity.badRequest().body(Map.of("error","html field required"));
+                String md = htmlImporter.convertToMarkdown(
+                    new KnowledgeImporter.ImportEntry("1", title, html, "html", null, List.of(), null));
+                String filename = title.replaceAll("[^a-zA-Z0-9_-]", "_") + ".md";
+                java.nio.file.Path outPath = java.nio.file.Path.of(source.getPath()).resolve("imports").resolve(filename);
+                java.nio.file.Files.createDirectories(outPath.getParent());
+                String fullMd = "---\ntype: Imported Document\ntitle: " + title + "\nsource: heirloom-import\n---\n" + md;
+                java.nio.file.Files.writeString(outPath, fullMd);
+                SyncReport report = syncService.sync(source.getFullyQualifiedName());
+                return ResponseEntity.ok(Map.of("status","imported","file",filename,"sync",report));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error",e.getMessage()));
+            }
+        }).orElse(ResponseEntity.notFound().build());
     }
 }
