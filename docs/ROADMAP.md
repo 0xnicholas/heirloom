@@ -46,6 +46,8 @@
 - [ ] `index.md` 自动生成器（每目录，遵循 OKF §6）
 - [ ] `log.md` 变更日志生成器（根目录，遵循 OKF §7）
 - [ ] frontmatter `resource` → Heirloom FQN 自动解析（`@metadata_tables.xxx.yyy`）
+- [ ] `status` 字段 + 状态机（draft→review→published→archived）
+- [ ] 图分析缓存字段（incomingRefCount 等）——同步时计算
 - [ ] 单元测试 + 集成测试
 - [ ] 设计参考：[ADR-032 知识库模块架构](../docs/adr/032-knowledge-base-architecture.md)、[ADR-033 转换管道](../docs/adr/033-knowledge-conversion-pipeline.md)
 
@@ -97,8 +99,10 @@
 - [ ] OKF 导出端点——从文件系统直接打包 tar.gz
 - [ ] 管道 A（外部导入）：`HtmlImporter` + `ConfluenceImporter`
 - [ ] 管道 B 增强：`update_metadata_blocks` 增量策略（仅更新 Schema 区块）
+- [ ] 图遍历 API（`/v1/knowledge/graph/traverse`、`/coverage`、`/impact`）
+- [ ] 质量评分引擎 + API（`/v1/knowledge/quality/report`）
 
-**退出标准**：可以通过 JSON DSL 查询跨 PostgreSQL + REST API 的数据，字段可见性受 Role 配置控制。所有操作记录到 Event Log。知识条目支持全文搜索、引用解析、webhook 自动同步和外部文档导入。
+**退出标准**：可以通过 JSON DSL 查询跨 PostgreSQL + REST API 的数据，字段可见性受 Role 配置控制。所有操作记录到 Event Log。知识条目支持全文搜索、引用解析、webhook 自动同步、图遍历和质量分析。
 
 ---
 
@@ -148,6 +152,9 @@
 - [ ] 管道 C（知识反哺）：`GlossaryExtractor` + `MetricExtractor`
 - [ ] 知识反哺 Proposal 生成 → 人类审批流程
 - [ ] API：`POST /v1/knowledge/promote`
+- [ ] review → published 审批集成（Proposal 系统）
+- [ ] 自动归档建议（stale published articles）
+- [ ] 知识覆盖物化视图
 
 **退出标准**：所有写入经 Action 层执行，Abilities 约束在类型层生效，Role 控制人类用户的 Capability。Event Log 记录全部写入和拒绝事件。
 

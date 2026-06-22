@@ -76,6 +76,7 @@ Perspective Engine。
 | 032 | [Knowledge Base Module — Architecture Design](./032-knowledge-base-architecture.md) | Proposed |
 | 032b | [Knowledge Base Module — Deep Dive](./032b-knowledge-base-deep-dive.md) | Proposed |
 | 033 | [Knowledge Conversion Pipeline — 三向转换](./033-knowledge-conversion-pipeline.md) | Proposed |
+| 034 | [Knowledge Graph & Lifecycle Governance](./034-knowledge-graph-lifecycle.md) | Proposed |
 
 ## 版本历史
 
@@ -84,4 +85,4 @@ Perspective Engine。
 | 2026-05-28 | 初始 ADR 系列（001-009）——基于白皮书 |
 | 2026-06-21 | 平台架构 ADR（010-023）——基于 OpenMetadata 源码参考 |
 | 2026-06-21 | 子系统深挖 ADR（024-031）——基于 Spec 深挖章节 |
-| 2026-06-22 | 知识层架构 ADR（032、032b、033）——业务知识库模块 + 转换管道 |
+| 2026-06-22 | 知识层架构 ADR（032、032b、033、034）——业务知识库模块完整设计 |

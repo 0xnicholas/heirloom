@@ -31,6 +31,7 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/entity/HeirloomEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/interceptor/ChangeEventInterceptor.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/DomainEntity.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/LineageEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableProfileEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/query/AggregationQuery.java
@@ -41,6 +42,8 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/EventLogJpaRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/EventLogRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/LineageJpaRepository.java
+/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/LineageRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/MappingRuleJpaRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/MappingRuleRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/repository/ProposalJpaRepository.java

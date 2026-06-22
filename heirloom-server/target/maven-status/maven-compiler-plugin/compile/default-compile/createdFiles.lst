@@ -57,6 +57,7 @@ com/heirloom/repository/EventLogJpaRepository.class
 com/heirloom/domain/ChangeEvent.class
 com/heirloom/domain/ChangeEvent$EventType.class
 com/heirloom/schema/domain/Field.class
+com/heirloom/repository/LineageJpaRepository.class
 com/heirloom/schema/domain/RelationshipSemantics.class
 com/heirloom/interceptor/ChangeEventInterceptor.class
 com/heirloom/discovery/inference/InferenceRule$Confidence.class
@@ -66,6 +67,7 @@ com/heirloom/auth/NoopAuthorizer.class
 com/heirloom/discovery/extractor/SchemaExtractor$ExtractorCapability.class
 com/heirloom/discovery/topology/DiscoveryNode.class
 com/heirloom/repository/TypeRepository.class
+com/heirloom/metadata/domain/LineageEntity.class
 com/heirloom/HeirloomApplication.class
 com/heirloom/repository/TableRepository.class
 com/heirloom/repository/DiscoveryReportJpaRepository.class
@@ -77,4 +79,5 @@ com/heirloom/discovery/extractor/postgres/PostgresSchemaExtractor.class
 com/heirloom/repository/EntityRepository.class
 com/heirloom/entity/EntityRegistry.class
 com/heirloom/discovery/inference/rules/FieldMapperInference.class
+com/heirloom/repository/LineageRepository.class
 com/heirloom/common/GlobalExceptionHandler.class

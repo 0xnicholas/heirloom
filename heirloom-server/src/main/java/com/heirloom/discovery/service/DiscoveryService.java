@@ -11,6 +11,7 @@ import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.discovery.model.RawSchema;
 import com.heirloom.discovery.model.RawTable;
 import com.heirloom.discovery.runner.DiscoveryRunner;
+import com.heirloom.metadata.domain.LineageEntity;
 import com.heirloom.metadata.domain.TableEntity;
 import com.heirloom.repository.*;
 import org.slf4j.Logger;
@@ -26,16 +27,19 @@ public class DiscoveryService {
     private final TypeRepository typeRepo;
     private final ProposalRepository proposalRepo;
     private final MappingRuleRepository mappingRepo;
+    private final TableRepository tableRepo;
     private final InferencePipeline inference;
 
-    private final TableRepository tableRepo;
+    private final LineageRepository lineageRepo;
 
     public DiscoveryService(TypeRepository typeRepo, ProposalRepository proposalRepo,
-                           MappingRuleRepository mappingRepo, TableRepository tableRepo) {
+                           MappingRuleRepository mappingRepo, TableRepository tableRepo,
+                           LineageRepository lineageRepo) {
         this.typeRepo = typeRepo;
         this.proposalRepo = proposalRepo;
         this.mappingRepo = mappingRepo;
         this.tableRepo = tableRepo;
+        this.lineageRepo = lineageRepo;
         this.inference = new InferencePipeline();
     }
 
@@ -76,6 +80,22 @@ public class DiscoveryService {
                 }
             }
             report.setMetadataCreated(metadataCreated);
+
+            // Phase 1c: Create lineage entities from FK constraints
+            for (var rawTable : schema.tables()) {
+                String fromFQN = source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + rawTable.tableName();
+                for (var c : rawTable.constraints()) {
+                    if (c.type() == com.heirloom.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY) {
+                        LineageEntity lineage = new LineageEntity();
+                        lineage.setFromEntityFQN(fromFQN);
+                        lineage.setToEntityFQN(source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + c.targetTable());
+                        lineage.setLineageType("table_lineage");
+                        lineage.setSource("fk_inference");
+                        lineage.setName(fromFQN + " → " + c.targetTable());
+                        lineageRepo.create(lineage);
+                    }
+                }
+            }
 
             // Phase 2: Infer
             List<ResourceTypeProposal> proposals = inference.infer(schema);
