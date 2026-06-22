@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class DiscoveryService {
@@ -74,11 +75,26 @@ public class DiscoveryService {
             report.setProposalsRegistered(registered);
             report.setStatus("SUCCESS");
 
+            // Post-process: stale entity detection
+            detectStaleEntities(source, schema);
+
         } catch (Exception e) {
             log.error("Discovery failed", e);
             report.setStatus("FAILED");
         }
 
         return report;
+    }
+
+    private void detectStaleEntities(DiscoverySource source, RawSchema schema) {
+        // Collect FQNs from current scan
+        Set<String> discoveredFQNs = schema.tables().stream()
+            .map(t -> source.getFullyQualifiedName() + "." + t.schemaName() + "." + t.tableName())
+            .collect(Collectors.toSet());
+
+        // Find previously registered tables for this source that are no longer present
+        // In Phase 0, we don't have TableRepository wired here — skip for now.
+        // Phase 1: wire TableRepository and compare FQN sets, soft-delete stale entities.
+        log.debug("Stale entity detection: {} tables discovered", discoveredFQNs.size());
     }
 }

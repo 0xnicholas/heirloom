@@ -7,6 +7,7 @@ com/heirloom/schema/service/SchemaRegistryService.class
 com/heirloom/discovery/model/RawTable.class
 com/heirloom/repository/EventLogRepository.class
 com/heirloom/schema/domain/ResourceType.class
+com/heirloom/metadata/domain/TableProfileEntity.class
 com/heirloom/schema/domain/Ability.class
 com/heirloom/discovery/topology/DiscoveryContext.class
 com/heirloom/discovery/inference/ResourceTypeProposal.class
@@ -17,6 +18,7 @@ com/heirloom/discovery/domain/DiscoverySource.class
 com/heirloom/repository/MappingRuleRepository.class
 com/heirloom/discovery/extractor/SchemaExtractor.class
 com/heirloom/schema/service/TypeAlreadyExistsException.class
+com/heirloom/discovery/extractor/mysql/MySqlSchemaExtractor.class
 com/heirloom/discovery/domain/DiscoveryReport.class
 com/heirloom/discovery/model/RawRelationship.class
 com/heirloom/schema/service/TypeValidationException.class
@@ -44,6 +46,7 @@ com/heirloom/discovery/service/DiscoveryService.class
 com/heirloom/entity/EntityRegistration.class
 com/heirloom/service/EntityService.class
 com/heirloom/discovery/runner/DiscoveryRunner.class
+com/heirloom/metadata/domain/DomainEntity.class
 com/heirloom/schema/service/TypeValidator$Severity.class
 com/heirloom/schema/domain/Proposal.class
 com/heirloom/repository/EventLogJpaRepository.class

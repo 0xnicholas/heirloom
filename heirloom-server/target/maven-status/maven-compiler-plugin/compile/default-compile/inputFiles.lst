@@ -6,6 +6,7 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/domain/DiscoverySource.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/extractor/DiscoveryConfig.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/extractor/SchemaExtractor.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/extractor/mysql/MySqlSchemaExtractor.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/extractor/postgres/PostgresSchemaExtractor.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/InferencePipeline.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/discovery/inference/InferenceRule.java
@@ -29,7 +30,9 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/entity/EntityRegistry.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/entity/HeirloomEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/interceptor/ChangeEventInterceptor.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/metadata/domain/DomainEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableEntity.java
+/Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/metadata/domain/TableProfileEntity.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/EventLogJpaRepository.java
 /Users/nicholasl/Documents/build-whatever/heirloom/.worktrees/phase-0-platform/heirloom-server/src/main/java/com/heirloom/repository/EventLogRepository.java
