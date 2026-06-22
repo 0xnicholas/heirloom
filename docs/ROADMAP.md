@@ -147,8 +147,9 @@
 - [x] Capability 派生与校验：从 Role 解析当前有效的 Caller Capability
 - [x] Capability 缓存与失效：Role 变更时主动淘汰缓存 — `RoleCapabilityCache` (ConcurrentHashMap) + RoleRepository.create/update/delete override 调用 invalidate
 - [x] 拒绝事件分析工具：统计 Agent/用户的越权尝试频率 — Phase 3.4 `AuditService.detectAnomaly()` 提供拒绝率判定 + 总量统计
-- [ ] 知识库权限：`KnowledgeCapability`（KNOWLEDGE_QUERY / CREATE / MANAGE / ADMIN）
-- [ ] Role DSL 中 `knowledge_restrictions` 配置（allowed_types、denied_types、max_depth）
+- [x] 知识库权限：`KnowledgeCapability`（KNOWLEDGE_QUERY / CREATE / MANAGE / ADMIN） — 枚举定义 + 层次推导（ADMIN 包含所有）
+- [x] Role DSL 中 `knowledge_restrictions` 配置（allowed_types、denied_types、max_depth） — `KnowledgeRestrictions` record + Role.knowledgeRestrictions JSONB (V7) + `allowDrafts` / `allowedDomains` / `maxDepth` 字段
+- [x] 知识搜索/SDK 查询时 SQL 层透明权限过滤（domain + type + status） — `KnowledgePerspectiveFilter` 接入 KnowledgeArticleResource 所有 read 端点（list/getById/getByFQN/search/graph/traverse），受 actor 头部（X-Agent-Role / X-Agent-Id / X-User）驱动；不可见的返回 404 不淮漏存在性
 - [x] 知识搜索/SDK 查询时 SQL 层透明权限过滤（domain + type + status — `KnowledgePerspectiveFilter`）
 
 ### 2.4 State Machine
@@ -302,3 +303,4 @@
 | 2026-06-22 | v0.3 | Phase 3.2 Function 引擎落地（SpEL 沙箱执行器 + /v1/functions/{name}/invoke + audit 开关）；Phase 3.4 Agent 审计看板落地（activity / anomaly / replay / entity-history 4 个端点）；heirloom-sdk 升到 0.4.0（覆盖 knowledge / proposals / functions / audit 4 个 namespace） |
 | 2026-06-23 | v0.4 | Roadmap 二次订正：混合搜索、`拒绝事件分析工具`、`Agent SDK knowledge query` 三项原本未勾，实际已落地。现为 80/135 done |
 | 2026-06-23 | v0.5 | Capability 缓存与失效（Phase 2.3）、Stale 文章自动归档建议（Phase 2.6）、Agent 经验自动捕获（Phase 3.3）三项落地；同时清理 256 个 tracked build artifacts + env files。Server tests 131/131，SDK 34/34。现为 83/135 done |
+| 2026-06-23 | v0.6 | KnowledgeCapability + knowledge_restrictions（Phase 2.3）落地：枚举能力 + Role.knowledgeRestrictions JSONB (V7) + KnowledgeCapabilityResolver + KnowledgePerspectiveFilter 接入 KnowledgeArticleResource 5 个 read 端点。现为 86/135 done |
