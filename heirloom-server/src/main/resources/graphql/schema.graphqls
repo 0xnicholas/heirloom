@@ -1,0 +1,87 @@
+# Heirloom GraphQL schema
+# Phase 0.3 — minimal viable surface covering the read paths that dashboards
+# care about (Type registry, Knowledge Base, search, coverage). Write surface
+# is limited to createResourceType to demonstrate the resolver pipeline.
+#
+# The /graphql endpoint is auto-mounted by spring-boot-starter-graphql at
+# POST /graphql. GraphiQL UI is at /graphiql when the property
+# spring.graphql.graphiql.enabled=true (default true in dev).
+
+type ResourceType {
+  id: ID!
+  fullyQualifiedName: String!
+  name: String!
+  domain: String!
+  description: String
+  version: Int!
+  deleted: Boolean!
+}
+
+type KnowledgeArticle {
+  id: ID!
+  fullyQualifiedName: String!
+  title: String
+  description: String
+  status: String!
+  domain: String!
+  type: String!
+  author: String
+  resource: String
+}
+
+type SearchHit {
+  article: KnowledgeArticle!
+  score: Float
+}
+
+type CoverageReport {
+  totalArticles: Int!
+  publishedArticles: Int!
+  draftArticles: Int!
+  reviewArticles: Int!
+  archivedArticles: Int!
+  totalTables: Int!
+  tablesWithCoverage: Int!
+  coverageRatio: Float!
+  orphanTableCount: Int!
+}
+
+type OrphanTable {
+  fullyQualifiedName: String!
+  name: String!
+  databaseServiceFQN: String
+}
+
+input CreateResourceTypeInput {
+  name: String!
+  description: String
+  domain: String
+}
+
+type Query {
+  """Fetch a single ResourceType by FQN or name."""
+  resourceType(name: String!): ResourceType
+
+  """List all non-deleted ResourceTypes."""
+  resourceTypes: [ResourceType!]!
+
+  """Fetch a KnowledgeArticle by fully-qualified name."""
+  knowledgeArticle(fqn: String!): KnowledgeArticle
+
+  """List published KnowledgeArticles (most recent first)."""
+  knowledgeArticles(limit: Int = 20): [KnowledgeArticle!]!
+
+  """Full-text search across KnowledgeArticle bodies."""
+  searchKnowledge(query: String!, limit: Int = 10): [SearchHit!]!
+
+  """Coverage snapshot — total tables, articles, orphan list summary."""
+  knowledgeCoverage: CoverageReport!
+
+  """List orphan tables (non-deleted TableEntities with no referencing article)."""
+  orphanTables: [OrphanTable!]!
+}
+
+type Mutation {
+  """Create a new ResourceType. Returns the persisted entity."""
+  createResourceType(input: CreateResourceTypeInput!): ResourceType!
+}
