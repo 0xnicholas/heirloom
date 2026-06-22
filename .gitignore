@@ -4,3 +4,5 @@
 _references/
 workshop/node_modules/
 workshop/dist/
+workshop-dev/node_modules/
+workshop-dev/dist/
