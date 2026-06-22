@@ -50,6 +50,14 @@ public class QueryController {
 
             if (table == null) return ResponseEntity.ok(List.of(Map.of("error", "No mapping for type: " + type)));
 
+            // Validate column names to prevent SQL injection
+            for (String col : fieldToCol.values()) {
+                if (!isValidSqlName(col)) return ResponseEntity.badRequest()
+                    .body(List.of(Map.of("error", "Invalid column name: " + col)));
+            }
+            if (!isValidSqlName(table.replace(".", "_"))) return ResponseEntity.badRequest()
+                .body(List.of(Map.of("error", "Invalid table name")));
+
             // Build SQL with optional traverse (JOIN)
             StringBuilder sql = new StringBuilder("SELECT ");
             List<String> selectParts = new ArrayList<>();
@@ -110,8 +118,11 @@ public class QueryController {
         }
     }
 
+    private static boolean isValidSqlName(String name) {
+        return name != null && name.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    }
+
     private String extractTable(String fqn) {
-        if (fqn == null) return "";
         String[] parts = fqn.split("\\.");
         if (parts.length >= 2) return parts[parts.length - 2] + "." + parts[parts.length - 1];
         return fqn;

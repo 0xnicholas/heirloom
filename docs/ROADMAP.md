@@ -131,6 +131,9 @@
 - [ ] Capability 派生与校验：从 Role 解析当前有效的 Caller Capability
 - [ ] Capability 缓存与失效：Role 变更时主动淘汰缓存
 - [ ] 拒绝事件分析工具：统计 Agent/用户的越权尝试频率
+- [ ] 知识库权限：`KnowledgeCapability`（KNOWLEDGE_QUERY / CREATE / MANAGE / ADMIN）
+- [ ] Role DSL 中 `knowledge_restrictions` 配置（allowed_types、denied_types、max_depth）
+- [ ] 知识搜索/SDK 查询时 SQL 层透明权限过滤（domain + type + status）
 
 ### 2.4 State Machine
 
@@ -171,6 +174,10 @@
 - [ ] Agent SDK（Python / TypeScript）：封装 Query + Function + Action 调用
 - [ ] Agent 身份注入：SDK 携带 Agent 唯一标识，通过 Auth 步骤
 - [ ] Agent 专用 Role 定义模板：最小能力集（query + notification 仅）
+- [ ] 知识库 SDK 方法：`knowledge.search()`、`knowledge.getContext()`、`knowledge.traverse()`、`knowledge.getPrerequisites()`
+- [ ] 自动上下文注入：`agent.actions.execute()` 自动调用 `getPrerequisites` 并注入 LLM 上下文
+- [ ] 知识审计事件：KNOWLEDGE_SEARCH、KNOWLEDGE_CONTEXT_FETCH、KNOWLEDGE_ACCESS_DENIED
+- [ ] 设计参考：[ADR-035 Agent SDK & Perspective 集成](../docs/adr/035-agent-sdk-perspective.md)
 
 ### 3.2 Function 引擎
 

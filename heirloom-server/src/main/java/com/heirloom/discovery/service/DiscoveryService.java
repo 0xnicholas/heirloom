@@ -100,7 +100,7 @@ public class DiscoveryService {
             // Phase 2: Infer
             List<ResourceTypeProposal> proposals = inference.infer(schema);
             report.setProposalsGenerated(proposals.size());
-            report.setMetadataCreated(schema.tables().size());
+            report.setMetadataCreated(metadataCreated);
 
             int registered = 0;
             for (ResourceTypeProposal p : proposals) {
