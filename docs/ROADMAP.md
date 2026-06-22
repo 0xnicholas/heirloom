@@ -94,9 +94,9 @@
 
 ### 1.3 Perspective Engine（基础版）
 
-- [ ] 字段级可见性配置：在 Resource Type 字段上标注「对哪些 Role 可见」
-- [ ] 查询计划阶段注入字段过滤（非 API 层后处理）
-- [ ] 缓存：Role → 可见字段映射表缓存
+- [x] 字段级可见性配置：在 Resource Type 字段上标注「对哪些 Role 可见」 — `ResourceType.fieldVisibility` JSONB (V8)
+- [x] 查询计划阶段注入字段过滤（非 API 层后处理） — `PerspectiveEngine.filterFields()` 在 QueryController 生成 SQL 之前剥离隐藏列
+- [x] 缓存：Role → 可见字段映射表缓存 — `PerspectiveEngine` 内部 ConcurrentHashMap + TypeRepository.create/update/delete 调用 `invalidateType()`
 
 > **注**：知识库侧已有 `KnowledgePerspectiveFilter`（按 domain + type + status 过滤），但通用 Resource Type 的字段级 Perspective Engine 尚未实现。`KnowledgeCapability` 已在 Phase 2.3 中规划。
 
@@ -304,3 +304,4 @@
 | 2026-06-23 | v0.4 | Roadmap 二次订正：混合搜索、`拒绝事件分析工具`、`Agent SDK knowledge query` 三项原本未勾，实际已落地。现为 80/135 done |
 | 2026-06-23 | v0.5 | Capability 缓存与失效（Phase 2.3）、Stale 文章自动归档建议（Phase 2.6）、Agent 经验自动捕获（Phase 3.3）三项落地；同时清理 256 个 tracked build artifacts + env files。Server tests 131/131，SDK 34/34。现为 83/135 done |
 | 2026-06-23 | v0.6 | KnowledgeCapability + knowledge_restrictions（Phase 2.3）落地：枚举能力 + Role.knowledgeRestrictions JSONB (V7) + KnowledgeCapabilityResolver + KnowledgePerspectiveFilter 接入 KnowledgeArticleResource 5 个 read 端点。现为 86/135 done |
+| 2026-06-23 | v0.7 | 通用 Perspective Engine（Phase 1.3）落地：ResourceType.fieldVisibility JSONB (V8) + PerspectiveEngine + cache + TypeRepository 失效挂钩；QueryController 在生成 SQL 前剥离隐藏字段。现为 89/135 done |
