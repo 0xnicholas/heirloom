@@ -32,6 +32,7 @@ com/heirloom/schema/service/TypeNotFoundException.class
 com/heirloom/schema/domain/StateTransition.class
 com/heirloom/auth/Authorizer.class
 com/heirloom/repository/ResourceTypeJpaRepository.class
+com/heirloom/auth/RoleBasedAuthorizer.class
 com/heirloom/repository/DiscoverySourceRepository.class
 com/heirloom/entity/HeirloomEntity.class
 com/heirloom/web/TypeResource.class
@@ -62,6 +63,7 @@ com/heirloom/schema/domain/Field.class
 com/heirloom/repository/LineageJpaRepository.class
 com/heirloom/schema/domain/RelationshipSemantics.class
 com/heirloom/interceptor/ChangeEventInterceptor.class
+com/heirloom/auth/UnauthorizedException.class
 com/heirloom/discovery/inference/InferenceRule$Confidence.class
 com/heirloom/repository/RoleRepository.class
 com/heirloom/repository/DiscoverySourceJpaRepository.class

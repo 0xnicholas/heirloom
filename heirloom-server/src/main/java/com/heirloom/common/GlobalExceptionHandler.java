@@ -1,5 +1,6 @@
 package com.heirloom.common;
 
+import com.heirloom.auth.UnauthorizedException;
 import com.heirloom.schema.service.TypeAlreadyExistsException;
 import com.heirloom.schema.service.TypeNotFoundException;
 import com.heirloom.schema.service.TypeValidationException;
@@ -50,6 +51,17 @@ public class GlobalExceptionHandler {
                 .toList();
         pd.setProperty("diagnostics", diagnostics);
 
+        return pd;
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ProblemDetail handleUnauthorized(UnauthorizedException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, ex.getMessage());
+        pd.setTitle("Unauthorized");
+        pd.setType(URI.create("https://heirloom.dev/errors/unauthorized"));
+        pd.setProperty("entityType", ex.getEntityType());
+        pd.setProperty("operation", ex.getOperation());
         return pd;
     }
 
