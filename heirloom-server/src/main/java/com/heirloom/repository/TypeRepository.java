@@ -72,6 +72,10 @@ public class TypeRepository extends EntityRepository<ResourceType> {
         return jpa.findByFullyQualifiedName(fqn);
     }
 
+    public Optional<ResourceType> findByName(String name) {
+        return jpa.findByName(name);
+    }
+
     public boolean existsByName(String name) {
         return jpa.existsByName(name);
     }

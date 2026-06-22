@@ -59,13 +59,11 @@
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/dto/CreateTypeRequest.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/dto/TypeResponse.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/repository/ResourceTypeRepository.java
-/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/service/SchemaRegistryService.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/service/TypeAlreadyExistsException.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/service/TypeNotFoundException.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/service/TypeService.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/service/TypeValidationException.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/service/TypeValidator.java
-/Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/schema/web/TypeController.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/service/EntityService.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/DiscoveryResource.java
 /Users/nicholasl/Documents/build-whatever/heirloom/heirloom-server/src/main/java/com/heirloom/web/EntityResource.java

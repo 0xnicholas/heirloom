@@ -41,6 +41,14 @@ public class TypeResource extends EntityResource<ResourceType> {
             .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/name/{name}")
+    public ResponseEntity<ResourceType> getByName(@PathVariable String name) {
+        return typeRepo.findByFQN(name)
+            .or(() -> typeRepo.findByName(name))
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public ResponseEntity<ResourceType> create(@RequestBody CreateTypeRequest request) {
         authorizer.authorize(Authorizer.Actor.anonymous(), entityType, "CREATE", null);
@@ -50,10 +58,10 @@ public class TypeResource extends EntityResource<ResourceType> {
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    @DeleteMapping("/name/{name}")
+    public ResponseEntity<Void> deleteByName(@PathVariable String name) {
         authorizer.authorize(Authorizer.Actor.anonymous(), entityType, "DELETE", null);
-        typeRepo.delete(id);
+        typeRepo.findByName(name).ifPresent(t -> typeRepo.delete(t.getId()));
         return ResponseEntity.noContent().build();
     }
 }

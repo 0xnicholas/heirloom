@@ -29,7 +29,17 @@
 - [ ] REST API：Resource 创建、读取、更新（此时无 Action 校验——直接写入存储层）
 - [ ] 基础 GraphQL 端点（可选）
 
-**退出标准**：能够通过 API 定义一个 Resource Type、创建实例、读写字段。不涉及 Abilities、Action、关系。
+### 0.4 知识库基础（Knowledge Base Foundation）
+
+- [ ] `KnowledgeArticle` JPA Entity + `HeirloomEntity` 实现
+- [ ] `KnowledgeArticleRepository` extends `EntityRepository`
+- [ ] `KnowledgeArticleResource` extends `EntityResource`（标准 CRUD）
+- [ ] 数据库迁移 V3：`knowledge_articles` 表
+- [ ] OKF 单文件导入/导出（Markdown + YAML frontmatter）
+- [ ] 单元测试 + 集成测试
+- [ ] 设计参考：[ADR-032 知识库模块架构](../docs/adr/032-knowledge-base-architecture.md)
+
+**退出标准**：能够通过 API 定义一个 Resource Type、创建实例、读写字段。不涉及 Abilities、Action、关系。知识条目支持基本 CRUD 和 OKF 单文件互操作。
 
 ---
 
@@ -68,7 +78,15 @@
 - [ ] 时间范围查询
 - [ ] 事件 Schema：`{ event_type, rid, timestamp, caller, ... }`
 
-**退出标准**：可以通过 JSON DSL 查询跨 PostgreSQL + REST API 的数据，字段可见性受 Role 配置控制。所有操作记录到 Event Log。
+### 1.5 知识搜索与引用（Knowledge Search & References）
+
+- [ ] PostgreSQL 全文检索搜索端点（`/v1/knowledge/search?q=...`）
+- [ ] 引用解析：导入时自动解析 Markdown 链接 → `EntityReference`
+- [ ] 反向引用查询（`GET /v1/knowledge?ref={fqn}`）
+- [ ] OKF bundle 批量导入（目录树 → 批量 KnowledgeArticle）
+- [ ] OKF bundle 批量导出（KnowledgeArticle → tar.gz 目录树）
+
+**退出标准**：可以通过 JSON DSL 查询跨 PostgreSQL + REST API 的数据，字段可见性受 Role 配置控制。所有操作记录到 Event Log。知识条目支持全文搜索和批量 OKF 互操作。
 
 ---
 
@@ -142,8 +160,12 @@
 ### 3.3 语义搜索
 
 - [ ] 向量索引：为 Resource 的文本字段生成 embedding 并索引（pgvector 或专用向量数据库）
+- [ ] 知识库向量搜索：`knowledge_articles.embedding` 启用，写入时自动生成 embedding
 - [ ] 混合搜索：向量相似度 + 关键词过滤（JSON DSL 中的 `search` 块）
+- [ ] 知识库混合搜索：全文 + 向量（`/v1/knowledge/search?q=...&mode=hybrid`）
 - [ ] Agent 自然语言查询 → JSON DSL 翻译（LLM 辅助生成查询）
+- [ ] Agent SDK 知识查询方法：`heirloom.knowledge.search(...)`
+- [ ] Agent 自动知识生成：操作后总结经验 → draft KnowledgeArticle
 
 ### 3.4 Agent 审计与监控
 
@@ -166,6 +188,9 @@
 - [ ] Ontology 分支（Branching）：在独立分支上修改 Schema，测试后合并（类似 Git）
 - [ ] 合并冲突检测与解决
 - [ ] 跨 Ontology 的 RID 映射与联邦查询：多部门 Ontology 的互操作基础
+- [ ] 知识条目版本化（每次更新保存旧版本 snapshot）
+- [ ] 知识条目审批流程（draft → review → published）
+- [ ] 知识图谱可视化：实体 + 知识条目的引用关系图
 
 ### 4.2 条件式 Abilities
 

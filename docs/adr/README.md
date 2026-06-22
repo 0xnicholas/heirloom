@@ -69,9 +69,17 @@ Perspective Engine。
 | 030 | [Security — Connection Config Encryption](./030-security-encryption.md) | Accepted |
 | 031 | [Testing Strategy](./031-testing-strategy.md) | Accepted |
 
+### 知识层架构（新增——业务知识库模块，2026-06-22）
+
+| 编号 | 标题 | 状态 |
+|------|------|------|
+| 032 | [Knowledge Base Module — Architecture Design](./032-knowledge-base-architecture.md) | Proposed |
+
 ## 版本历史
 
 | 日期 | 说明 |
 |------|------|
 | 2026-05-28 | 初始 ADR 系列（001-009）——基于白皮书 |
 | 2026-06-21 | 平台架构 ADR（010-023）——基于 OpenMetadata 源码参考 |
+| 2026-06-21 | 子系统深挖 ADR（024-031）——基于 Spec 深挖章节 |
+| 2026-06-22 | 知识层架构 ADR（032）——业务知识库模块设计 |

@@ -41,12 +41,12 @@ class SchemaRegistryIntegrationTest {
     @BeforeEach
     void setUp() {
         // Clean slate between tests
-        rest.delete("/api/types/Customer");
-        rest.delete("/api/types/Order");
+        rest.delete("/v1/resourceTypes/name/Customer");
+        rest.delete("/v1/resourceTypes/name/Order");
     }
 
     @Nested
-    @DisplayName("POST /api/types")
+    @DisplayName("POST /v1/resourceTypes")
     class CreateType {
 
         @Test
@@ -69,7 +69,7 @@ class SchemaRegistryIntegrationTest {
             );
 
             ResponseEntity<Map> response = rest.postForEntity(
-                "/api/types", req, Map.class);
+                "/v1/resourceTypes", req, Map.class);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             assertThat(response.getBody()).isNotNull();
@@ -85,9 +85,9 @@ class SchemaRegistryIntegrationTest {
                 List.of(Ability.KEY),
                 List.of(), List.of());
 
-            rest.postForEntity("/api/types", req, Map.class); // first — ok
+            rest.postForEntity("/v1/resourceTypes", req, Map.class); // first — ok
             ResponseEntity<Map> second = rest.postForEntity(
-                "/api/types", req, Map.class);
+                "/v1/resourceTypes", req, Map.class);
 
             assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         }
@@ -106,7 +106,7 @@ class SchemaRegistryIntegrationTest {
             );
 
             ResponseEntity<Map> response = rest.postForEntity(
-                "/api/types", req, Map.class);
+                "/v1/resourceTypes", req, Map.class);
 
             assertThat(response.getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
@@ -121,21 +121,21 @@ class SchemaRegistryIntegrationTest {
                 List.of(), List.of());
 
             ResponseEntity<Map> response = rest.postForEntity(
-                "/api/types", req, Map.class);
+                "/v1/resourceTypes", req, Map.class);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
     }
 
     @Nested
-    @DisplayName("GET /api/types")
+    @DisplayName("GET /v1/resourceTypes")
     class ListTypes {
 
         @Test
         @DisplayName("returns empty list initially")
         void returnsEmpty() {
             ResponseEntity<List> response = rest.getForEntity(
-                "/api/types", List.class);
+                "/v1/resourceTypes", List.class);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isEmpty();
@@ -148,30 +148,30 @@ class SchemaRegistryIntegrationTest {
                 List.of(new Field("name", FieldType.STRING, true)),
                 List.of(Ability.KEY),
                 List.of(), List.of());
-            rest.postForEntity("/api/types", customer, Map.class);
+            rest.postForEntity("/v1/resourceTypes", customer, Map.class);
 
             var order = new CreateTypeRequest("Order", null,
                 List.of(new Field("total", FieldType.NUMBER, true)),
                 List.of(Ability.KEY, Ability.QUERY),
                 List.of(), List.of());
-            rest.postForEntity("/api/types", order, Map.class);
+            rest.postForEntity("/v1/resourceTypes", order, Map.class);
 
             ResponseEntity<List> response = rest.getForEntity(
-                "/api/types", List.class);
+                "/v1/resourceTypes", List.class);
 
             assertThat(response.getBody()).hasSize(2);
         }
     }
 
     @Nested
-    @DisplayName("GET /api/types/{name}")
+    @DisplayName("GET /v1/resourceTypes/{name}")
     class GetType {
 
         @Test
         @DisplayName("returns 404 for unknown type")
         void returns404() {
             ResponseEntity<Map> response = rest.getForEntity(
-                "/api/types/GhostType", Map.class);
+                "/v1/resourceTypes/name/GhostType", Map.class);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         }

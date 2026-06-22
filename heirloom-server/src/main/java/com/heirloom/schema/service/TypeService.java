@@ -3,6 +3,7 @@ package com.heirloom.schema.service;
 import com.heirloom.schema.domain.ResourceType;
 import com.heirloom.schema.dto.CreateTypeRequest;
 import com.heirloom.service.EntityService;
+import com.heirloom.repository.TypeRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -16,6 +17,12 @@ import java.util.Set;
 @Service
 public class TypeService implements EntityService<ResourceType> {
 
+    private final TypeRepository typeRepo;
+
+    public TypeService(TypeRepository typeRepo) {
+        this.typeRepo = typeRepo;
+    }
+
     @Override
     public ResourceType buildEntity(Object request) {
         if (request instanceof CreateTypeRequest req) {
@@ -26,8 +33,13 @@ public class TypeService implements EntityService<ResourceType> {
 
     @Override
     public void validateCreate(ResourceType entity) {
-        // Business validation: uniqueness check is now in TypeRepository.prepareInternal
-        // Other business rules added here as needed
+        if (typeRepo.existsByName(entity.getName())) {
+            throw new TypeAlreadyExistsException(entity.getName());
+        }
+        if (entity.getName() != null && !entity.getName().isEmpty()
+            && !Character.isUpperCase(entity.getName().charAt(0))) {
+            throw new IllegalArgumentException("Type name must be PascalCase");
+        }
     }
 
     @Override

@@ -53,6 +53,15 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handleBadRequest(IllegalArgumentException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setTitle("Invalid request");
+        pd.setType(URI.create("https://heirloom.dev/errors/bad-request"));
+        return pd;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleBeanValidation(MethodArgumentNotValidException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
