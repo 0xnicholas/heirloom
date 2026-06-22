@@ -49,7 +49,7 @@ public class ChangeEvent implements HeirloomEntity {
     public void setDeniedOperation(String o) { this.deniedOperation = o; }
     public Instant getTimestamp() { return timestamp; }
 
-    public enum EventType { ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED, ENTITY_DENIED }
+    public enum EventType { ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED, ENTITY_DENIED, FUNCTION_INVOKED }
 
     public static ChangeEvent created(HeirloomEntity entity, String actor) {
         ChangeEvent e = new ChangeEvent();
