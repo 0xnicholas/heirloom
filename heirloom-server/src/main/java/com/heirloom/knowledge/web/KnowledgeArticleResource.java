@@ -3,6 +3,7 @@ package com.heirloom.knowledge.web;
 import com.heirloom.auth.Authorizer;
 import com.heirloom.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
+import com.heirloom.knowledge.domain.KnowledgeArticleVersion;
 import com.heirloom.knowledge.repository.KnowledgeArticleJpaRepository;
 import com.heirloom.knowledge.service.KnowledgeGraphService;
 import com.heirloom.knowledge.service.KnowledgePerspectiveFilter;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/v1/knowledge")
 public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     private final KnowledgeArticleJpaRepository jpa;
+    private final com.heirloom.knowledge.repository.KnowledgeArticleRepository articleRepo;
     private final KnowledgeGraphService graphService;
     private final KnowledgeQualityScorer qualityScorer;
     private final KnowledgePromotionEngine promotionEngine;
@@ -38,11 +40,12 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
                                     KnowledgePromotionEngine pe, EmbeddingProvider ep,
                                     StaleArticleScanner sas,
                                     KnowledgePerspectiveFilter kpf,
-                                    KnowledgeCoverageService kcs) {
+                                    KnowledgeCoverageService kcs,
+                                    com.heirloom.knowledge.repository.KnowledgeArticleRepository ar) {
         super(EntityRegistry.KNOWLEDGE_ARTICLE, a);
         jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe;
         embeddingProvider=ep; staleScanner=sas; perspectiveFilter=kpf;
-        coverageService=kcs;
+        coverageService=kcs; articleRepo=ar;
     }
 
     // === Read endpoints (all pass through KnowledgePerspectiveFilter) ===
@@ -210,6 +213,29 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     @GetMapping("/coverage")
     public ResponseEntity<KnowledgeCoverageService.CoverageReport> coverage() {
         return ResponseEntity.ok(coverageService.computeReport());
+    }
+
+    // === Phase 4.1: Knowledge version history ===
+
+    @GetMapping("/name/{fqn}/versions")
+    public ResponseEntity<List<KnowledgeArticleVersion>> listVersions(@PathVariable String fqn) {
+        return ResponseEntity.ok(articleRepo.listVersions(fqn));
+    }
+
+    @GetMapping("/versions/{versionId}")
+    public ResponseEntity<KnowledgeArticleVersion> getVersion(@PathVariable Long versionId) {
+        return articleRepo.findVersion(versionId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/name/{fqn}/restore/{versionNumber}")
+    public ResponseEntity<KnowledgeArticle> restoreVersion(
+            @PathVariable String fqn,
+            @PathVariable int versionNumber) {
+        return articleRepo.restoreVersion(fqn, versionNumber)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // === Helpers ===
