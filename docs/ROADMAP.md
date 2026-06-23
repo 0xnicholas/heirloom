@@ -244,7 +244,7 @@
 - [ ] Ontology 分支（Branching）：在独立分支上修改 Schema，测试后合并（类似 Git）
 - [ ] 合并冲突检测与解决
 - [ ] 跨 Ontology 的 RID 映射与联邦查询：多部门 Ontology 的互操作基础
-- [ ] 知识条目版本化（每次更新保存旧版本 snapshot）
+- [x] 知识条目版本化（每次更新保存旧版本 snapshot） — `KnowledgeArticleVersion` 实体 (V9) + `KnowledgeArticleRepository.update/delete/restoreVersion` 自动捕获 snapshot（reason=update/delete/restore）；3 个端点：list/get/restore
 - [ ] 知识条目审批流程（draft → review → published）
 - [ ] 知识图谱可视化：实体 + 知识条目的引用关系图
 
@@ -317,3 +317,4 @@
 | 2026-06-23 | v0.7 | 通用 Perspective Engine（Phase 1.3）落地：ResourceType.fieldVisibility JSONB (V8) + PerspectiveEngine + cache + TypeRepository 失效挂钩；QueryController 在生成 SQL 前剥离隐藏字段。现为 89/135 done |
 | 2026-06-23 | v0.8 | 知识覆盖物化视图（Phase 2.6）落地：KnowledgeCoverageService + GET /v1/knowledge/coverage 返回总量/按 domain 分布/孤儿表。现为 90/135 done |
 | 2026-06-23 | v0.9 | Phase 0 完全收官：0.2 Resource Store 正式标为 out-of-scope（ADR-003/018 设计 pivoted）；0.3 GraphQL 端点落地（spring-boot-starter-graphql，schema 覆盖 ResourceType/KnowledgeArticle/Search/Coverage）。Phase 0 现在 100% done |
+| 2026-06-23 | v0.10 | 知识条目版本化（Phase 4.1）落地：KnowledgeArticleVersion (V9) + KnowledgeArticleRepository update/delete/restoreVersion 自动捕获 snapshot；3 个 REST 端点（list/get/restore）。现为 92/135 done |
