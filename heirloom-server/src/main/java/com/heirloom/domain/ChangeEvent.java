@@ -1,8 +1,11 @@
 package com.heirloom.domain;
 
 import com.heirloom.entity.HeirloomEntity;
+import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Type;
 import java.time.Instant;
+import java.util.Map;
 
 @Entity
 @Table(name = "event_log")
@@ -17,6 +20,9 @@ public class ChangeEvent implements HeirloomEntity {
     private String changeHash;
     private String deniedReason;
     private String deniedOperation;
+    @Type(JsonType.class)
+    @Column(name = "details", columnDefinition = "jsonb")
+    private Map<String, Object> details;
     private Instant timestamp = Instant.now();
 
     @Transient public String getFullyQualifiedName() { return "event." + id; }
@@ -47,9 +53,17 @@ public class ChangeEvent implements HeirloomEntity {
     public void setDeniedReason(String r) { this.deniedReason = r; }
     public String getDeniedOperation() { return deniedOperation; }
     public void setDeniedOperation(String o) { this.deniedOperation = o; }
+    public Map<String, Object> getDetails() { return details; }
+    public void setDetails(Map<String, Object> d) { this.details = d; }
     public Instant getTimestamp() { return timestamp; }
 
-    public enum EventType { ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED, ENTITY_DENIED, FUNCTION_INVOKED }
+    public enum EventType {
+        ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED,
+        ENTITY_DENIED, FUNCTION_INVOKED,
+        KNOWLEDGE_SEARCH,
+        KNOWLEDGE_CONTEXT_FETCH,
+        KNOWLEDGE_ACCESS_DENIED
+    }
 
     public static ChangeEvent created(HeirloomEntity entity, String actor) {
         ChangeEvent e = new ChangeEvent();
