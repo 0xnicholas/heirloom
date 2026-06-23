@@ -173,4 +173,45 @@ class KnowledgeArticleEventInstrumentationTest {
         assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
         assertThat(event.getDetails().get("reason")).isEqualTo("no_read_capability");
     }
+
+    @Test
+    void traverse_emitsKnowledgeSearch() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/graph/traverse");
+        when(perspectiveFilter.maxDepth(policy)).thenReturn(-1);
+
+        KnowledgeArticle a = article("a.1","d","PUBLISHED");
+        KnowledgeGraphService.GraphResult graph =
+            new KnowledgeGraphService.GraphResult(List.of(a), List.of(), 1);
+        when(graphService.traverse("a.1", 2)).thenReturn(graph);
+
+        var response = resource.traverse(request, "a.1", 2, null, "agent-007", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_SEARCH);
+        assertThat(event.getDetails().get("path")).isEqualTo("/v1/knowledge/graph/traverse");
+        assertThat(((Number) event.getDetails().get("resultCount")).intValue()).isEqualTo(1);
+    }
+
+    @Test
+    void traverse_denied_emitsAccessDenied() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(false);
+        stubPolicy("nobody", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/graph/traverse");
+
+        var response = resource.traverse(request, "a.1", 2, null, "nobody", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
+    }
 }

@@ -218,20 +218,40 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
 
     @GetMapping("/graph/traverse")
     public ResponseEntity<?> traverse(
+            HttpServletRequest request,
             @RequestParam String from,
             @RequestParam(defaultValue = "2") int maxDepth,
             @RequestHeader(value = "X-Agent-Role", required = false) String role,
             @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
             @RequestHeader(value = "X-User",       required = false) String user) {
-
+        String actor = pickActor(role, agentId, user);
         AccessPolicy policy = resolvePolicy(role, agentId, user);
-        if (!policy.canRead()) return ResponseEntity.ok(Map.of("nodes", List.of()));
-
+        if (!policy.canRead()) {
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor,
+                    Map.of("reason", "no_read_capability", "fqn", from));
+            return ResponseEntity.ok(Map.of("nodes", List.of()));
+        }
         int effectiveDepth = maxDepth;
         int cap = perspectiveFilter.maxDepth(policy);
         if (cap >= 0) effectiveDepth = Math.min(maxDepth, cap);
+        KnowledgeGraphService.GraphResult result = graphService.traverse(from, effectiveDepth);
 
-        return ResponseEntity.ok(graphService.traverse(from, effectiveDepth));
+        int totalNodes = result.nodes().size();
+        long visibleNodes = policy.isAdmin()
+                ? totalNodes
+                : result.nodes().stream()
+                        .filter(n -> perspectiveFilter.canSee(n, policy))
+                        .count();
+
+        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_SEARCH,
+                request.getRequestURI(), actor,
+                Map.of("fqn", from,
+                       "depth", effectiveDepth,
+                       "resultCount", visibleNodes,
+                       "trimmedCount", totalNodes - visibleNodes));
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}/quality")
