@@ -203,7 +203,7 @@
 - [ ] Agent 专用 Role 定义模板：最小能力集（query + notification 仅）
 - [ ] 知识库 SDK 方法：`knowledge.search()`、`knowledge.getContext()`、`knowledge.traverse()`、`knowledge.getPrerequisites()`
 - [ ] 自动上下文注入：`agent.actions.execute()` 自动调用 `getPrerequisites` 并注入 LLM 上下文
-- [ ] 知识审计事件：KNOWLEDGE_SEARCH、KNOWLEDGE_CONTEXT_FETCH、KNOWLEDGE_ACCESS_DENIED
+- [x] 知识审计事件：KNOWLEDGE_SEARCH、KNOWLEDGE_CONTEXT_FETCH、KNOWLEDGE_ACCESS_DENIED — `event_log.details` JSONB (V12) + 5 个 read 端点埋点（list/search/traverse/getById/getByFQN） + 新 `/v1/knowledge/context` 端点 + `KnowledgePerspectiveFilter.Visibility` 三态枚举区分 denied vs not_found
 - [x] 设计参考：[ADR-035 Agent SDK & Perspective 集成](../docs/adr/035-agent-sdk-perspective.md)
 
 ### 3.2 Function 引擎
@@ -321,3 +321,4 @@
 | 2026-06-23 | v0.11 | Heirloom CLI（Phase 4.4）落地：`heirloom-sdk/heirloom_sdk/cli.py` + `[project.scripts]` entry point，6 个 namespace，16 个 CLI 测试。SDK total 50/50。现为 93/135 done |
 | 2026-06-23 | v0.12 | Knowledge 审批工作流 + Ontology Branching（Phase 4.1 三项）落地：KnowledgeWorkflowService + 2 端点（auto-approve + Proposal 集成）；OntologyBranch (V10) + BranchService + 6 端点（创建/列表/关闭/preview-merge/merge with conflict resolution）。Server tests 174/174。现为 96/135 done |
 | 2026-06-23 | v0.13 | Cross-Ontology RID 映射（Phase 4.1）落地：Ontology + OntologyMapping (V11) + CrossOntologyService + 9 端点（CRUD + resolve + equivalents）。这是 federation 的 registry + lookup 半；联邦查询执行器（fan-out to multiple data sources）留作后续。Server tests 192/192。现为 97/135 done |
+| 2026-06-23 | v0.14 | Knowledge 审计事件（Phase 3.1）落地：V12 event_log.details JSONB + 3 个新 EventType (KNOWLEDGE_SEARCH / _CONTEXT_FETCH / _ACCESS_DENIED) + KnowledgeArticleResource 5 个 read 端点埋点 + 新 `/v1/knowledge/context` 端点（root + prerequisites + context 字符串 + truncated flag）。KnowledgePerspectiveFilter.Visibility 三态枚举（VISIBLE / DENIED / NOT_FOUND）区分 policy-block vs not-found。Audit 不阻塞业务读。Server unit tests 179/179（13 个 Testcontainers IT 推后到 CI）。现为 98/135 done |
