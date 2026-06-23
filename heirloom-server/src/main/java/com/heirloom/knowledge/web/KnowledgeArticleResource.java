@@ -147,6 +147,83 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/context")
+    public ResponseEntity<?> context(
+            HttpServletRequest request,
+            @RequestParam String fqn,
+            @RequestParam(defaultValue = "1") int depth,
+            @RequestParam(defaultValue = "4096") int maxBytes,
+            @RequestHeader(value = "X-Agent-Role", required = false) String role,
+            @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
+            @RequestHeader(value = "X-User",       required = false) String user) {
+        if (fqn == null || fqn.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Provide fqn"));
+        }
+        int clampedDepth = Math.max(1, Math.min(2, depth));
+        String actor = pickActor(role, agentId, user);
+        AccessPolicy policy = resolvePolicy(role, agentId, user);
+        if (!policy.canRead()) {
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor,
+                    Map.of("fqn", fqn, "reason", "no_read_capability"));
+            return ResponseEntity.notFound().build();
+        }
+
+        Optional<KnowledgeArticle> rootOpt = jpa.findByFullyQualifiedName(fqn);
+        if (rootOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        KnowledgeArticle root = rootOpt.get();
+        KnowledgePerspectiveFilter.Visibility v = perspectiveFilter.checkVisibility(root, policy);
+        if (v == KnowledgePerspectiveFilter.Visibility.DENIED) {
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor,
+                    Map.of("fqn", fqn, "reason", denyReason(root, policy)));
+            return ResponseEntity.notFound().build();
+        }
+
+        int cap = perspectiveFilter.maxDepth(policy);
+        int effectiveDepth = cap >= 0 ? Math.min(clampedDepth, cap) : clampedDepth;
+        KnowledgeGraphService.GraphResult graph = graphService.traverse(fqn, effectiveDepth);
+
+        StringBuilder ctx = new StringBuilder();
+        ctx.append("# ").append(root.getTitle()).append("\n\n").append(root.getBody()).append("\n");
+        boolean truncated = false;
+        int prereqCount = 0;
+        List<Map<String, Object>> prereqList = new ArrayList<>();
+        for (KnowledgeArticle node : graph.nodes()) {
+            if (node.getFullyQualifiedName().equals(fqn)) continue;  // skip root
+            if (perspectiveFilter.checkVisibility(node, policy) != KnowledgePerspectiveFilter.Visibility.VISIBLE) continue;
+            prereqList.add(Map.of("fqn", node.getFullyQualifiedName(),
+                                  "title", node.getTitle() == null ? "" : node.getTitle(),
+                                  "depth", 1));
+            if (ctx.length() >= maxBytes) { truncated = true; break; }
+            ctx.append("\n## Prerequisite: ").append(node.getTitle()).append("\n\n")
+               .append(node.getBody() == null ? "" : node.getBody()).append("\n");
+            prereqCount++;
+        }
+
+        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_CONTEXT_FETCH,
+                request.getRequestURI(), actor,
+                Map.of("fqn", fqn, "depth", effectiveDepth, "prerequisiteCount", prereqCount));
+
+        Map<String, Object> rootMap = new HashMap<>();
+        rootMap.put("fqn", root.getFullyQualifiedName());
+        rootMap.put("title", root.getTitle());
+        rootMap.put("status", root.getStatus());
+        rootMap.put("domain", root.getDomain());
+        rootMap.put("type", root.getType());
+        rootMap.put("body", root.getBody());
+        rootMap.put("version", root.getVersion());
+
+        return ResponseEntity.ok(Map.of(
+            "root", rootMap,
+            "prerequisites", prereqList,
+            "context", ctx.toString(),
+            "truncated", truncated
+        ));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<?> search(
             HttpServletRequest request,

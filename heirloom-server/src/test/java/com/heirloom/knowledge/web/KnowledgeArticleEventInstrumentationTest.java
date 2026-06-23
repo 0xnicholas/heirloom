@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -315,5 +316,134 @@ class KnowledgeArticleEventInstrumentationTest {
         assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
         assertThat(event.getDetails().get("reason")).isIn(
             "domain_not_allowed", "type_not_allowed", "type_denied", "draft_not_allowed");
+    }
+
+    @Test
+    void context_success_emitsContextFetch_withPrerequisiteCount() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+        when(perspectiveFilter.maxDepth(policy)).thenReturn(-1);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/context");
+
+        KnowledgeArticle root = article("crm.Customer","crm","Glossary","PUBLISHED");
+        root.setTitle("Customer");
+        root.setBody("# Customer\n\nA customer is ...");
+        root.setVersion(3L);
+        when(jpa.findByFullyQualifiedName("crm.Customer")).thenReturn(Optional.of(root));
+        when(perspectiveFilter.checkVisibility(root, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.VISIBLE);
+
+        KnowledgeArticle prereq = article("crm.Order","crm","Glossary","PUBLISHED");
+        prereq.setTitle("Order");
+        prereq.setBody("# Order\n\n...");
+        KnowledgeGraphService.GraphResult graph =
+            new KnowledgeGraphService.GraphResult(List.of(root, prereq), List.of(), 1);
+        when(graphService.traverse("crm.Customer", 1)).thenReturn(graph);
+        when(jpa.findByFullyQualifiedName("crm.Order")).thenReturn(Optional.of(prereq));
+        when(perspectiveFilter.checkVisibility(prereq, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.VISIBLE);
+
+        var response = resource.context(request, "crm.Customer", 1, 4096, null, "agent-007", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsKeys("root", "prerequisites", "context", "truncated");
+        assertThat(body.get("truncated")).isEqualTo(false);
+
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_CONTEXT_FETCH);
+        assertThat(event.getDetails().get("fqn")).isEqualTo("crm.Customer");
+        assertThat(((Number) event.getDetails().get("depth")).intValue()).isEqualTo(1);
+        assertThat(((Number) event.getDetails().get("prerequisiteCount")).intValue()).isEqualTo(1);
+    }
+
+    @Test
+    void context_truncated_setsTruncatedTrue() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+        when(perspectiveFilter.maxDepth(policy)).thenReturn(-1);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/context");
+
+        KnowledgeArticle root = article("a","d","Glossary","PUBLISHED");
+        root.setTitle("A");
+        root.setBody("x".repeat(200));
+        when(jpa.findByFullyQualifiedName("a")).thenReturn(Optional.of(root));
+        when(perspectiveFilter.checkVisibility(root, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.VISIBLE);
+
+        KnowledgeArticle big = article("b","d","Glossary","PUBLISHED");
+        big.setTitle("B");
+        big.setBody("y".repeat(200));
+        when(graphService.traverse("a", 1))
+            .thenReturn(new KnowledgeGraphService.GraphResult(List.of(root, big), List.of(), 1));
+        when(jpa.findByFullyQualifiedName("b")).thenReturn(Optional.of(big));
+        when(perspectiveFilter.checkVisibility(big, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.VISIBLE);
+
+        var response = resource.context(request, "a", 1, 50, null, "agent-007", null);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body.get("truncated")).isEqualTo(true);
+    }
+
+    @Test
+    void context_denied_emitsAccessDenied() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(false);
+        stubPolicy("nobody", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/context");
+
+        var response = resource.context(request, "crm.Customer", 1, 4096, null, "nobody", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
+        assertThat(event.getDetails().get("fqn")).isEqualTo("crm.Customer");
+        assertThat(event.getDetails().get("reason")).isEqualTo("no_read_capability");
+    }
+
+    @Test
+    void context_notFound_doesNotEmitEvent() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/context");
+        when(jpa.findByFullyQualifiedName("missing")).thenReturn(Optional.empty());
+
+        var response = resource.context(request, "missing", 1, 4096, null, "agent-007", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        verify(eventLog, never()).append(any());
+    }
+
+    @Test
+    void eventLogAppendFailure_doesNotBreakResponse() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+        when(perspectiveFilter.maxDepth(policy)).thenReturn(-1);
+
+        KnowledgeArticle root = article("a","d","Glossary","PUBLISHED");
+        root.setTitle("A"); root.setBody("body");
+        when(jpa.findByFullyQualifiedName("a")).thenReturn(Optional.of(root));
+        when(perspectiveFilter.checkVisibility(root, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.VISIBLE);
+        when(graphService.traverse("a", 1))
+            .thenReturn(new KnowledgeGraphService.GraphResult(List.of(root), List.of(), 1));
+        org.mockito.Mockito.doThrow(new RuntimeException("DB down")).when(eventLog).append(any());
+
+        var response = resource.context(request, "a", 1, 4096, null, "agent-007", null);
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
     }
 }
