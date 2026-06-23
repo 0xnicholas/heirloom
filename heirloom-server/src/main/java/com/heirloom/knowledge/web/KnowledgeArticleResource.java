@@ -86,29 +86,64 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
 
     @GetMapping("/{id}")
     public ResponseEntity<KnowledgeArticle> getById(
+            HttpServletRequest request,
             @PathVariable Long id,
             @RequestHeader(value = "X-Agent-Role", required = false) String role,
             @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
             @RequestHeader(value = "X-User",       required = false) String user) {
+        String actor = pickActor(role, agentId, user);
         AccessPolicy policy = resolvePolicy(role, agentId, user);
-        if (!policy.canRead()) return ResponseEntity.notFound().build();
+        if (!policy.canRead()) {
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor,
+                    Map.of("reason", "no_read_capability"));
+            return ResponseEntity.notFound().build();
+        }
         return jpa.findById(id)
-                .filter(a -> perspectiveFilter.canSee(a, policy))
-                .map(ResponseEntity::ok)
+                .<ResponseEntity<KnowledgeArticle>>map(a -> {
+                    KnowledgePerspectiveFilter.Visibility v = perspectiveFilter.checkVisibility(a, policy);
+                    if (v == KnowledgePerspectiveFilter.Visibility.VISIBLE) {
+                        return ResponseEntity.ok(a);
+                    }
+                    if (v == KnowledgePerspectiveFilter.Visibility.DENIED) {
+                        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                                request.getRequestURI(), actor,
+                                Map.of("fqn", a.getFullyQualifiedName(),
+                                       "reason", denyReason(a, policy)));
+                    }
+                    return ResponseEntity.<KnowledgeArticle>notFound().build();
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/name/{fqn}")
     public ResponseEntity<KnowledgeArticle> getByFQN(
+            HttpServletRequest request,
             @PathVariable String fqn,
             @RequestHeader(value = "X-Agent-Role", required = false) String role,
             @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
             @RequestHeader(value = "X-User",       required = false) String user) {
+        String actor = pickActor(role, agentId, user);
         AccessPolicy policy = resolvePolicy(role, agentId, user);
-        if (!policy.canRead()) return ResponseEntity.notFound().build();
+        if (!policy.canRead()) {
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor,
+                    Map.of("fqn", fqn, "reason", "no_read_capability"));
+            return ResponseEntity.notFound().build();
+        }
         return jpa.findByFullyQualifiedName(fqn)
-                .filter(a -> perspectiveFilter.canSee(a, policy))
-                .map(ResponseEntity::ok)
+                .<ResponseEntity<KnowledgeArticle>>map(a -> {
+                    KnowledgePerspectiveFilter.Visibility v = perspectiveFilter.checkVisibility(a, policy);
+                    if (v == KnowledgePerspectiveFilter.Visibility.VISIBLE) {
+                        return ResponseEntity.ok(a);
+                    }
+                    if (v == KnowledgePerspectiveFilter.Visibility.DENIED) {
+                        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                                request.getRequestURI(), actor,
+                                Map.of("fqn", fqn, "reason", denyReason(a, policy)));
+                    }
+                    return ResponseEntity.<KnowledgeArticle>notFound().build();
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -382,6 +417,26 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
         for (int i=0;i<arr.length;i++) { if(i>0)sb.append(","); sb.append(arr[i]); }
         sb.append("]");
         return sb.toString();
+    }
+
+    /**
+     * Mirrors the predicates in {@link KnowledgePerspectiveFilter#checkVisibility} to
+     * infer which restriction caused a {@code DENIED} verdict, so the audit event
+     * carries a human-readable reason. Deliberate duplication: {@code checkVisibility}
+     * returns a tri-state enum, not a reason.
+     */
+    private static String denyReason(KnowledgeArticle a, AccessPolicy policy) {
+        if (!policy.canRead()) return "no_read_capability";
+        var r = policy.restrictions() != null ? policy.restrictions()
+                : com.heirloom.security.KnowledgeRestrictions.NONE;
+        if (r.allowedDomains() != null && !r.allowedDomains().isEmpty()
+                && !r.allowedDomains().contains("*")
+                && !r.allowedDomains().contains(a.getDomain())) return "domain_not_allowed";
+        if (r.allowedTypes() != null && !r.allowedTypes().isEmpty()
+                && !r.allowedTypes().contains(a.getType())) return "type_not_allowed";
+        if (r.deniedTypes() != null && r.deniedTypes().contains(a.getType())) return "type_denied";
+        if (!r.allowDrafts() && "DRAFT".equalsIgnoreCase(a.getStatus())) return "draft_not_allowed";
+        return "no_read_capability";  // fallback
     }
 
     /**

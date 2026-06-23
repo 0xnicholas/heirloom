@@ -16,17 +16,21 @@ import com.heirloom.knowledge.service.KnowledgeQualityScorer;
 import com.heirloom.knowledge.service.KnowledgeWorkflowService;
 import com.heirloom.knowledge.service.StaleArticleScanner;
 import com.heirloom.repository.EventLogRepository;
+import com.heirloom.security.KnowledgeRestrictions;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,6 +78,12 @@ class KnowledgeArticleEventInstrumentationTest {
         a.setFullyQualifiedName(fqn);
         a.setDomain(domain);
         a.setStatus(status);
+        return a;
+    }
+
+    private static KnowledgeArticle article(String fqn, String domain, String type, String status) {
+        KnowledgeArticle a = article(fqn, domain, status);
+        a.setType(type);
         return a;
     }
 
@@ -213,5 +223,97 @@ class KnowledgeArticleEventInstrumentationTest {
         ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
         verify(eventLog).append(captor.capture());
         assertThat(captor.getValue().getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
+    }
+
+    @Test
+    void getByFQN_denied_emitsAccessDenied_withFqnAndReason() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(false);
+        // Configure restrictions so denyReason() can identify a concrete predicate.
+        // Allowed-domains does NOT include "crm", so an article in domain "crm" is denied
+        // with reason "domain_not_allowed".
+        when(policy.restrictions()).thenReturn(
+            new KnowledgeRestrictions(List.of("sales"), null, null, -1, false));
+        stubPolicy("scoped", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/name/crm.Customer");
+
+        KnowledgeArticle a = article("crm.Customer","crm","Glossary","PUBLISHED");
+        when(jpa.findByFullyQualifiedName("crm.Customer")).thenReturn(Optional.of(a));
+        when(perspectiveFilter.checkVisibility(a, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.DENIED);
+
+        var response = resource.getByFQN(request, "crm.Customer", null, null, "scoped");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
+        assertThat(event.getDetails().get("fqn")).isEqualTo("crm.Customer");
+        assertThat(event.getDetails().get("reason")).isIn(
+            "domain_not_allowed", "type_not_allowed", "type_denied", "draft_not_allowed");
+    }
+
+    @Test
+    void getByFQN_notFound_doesNotEmitEvent() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/name/crm.Customer");
+        when(jpa.findByFullyQualifiedName("crm.Customer")).thenReturn(Optional.empty());
+
+        var response = resource.getByFQN(request, "crm.Customer", null, null, "agent-007");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        verify(eventLog, never()).append(any());
+    }
+
+    @Test
+    void getByFQN_visible_doesNotEmitEvent() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(false);
+        stubPolicy("admin", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/name/crm.Customer");
+
+        KnowledgeArticle a = article("crm.Customer","crm","Glossary","PUBLISHED");
+        when(jpa.findByFullyQualifiedName("crm.Customer")).thenReturn(Optional.of(a));
+        when(perspectiveFilter.checkVisibility(a, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.VISIBLE);
+
+        var response = resource.getByFQN(request, "crm.Customer", null, "admin", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        verify(eventLog, never()).append(any());
+    }
+
+    @Test
+    void getById_denied_emitsAccessDenied() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        when(policy.isAdmin()).thenReturn(false);
+        // Configure restrictions so denyReason() can identify a concrete predicate.
+        // Denied-types contains "Glossary", so the test article (type=Glossary) is denied
+        // with reason "type_denied".
+        when(policy.restrictions()).thenReturn(
+            new KnowledgeRestrictions(null, null, List.of("Glossary"), -1, false));
+        stubPolicy("scoped", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/42");
+
+        KnowledgeArticle a = article("crm.Customer","crm","Glossary","PUBLISHED");
+        when(jpa.findById(42L)).thenReturn(Optional.of(a));
+        when(perspectiveFilter.checkVisibility(a, policy))
+            .thenReturn(KnowledgePerspectiveFilter.Visibility.DENIED);
+
+        var response = resource.getById(request, 42L, null, null, "scoped");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
+        assertThat(event.getDetails().get("reason")).isIn(
+            "domain_not_allowed", "type_not_allowed", "type_denied", "draft_not_allowed");
     }
 }
