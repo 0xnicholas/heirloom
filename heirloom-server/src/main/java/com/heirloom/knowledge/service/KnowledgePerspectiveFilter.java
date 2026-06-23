@@ -55,6 +55,14 @@ public class KnowledgePerspectiveFilter {
         }
     }
 
+    /**
+     * Tri-state visibility verdict for a single article vs. an {@link AccessPolicy}.
+     * Lets callers (e.g. {@code KnowledgeArticleResource}) distinguish a policy-blocked
+     * read ({@code DENIED}) from a genuine miss ({@code NOT_FOUND}) when emitting
+     * audit events.
+     */
+    public enum Visibility { VISIBLE, DENIED, NOT_FOUND }
+
     /** Resolve the effective policy for an actor. */
     public AccessPolicy resolvePolicy(String actorId) {
         var resolution = resolver.resolve(actorId);
@@ -83,18 +91,28 @@ public class KnowledgePerspectiveFilter {
                 .toList();
     }
 
-    /** Single-article visibility check — for {@code getById} / {@code getByFQN}. */
-    public boolean canSee(KnowledgeArticle article, AccessPolicy policy) {
-        if (article == null) return false;
-        if (policy.isAdmin()) return true;
-        if (!policy.canRead()) return false;
-
+    /**
+     * Tri-state visibility check — for {@code getById} / {@code getByFQN}.
+     * Returns {@link Visibility#NOT_FOUND} for a null article (genuine miss),
+     * {@link Visibility#DENIED} when the article exists but the policy blocks
+     * the read, and {@link Visibility#VISIBLE} when the article should be shown.
+     */
+    public Visibility checkVisibility(KnowledgeArticle article, AccessPolicy policy) {
+        if (article == null) return Visibility.NOT_FOUND;
+        if (policy.isAdmin()) return Visibility.VISIBLE;
+        if (!policy.canRead()) return Visibility.DENIED;
         KnowledgeRestrictions r = policy.restrictions() != null
                 ? policy.restrictions() : KnowledgeRestrictions.NONE;
-        return domainAllowed(article, r)
+        boolean ok = domainAllowed(article, r)
                 && typeAllowed(article, r)
                 && !deniedType(article, r)
                 && statusVisible(article, r);
+        return ok ? Visibility.VISIBLE : Visibility.DENIED;
+    }
+
+    /** Single-article visibility check — for {@code getById} / {@code getByFQN}. */
+    public boolean canSee(KnowledgeArticle article, AccessPolicy policy) {
+        return checkVisibility(article, policy) == Visibility.VISIBLE;
     }
 
     /** Maximum graph traversal depth allowed; {@code -1} means no cap. */
