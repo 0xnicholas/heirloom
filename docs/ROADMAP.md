@@ -262,7 +262,7 @@
 
 ### 4.4 开发者体验
 
-- [ ] Heirloom CLI：`heirloom type create`、`heirloom action test` 等
+- [x] Heirloom CLI：`heirloom type create`、`heirloom action test` 等 — `heirloom-sdk/heirloom_sdk/cli.py` + `[project.scripts]` entry point，type/article/knowledge/proposal/audit/function 6 个 namespace，argparse + JSON/text 输出；16 个 CLI 测试
 - [ ] 本地开发环境：单机版 Heirloom（docker-compose），用于离线建模和测试
 - [ ] Schema 可视化：Web UI 展示 Resource Type 关系图、状态机和 Abilities 矩阵 — **Workshop（合并到 main）已实现 Schema/Query/Security 三个 tab，部分覆盖此目标**
 
@@ -318,3 +318,4 @@
 | 2026-06-23 | v0.8 | 知识覆盖物化视图（Phase 2.6）落地：KnowledgeCoverageService + GET /v1/knowledge/coverage 返回总量/按 domain 分布/孤儿表。现为 90/135 done |
 | 2026-06-23 | v0.9 | Phase 0 完全收官：0.2 Resource Store 正式标为 out-of-scope（ADR-003/018 设计 pivoted）；0.3 GraphQL 端点落地（spring-boot-starter-graphql，schema 覆盖 ResourceType/KnowledgeArticle/Search/Coverage）。Phase 0 现在 100% done |
 | 2026-06-23 | v0.10 | 知识条目版本化（Phase 4.1）落地：KnowledgeArticleVersion (V9) + KnowledgeArticleRepository update/delete/restoreVersion 自动捕获 snapshot；3 个 REST 端点（list/get/restore）。现为 92/135 done |
+| 2026-06-23 | v0.11 | Heirloom CLI（Phase 4.4）落地：`heirloom-sdk/heirloom_sdk/cli.py` + `[project.scripts]` entry point，6 个 namespace，16 个 CLI 测试。SDK total 50/50。现为 93/135 done |
