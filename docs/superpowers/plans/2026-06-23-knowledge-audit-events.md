@@ -49,49 +49,62 @@ Create `EventLogDetailsRoundTripIT.java`:
 ```java
 package com.heirloom.repository;
 
+import com.heirloom.HeirloomApplication;
 import com.heirloom.domain.ChangeEvent;
-import com.heirloom.repository.EventLogRepository;
+import com.heirloom.repository.EventLogJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.util.List;
+import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    classes = HeirloomApplication.class
+)
+@Testcontainers
+@ActiveProfiles("test")
 class EventLogDetailsRoundTripIT {
 
-    @Autowired EventLogRepository eventLog;
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("pgvector/pgvector:pg16");
+
+    @Autowired EventLogJpaRepository jpa;
 
     @Test
-    @Transactional
     void detailsRoundTripsThroughJsonb() {
         ChangeEvent e = new ChangeEvent();
         e.setEventType(ChangeEvent.EventType.KNOWLEDGE_SEARCH);
-        e.setActor("test:test-roundtrip");
+        e.setActor("test:test-roundtrip-" + System.nanoTime());
         e.setEntityType("knowledge");
-        Map<String, Object> details = Map.of(
+        e.setDetails(Map.of(
             "path", "/v1/knowledge/search",
             "resultCount", 7,
-            "trimmedCount", 2
-        );
-        e.setDetails(details);
-        eventLog.append(e);
+            "trimmedCount", 2,
+            "_v", 1
+        ));
+        jpa.save(e);
+        jpa.flush();
 
-        List<ChangeEvent> events = eventLog.actorActivity("test:test-roundtrip", null, null);
-        // use a non-null bound in practice; the simpler version:
-        var saved = events.stream().filter(x -> x.getId() != null).findFirst().orElseThrow();
-        assertThat(saved.getDetails()).isNotNull();
-        assertThat(saved.getDetails().get("path")).isEqualTo("/v1/knowledge/search");
-        assertThat(((Number) saved.getDetails().get("resultCount")).intValue()).isEqualTo(7);
+        Long id = e.getId();
+        assertThat(id).isNotNull();
+        ChangeEvent loaded = jpa.findById(id).orElseThrow();
+        assertThat(loaded.getDetails()).isNotNull();
+        assertThat(loaded.getDetails().get("path")).isEqualTo("/v1/knowledge/search");
+        assertThat(((Number) loaded.getDetails().get("resultCount")).intValue()).isEqualTo(7);
+        assertThat(((Number) loaded.getDetails().get("trimmedCount")).intValue()).isEqualTo(2);
     }
 }
 ```
-
-Note: `actorActivity(since, until)` requires non-null bounds; use `Instant.now().minusSeconds(60)` to `Instant.now().plusSeconds(60)` in actual test. The pattern above is illustrative — see the real `AuditService` for the call shape.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -391,13 +404,7 @@ class KnowledgeArticleEventInstrumentationTest {
 
         resource = new KnowledgeArticleResource(
             auth, jpa, graphService, qs, pe, ep, sas, perspectiveFilter,
-            kcs, ar, wf);
-        // Inject eventLog via reflection (constructor doesn't take it yet)
-        try {
-            var f = KnowledgeArticleResource.class.getDeclaredField("eventLog");
-            f.setAccessible(true);
-            f.set(resource, eventLog);
-        } catch (Exception e) { throw new RuntimeException(e); }
+            kcs, ar, wf, eventLog);
     }
 
     private static KnowledgeArticle article(String fqn, String domain, String status) {
@@ -541,11 +548,7 @@ public ResponseEntity<List<KnowledgeArticle>> list(
 }
 ```
 
-Also change `resolvePolicy` callsite to use the existing helper. The current `resolvePolicy` is private — keep it; just add a separate `pickActor` call (already exists).
-
-Also update the test's setup() to pass `eventLog` to the constructor. The test's reflection-based eventLog injection is a temporary workaround — replace it after this task with proper constructor wiring in the setup() method (and update the test to pass `mock(EventLogRepository.class)` as the 12th argument).
-
-Update the test's setup to use the 12-arg constructor. Replace the reflection block with passing `eventLog` to the constructor.
+The 12-arg constructor change is done in Step 3. The test's `setup()` was also updated in Step 1 to use the 12-arg form.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -648,12 +651,7 @@ Expected: FAIL (no `search(HttpServletRequest,...)` overload).
 
 - [ ] **Step 3: Modify `search` endpoint in `KnowledgeArticleResource`**
 
-Add `HttpServletRequest request` as the first parameter to `search(...)`. Wire:
-
-- After `if (!policy.canRead())`: also emit `KNOWLEDGE_ACCESS_DENIED` (with `reason: "no_read_capability"` and `query: q` if present), then return early.
-- After the existing `rawResult` switch, compute `resultCount` and `trimmedCount` and emit `KNOWLEDGE_SEARCH`.
-
-Pseudo-code (final form, replace existing body):
+**Important:** `search` has 5 return paths (deny, ref, blank-q, empty-tsquery, success). Emit events at a single chokepoint after all returns, using a helper that builds the details map. Replace the entire `search(...)` method body with the version below — copy verbatim, do not abbreviate.
 
 ```java
 @GetMapping("/search")
@@ -670,6 +668,7 @@ public ResponseEntity<?> search(
 
     String actor = pickActor(role, agentId, user);
     AccessPolicy policy = resolvePolicy(role, agentId, user);
+
     if (!policy.canRead()) {
         Map<String, Object> den = new HashMap<>();
         den.put("reason", "no_read_capability");
@@ -680,27 +679,67 @@ public ResponseEntity<?> search(
         return ResponseEntity.ok(List.of());
     }
 
-    // ... existing ref / q / switch logic unchanged ...
+    if (ref != null && !ref.isBlank()) {
+        List<KnowledgeArticle> raw = jpa.findByEntityRef("[{\"fqn\":\"" + ref + "\"}]");
+        List<KnowledgeArticle> filtered = perspectiveFilter.filterByPolicy(raw, policy);
+        Map<String, Object> det = new HashMap<>();
+        det.put("ref", ref);
+        det.put("mode", mode);
+        det.put("limit", limit);
+        det.put("offset", offset);
+        det.put("resultCount", filtered.size());
+        det.put("trimmedCount", raw.size() - filtered.size());
+        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_SEARCH,
+                request.getRequestURI(), actor, det);
+        return ResponseEntity.ok(filtered);
+    }
 
-    int resultCount, trimmedCount;
-    List<KnowledgeArticle> filtered;
+    if (q == null || q.isBlank()) {
+        return ResponseEntity.badRequest().body(Map.of("error","Provide q or ref"));
+    }
+
+    String tsQuery = QuerySanitizer.toTsQuery(q);
+    if (tsQuery.isEmpty()) return ResponseEntity.ok(List.of());
+
+    String effectiveMode = mode;
+    if (!"fts".equals(mode) && !embeddingProvider.isAvailable()) {
+        effectiveMode = "fts";
+    }
+
+    Object rawResult = switch (effectiveMode) {
+        case "vector" -> {
+            float[] qe = embeddingProvider.embed(q);
+            yield jpa.vectorSearch(arrayToString(qe), limit, offset);
+        }
+        case "hybrid" -> {
+            float[] qe = embeddingProvider.embed(q);
+            List<KnowledgeArticle> fts = jpa.search(tsQuery, limit * 2, 0);
+            List<KnowledgeArticle> vec = jpa.vectorSearch(arrayToString(qe), limit * 2, 0);
+            var fused = rrfScorer.fuse(fts, vec);
+            yield fused.stream().limit(limit)
+                    .map(r -> Map.of("article", r.article(), "score", r.score()))
+                    .collect(Collectors.toList());
+        }
+        default -> jpa.search(tsQuery, limit, offset);
+    };
+
+    // Compute resultCount/trimmedCount and emit KNOWLEDGE_SEARCH (one emit, before all returns).
+    int resultCount = 0;
+    int trimmedCount = 0;
+    List<KnowledgeArticle> filtered = List.of();
+
     if (rawResult instanceof List<?> list) {
-        filtered = list.stream()
+        List<KnowledgeArticle> articles = list.stream()
                 .filter(KnowledgeArticle.class::isInstance)
                 .map(KnowledgeArticle.class::cast)
-                .filter(a -> perspectiveFilter.canSee(a, policy))
                 .toList();
+        filtered = perspectiveFilter.filterByPolicy(articles, policy);
         resultCount = filtered.size();
-        trimmedCount = list.size() - resultCount;
-    } else {
-        filtered = List.of();
-        resultCount = 0;
-        trimmedCount = 0;
+        trimmedCount = articles.size() - resultCount;
     }
 
     Map<String, Object> det = new HashMap<>();
-    if (q != null) det.put("query", q);
-    if (ref != null) det.put("ref", ref);
+    det.put("query", q);
     det.put("mode", mode);
     det.put("limit", limit);
     det.put("offset", offset);
@@ -709,7 +748,6 @@ public ResponseEntity<?> search(
     emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_SEARCH,
             request.getRequestURI(), actor, det);
 
-    // Hybrid path preserves the (article, score) shape — re-emit adjusted.
     if ("hybrid".equals(effectiveMode)) {
         return ResponseEntity.ok(rawResult instanceof List<?> list ? list.stream()
                 .filter(o -> o instanceof Map<?, ?> m
@@ -721,6 +759,11 @@ public ResponseEntity<?> search(
     return ResponseEntity.ok(filtered);
 }
 ```
+
+Notes on the change:
+- Every return path now either emits the event before returning, or is an error/empty path that intentionally doesn't emit (`q.isBlank()` 400, `tsQuery.isEmpty()` empty list — same as before).
+- The `ref` branch now emits `KNOWLEDGE_SEARCH` with `ref` in details (was silently returning without auditing).
+- The hybrid branch emits once with the **non-hybrid** resultCount (since the perspective filter still applies), then preserves the (article, score) shape on the way out. The test in Step 1 only covers the non-hybrid path; the hybrid emit is verified by running the full test class.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1213,11 +1256,12 @@ Expected: All tests pass.
 
 - [ ] **Step 5: Write the integration test**
 
-Create `KnowledgeContextEndpointIT.java`:
+Create `KnowledgeContextEndpointIT.java` following the project IT pattern (`@Testcontainers` + `@ServiceConnection` + `TestRestTemplate`):
 
 ```java
 package com.heirloom.knowledge.web;
 
+import com.heirloom.HeirloomApplication;
 import com.heirloom.domain.ChangeEvent;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.domain.KnowledgeStatus;
@@ -1227,28 +1271,41 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.*;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.web.client.RestTemplate;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    classes = HeirloomApplication.class
+)
+@Testcontainers
 @ActiveProfiles("test")
 class KnowledgeContextEndpointIT {
 
-    @LocalServerPort int port;
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("pgvector/pgvector:pg16");
+
+    @Autowired TestRestTemplate rest;
     @Autowired KnowledgeArticleJpaRepository jpa;
     @Autowired EventLogRepository eventLog;
 
-    private final RestTemplate http = new RestTemplate();
-
     @BeforeEach
     void setup() {
-        // Each test starts from a known state: one published article
         jpa.deleteAll();
         KnowledgeArticle a = new KnowledgeArticle();
         a.setFullyQualifiedName("crm.Customer");
@@ -1257,17 +1314,17 @@ class KnowledgeContextEndpointIT {
         a.setType("Glossary");
         a.setStatus(KnowledgeStatus.PUBLISHED.name());
         a.setBody("# Customer\n\nA customer is a person who buys things.");
-        jpa.save(a);
+        jpa.saveAndFlush(a);
     }
 
     @Test
     void contextReturnsRootAndEmptyPrereqs() {
         HttpHeaders h = new HttpHeaders();
         h.set("X-Agent-Role", "admin");
-        ResponseEntity<Map> response = http.exchange(
-            "http://localhost:" + port + "/v1/knowledge/context?fqn=crm.Customer",
+        ResponseEntity<Map> response = rest.exchange(
+            "/v1/knowledge/context?fqn=crm.Customer",
             HttpMethod.GET, new HttpEntity<>(h), Map.class);
-        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> body = response.getBody();
         assertThat(body).containsKeys("root", "prerequisites", "context", "truncated");
         assertThat(((Map) body.get("root")).get("fqn")).isEqualTo("crm.Customer");
@@ -1275,25 +1332,28 @@ class KnowledgeContextEndpointIT {
 
     @Test
     void contextEmitsEventInEventLog() {
-        long countBefore = countContextFetchEvents();
+        long before = countContextFetchEvents();
         HttpHeaders h = new HttpHeaders();
         h.set("X-Agent-Role", "admin");
-        http.exchange("http://localhost:" + port + "/v1/knowledge/context?fqn=crm.Customer",
+        rest.exchange("/v1/knowledge/context?fqn=crm.Customer",
             HttpMethod.GET, new HttpEntity<>(h), Map.class);
-        assertThat(countContextFetchEvents()).isEqualTo(countBefore + 1);
+        assertThat(countContextFetchEvents()).isEqualTo(before + 1);
     }
 
     private long countContextFetchEvents() {
-        return jpa.findAll().stream().map(a -> eventLog.entityHistory(
-            a.getFullyQualifiedName(),
-            java.time.Instant.now().minusSeconds(60),
-            java.time.Instant.now().plusSeconds(60)))
-            .flatMap(java.util.List::stream)
+        return eventLog.actorActivity("admin",
+                Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(60)).stream()
             .filter(e -> e.getEventType() == ChangeEvent.EventType.KNOWLEDGE_CONTEXT_FETCH)
             .count();
     }
 }
 ```
+
+Notes:
+- `pgvector/pgvector:pg16` matches `KnowledgeSearchTest`'s choice; the image has full JSONB support needed for `event_log.details`.
+- `TestRestTemplate` autowires with the random port; no manual URL construction.
+- `actorActivity("admin", ...)` filters on the `X-Agent-Role: admin` header which the resource resolves to actor `"admin"` (not `"agent:admin"` — only `X-Agent-Id` triggers the `agent:` prefix; see `pickActor` in `KnowledgeArticleResource`).
 
 - [ ] **Step 6: Run integration test**
 

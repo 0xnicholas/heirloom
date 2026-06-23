@@ -259,9 +259,9 @@ End-to-end:
 - `context` truncates at `maxBytes`
 - `context` writes 1 row to `event_log` with `event_type=KNOWLEDGE_CONTEXT_FETCH`
 
-### 8.3 New: `EventLogRepositoryDetailsTest` (unit)
+### 8.3 New: `EventLogDetailsRoundTripIT` (integration, `@SpringBootTest` + `@Testcontainers`)
 
-JSONB round-trip: write event with `details` → read back → map equality.
+JSONB round-trip: write event with `details` via `EventLogJpaRepository.save()`, read back via `findById()`, assert map equality. Uses `pgvector/pgvector:pg16` container to ensure JSONB column type is available (test profile H2 does not support JSONB reliably).
 
 ### 8.4 Existing tests that must still pass
 
@@ -311,7 +311,7 @@ heirloom-server/src/main/resources/db/migration/V12__event_log_details.sql  (new
 
 heirloom-server/src/test/java/com/heirloom/knowledge/web/KnowledgeArticleEventInstrumentationTest.java  (new)
 heirloom-server/src/test/java/com/heirloom/knowledge/web/KnowledgeContextEndpointIT.java               (new)
-heirloom-server/src/test/java/com/heirloom/repository/EventLogRepositoryDetailsTest.java              (new)
+heirloom-server/src/test/java/com/heirloom/repository/EventLogDetailsRoundTripIT.java                   (new)
 
 docs/ROADMAP.md
   - check "知识审计事件" item
