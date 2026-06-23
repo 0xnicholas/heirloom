@@ -114,6 +114,7 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
 
     @GetMapping("/search")
     public ResponseEntity<?> search(
+            HttpServletRequest request,
             @RequestParam(required=false) String q,
             @RequestParam(required=false) String ref,
             @RequestParam(defaultValue="fts") String mode,
@@ -123,19 +124,41 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
             @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
             @RequestHeader(value = "X-User",       required = false) String user) {
 
+        String actor = pickActor(role, agentId, user);
         AccessPolicy policy = resolvePolicy(role, agentId, user);
-        if (!policy.canRead()) return ResponseEntity.ok(List.of());
+
+        if (!policy.canRead()) {
+            Map<String, Object> den = new HashMap<>();
+            den.put("reason", "no_read_capability");
+            if (q != null) den.put("query", q);
+            if (ref != null) den.put("ref", ref);
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor, den);
+            return ResponseEntity.ok(List.of());
+        }
 
         if (ref != null && !ref.isBlank()) {
             List<KnowledgeArticle> raw = jpa.findByEntityRef("[{\"fqn\":\"" + ref + "\"}]");
-            return ResponseEntity.ok(perspectiveFilter.filterByPolicy(raw, policy));
+            List<KnowledgeArticle> filtered = perspectiveFilter.filterByPolicy(raw, policy);
+            Map<String, Object> det = new HashMap<>();
+            det.put("ref", ref);
+            det.put("mode", mode);
+            det.put("limit", limit);
+            det.put("offset", offset);
+            det.put("resultCount", filtered.size());
+            det.put("trimmedCount", raw.size() - filtered.size());
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_SEARCH,
+                    request.getRequestURI(), actor, det);
+            return ResponseEntity.ok(filtered);
         }
-        if (q == null || q.isBlank()) return ResponseEntity.badRequest().body(Map.of("error","Provide q or ref"));
+
+        if (q == null || q.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error","Provide q or ref"));
+        }
 
         String tsQuery = QuerySanitizer.toTsQuery(q);
         if (tsQuery.isEmpty()) return ResponseEntity.ok(List.of());
 
-        // Determine effective mode
         String effectiveMode = mode;
         if (!"fts".equals(mode) && !embeddingProvider.isAvailable()) {
             effectiveMode = "fts";
@@ -158,25 +181,39 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
             default -> jpa.search(tsQuery, limit, offset);
         };
 
-        // Apply perspective filter on the way out.
+        int resultCount = 0;
+        int trimmedCount = 0;
+        List<KnowledgeArticle> filtered = List.of();
+
         if (rawResult instanceof List<?> list) {
             List<KnowledgeArticle> articles = list.stream()
                     .filter(KnowledgeArticle.class::isInstance)
                     .map(KnowledgeArticle.class::cast)
                     .toList();
-            List<KnowledgeArticle> filtered = perspectiveFilter.filterByPolicy(articles, policy);
-            // Preserve hybrid shape (article + score map entries) when present.
-            if (effectiveMode.equals("hybrid")) {
-                return ResponseEntity.ok(list.stream()
-                        .filter(o -> o instanceof Map<?, ?> m
-                                && m.get("article") instanceof KnowledgeArticle a
-                                && perspectiveFilter.canSee(a, policy))
-                        .limit(limit)
-                        .toList());
-            }
-            return ResponseEntity.ok(filtered);
+            filtered = perspectiveFilter.filterByPolicy(articles, policy);
+            resultCount = filtered.size();
+            trimmedCount = articles.size() - resultCount;
         }
-        return ResponseEntity.ok(rawResult);
+
+        Map<String, Object> det = new HashMap<>();
+        det.put("query", q);
+        det.put("mode", mode);
+        det.put("limit", limit);
+        det.put("offset", offset);
+        det.put("resultCount", resultCount);
+        det.put("trimmedCount", trimmedCount);
+        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_SEARCH,
+                request.getRequestURI(), actor, det);
+
+        if ("hybrid".equals(effectiveMode)) {
+            return ResponseEntity.ok(rawResult instanceof List<?> list ? list.stream()
+                    .filter(o -> o instanceof Map<?, ?> m
+                            && m.get("article") instanceof KnowledgeArticle a
+                            && perspectiveFilter.canSee(a, policy))
+                    .limit(limit)
+                    .toList() : List.of());
+        }
+        return ResponseEntity.ok(filtered);
     }
 
     @GetMapping("/graph/traverse")

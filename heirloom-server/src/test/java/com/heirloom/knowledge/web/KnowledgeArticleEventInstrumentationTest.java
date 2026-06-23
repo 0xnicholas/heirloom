@@ -24,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -109,5 +110,67 @@ class KnowledgeArticleEventInstrumentationTest {
         assertThat(event.getDetails().get("path")).isEqualTo("/v1/knowledge");
         assertThat(((Number) event.getDetails().get("resultCount")).intValue()).isEqualTo(2);
         assertThat(((Number) event.getDetails().get("trimmedCount")).intValue()).isEqualTo(1);
+    }
+
+    @Test
+    void search_emitsKnowledgeSearch_withQueryModeAndCounts() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/search");
+        List<KnowledgeArticle> raw = List.of(article("a.1","d","PUBLISHED"));
+        when(jpa.search(anyString(), eq(20), eq(0))).thenReturn(raw);
+        when(perspectiveFilter.filterByPolicy(eq(raw), eq(policy))).thenReturn(raw);
+
+        var response = resource.search(request, "customer churn", null, "fts", 20, 0, null, "agent-007", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_SEARCH);
+        assertThat(event.getDetails().get("query")).isEqualTo("customer churn");
+        assertThat(event.getDetails().get("mode")).isEqualTo("fts");
+        assertThat(((Number) event.getDetails().get("resultCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) event.getDetails().get("trimmedCount")).intValue()).isEqualTo(0);
+    }
+
+    @Test
+    void search_refParam_emitsWithRefFieldNotQuery() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(true);
+        stubPolicy("agent-007", policy);
+
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/search");
+        List<KnowledgeArticle> raw = List.of(article("a.1","d","PUBLISHED"));
+        when(jpa.findByEntityRef(anyString())).thenReturn(raw);
+        when(perspectiveFilter.filterByPolicy(eq(raw), eq(policy))).thenReturn(raw);
+
+        var response = resource.search(request, null, "crm.Customer", "fts", 20, 0, null, "agent-007", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getDetails().get("ref")).isEqualTo("crm.Customer");
+        assertThat(event.getDetails()).doesNotContainKey("query");
+    }
+
+    @Test
+    void search_denied_emitsAccessDenied() {
+        AccessPolicy policy = mock(AccessPolicy.class);
+        when(policy.canRead()).thenReturn(false);
+        stubPolicy("nobody", policy);
+        when(request.getRequestURI()).thenReturn("/v1/knowledge/search");
+
+        var response = resource.search(request, "x", null, "fts", 20, 0, null, "nobody", null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        ArgumentCaptor<ChangeEvent> captor = ArgumentCaptor.forClass(ChangeEvent.class);
+        verify(eventLog).append(captor.capture());
+        ChangeEvent event = captor.getValue();
+        assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
+        assertThat(event.getDetails().get("reason")).isEqualTo("no_read_capability");
     }
 }
