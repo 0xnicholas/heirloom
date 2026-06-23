@@ -1,6 +1,7 @@
 package com.heirloom.knowledge.web;
 
 import com.heirloom.auth.Authorizer;
+import com.heirloom.domain.ChangeEvent;
 import com.heirloom.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.domain.KnowledgeArticleVersion;
@@ -18,7 +19,9 @@ import com.heirloom.knowledge.service.KnowledgeWorkflowService.IllegalStateTrans
 import com.heirloom.knowledge.service.KnowledgeWorkflowService.TransitionResult;
 import com.heirloom.knowledge.service.RrfScorer;
 import com.heirloom.knowledge.service.StaleArticleScanner;
+import com.heirloom.repository.EventLogRepository;
 import com.heirloom.web.EntityResource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -38,6 +41,7 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     private final KnowledgePerspectiveFilter perspectiveFilter;
     private final KnowledgeCoverageService coverageService;
     private final KnowledgeWorkflowService workflowService;
+    private final EventLogRepository eventLog;
 
     public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j,
                                     KnowledgeGraphService gs, KnowledgeQualityScorer qs,
@@ -46,24 +50,38 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
                                     KnowledgePerspectiveFilter kpf,
                                     KnowledgeCoverageService kcs,
                                     com.heirloom.knowledge.repository.KnowledgeArticleRepository ar,
-                                    KnowledgeWorkflowService wf) {
+                                    KnowledgeWorkflowService wf,
+                                    EventLogRepository eventLog) {
         super(EntityRegistry.KNOWLEDGE_ARTICLE, a);
         jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe;
         embeddingProvider=ep; staleScanner=sas; perspectiveFilter=kpf;
         coverageService=kcs; articleRepo=ar; workflowService=wf;
+        this.eventLog = eventLog;
     }
 
     // === Read endpoints (all pass through KnowledgePerspectiveFilter) ===
 
     @GetMapping
     public ResponseEntity<List<KnowledgeArticle>> list(
+            HttpServletRequest request,
             @RequestHeader(value = "X-Agent-Role", required = false) String role,
             @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
             @RequestHeader(value = "X-User",       required = false) String user) {
+        String actor = pickActor(role, agentId, user);
         AccessPolicy policy = resolvePolicy(role, agentId, user);
-        if (!policy.canRead()) return ResponseEntity.ok(List.of());
-        List<KnowledgeArticle> all = jpa.findAll();
-        return ResponseEntity.ok(perspectiveFilter.filterByPolicy(all, policy));
+        if (!policy.canRead()) {
+            emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED,
+                    request.getRequestURI(), actor,
+                    Map.of("reason", "no_read_capability"));
+            return ResponseEntity.ok(List.of());
+        }
+        List<KnowledgeArticle> raw = jpa.findAll();
+        List<KnowledgeArticle> filtered = perspectiveFilter.filterByPolicy(raw, policy);
+        emitKnowledgeEvent(ChangeEvent.EventType.KNOWLEDGE_SEARCH,
+                request.getRequestURI(), actor,
+                Map.of("resultCount", filtered.size(),
+                       "trimmedCount", raw.size() - filtered.size()));
+        return ResponseEntity.ok(filtered);
     }
 
     @GetMapping("/{id}")
@@ -280,6 +298,27 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     }
 
     // === Helpers ===
+
+    private void emitKnowledgeEvent(ChangeEvent.EventType type,
+                                    String path,
+                                    String actor,
+                                    Map<String, Object> details) {
+        try {
+            Map<String, Object> safe = details == null ? new HashMap<>() : new HashMap<>(details);
+            safe.putIfAbsent("_v", 1);
+            safe.put("path", path);
+            ChangeEvent e = new ChangeEvent();
+            e.setEventType(type);
+            e.setActor(actor != null ? actor : "system");
+            e.setEntityType("knowledge");
+            e.setDetails(safe);
+            eventLog.append(e);
+        } catch (Exception ex) {
+            // Audit must never break business reads.
+            org.slf4j.LoggerFactory.getLogger(KnowledgeArticleResource.class)
+                .warn("Failed to emit knowledge audit event: {}", ex.getMessage());
+        }
+    }
 
     private String arrayToString(float[] arr) {
         StringBuilder sb = new StringBuilder("[");
