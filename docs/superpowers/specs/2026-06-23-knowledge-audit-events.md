@@ -38,8 +38,8 @@ Wire `EventLog` write-side coverage into the `KnowledgeArticleResource` read end
 ### 3.1 `ChangeEvent.details` (new JSONB column)
 
 ```java
+@Type(JsonType.class)  // io.hypersistence.utils.type.json — matches KnowledgeArticle.frontmatter
 @Column(name = "details", columnDefinition = "jsonb")
-@Convert(converter = JsonbMapConverter.class)  // reuse existing converter
 private Map<String, Object> details;
 ```
 
@@ -221,7 +221,7 @@ Lives in `KnowledgeArticleResource` (same file as `search` / `traverse`), not a 
 | Invariant | Implementation |
 |---|---|
 | Business reads never fail because of audit | `eventLog.append()` wrapped in try/catch; exception logged at WARN, not propagated |
-| Policy denials always return 404 | `KnowledgePerspectiveFilter` blocking → 404 + DENIED event |
+| Per-article policy denials return 404; bulk reads return 200 with empty results | `getById` / `getByFQN` / `context` blocked → 404 + DENIED; `list` / `search` / `traverse` blocked → 200 with `[]` + DENIED |
 | Event payloads never include article body | Details are access metadata only; no `body` field in any of the 3 new event types |
 | `details._v = 1` for forward compat | Set by emitter helper |
 | `entity_fqn` is null on knowledge audit events | These are access behaviors, not entity changes |
