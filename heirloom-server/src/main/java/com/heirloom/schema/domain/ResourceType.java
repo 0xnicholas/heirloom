@@ -85,6 +85,15 @@ public class ResourceType implements HeirloomEntity {
     private Map<String, List<String>> fieldVisibility = new HashMap<>();
 
     /**
+     * Phase 4.1: branch identifier. {@code NULL} means the type lives on
+     * {@code main}. A non-null value means this row is a clone of the main
+     * type for that branch — branch edits are isolated; merging compares
+     * the branch clone against the main row.
+     */
+    @Column(name = "branch_name", length = 64)
+    private String branchName;
+
+    /**
      * Monotonically increasing version number. Incremented on
      * every schema change. Kept for historical query compatibility.
      */
@@ -161,6 +170,9 @@ public class ResourceType implements HeirloomEntity {
 
     public Map<String, List<String>> getFieldVisibility() { return fieldVisibility; }
     public void setFieldVisibility(Map<String, List<String>> fieldVisibility) { this.fieldVisibility = fieldVisibility; }
+
+    public String getBranchName() { return branchName; }
+    public void setBranchName(String branchName) { this.branchName = branchName; }
 
     @Override
     public Long getVersion() { return (long) version; }
