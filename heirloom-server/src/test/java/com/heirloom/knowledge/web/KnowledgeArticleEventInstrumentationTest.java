@@ -121,6 +121,7 @@ class KnowledgeArticleEventInstrumentationTest {
         assertThat(event.getDetails().get("path")).isEqualTo("/v1/knowledge");
         assertThat(((Number) event.getDetails().get("resultCount")).intValue()).isEqualTo(2);
         assertThat(((Number) event.getDetails().get("trimmedCount")).intValue()).isEqualTo(1);
+        assertThat(event.getDetails().get("_v")).isEqualTo(1);  // spec §7: schema version invariant
     }
 
     @Test
@@ -183,6 +184,7 @@ class KnowledgeArticleEventInstrumentationTest {
         ChangeEvent event = captor.getValue();
         assertThat(event.getEventType()).isEqualTo(ChangeEvent.EventType.KNOWLEDGE_ACCESS_DENIED);
         assertThat(event.getDetails().get("reason")).isEqualTo("no_read_capability");
+        assertThat(event.getDetails().get("query")).isEqualTo("x");  // spec §8.1: denied payload must include query
     }
 
     @Test
