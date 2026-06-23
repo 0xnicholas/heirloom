@@ -13,6 +13,9 @@ import com.heirloom.knowledge.service.KnowledgePromotionEngine;
 import com.heirloom.knowledge.service.QuerySanitizer;
 import com.heirloom.knowledge.service.EmbeddingProvider;
 import com.heirloom.knowledge.service.KnowledgeCoverageService;
+import com.heirloom.knowledge.service.KnowledgeWorkflowService;
+import com.heirloom.knowledge.service.KnowledgeWorkflowService.IllegalStateTransition;
+import com.heirloom.knowledge.service.KnowledgeWorkflowService.TransitionResult;
 import com.heirloom.knowledge.service.RrfScorer;
 import com.heirloom.knowledge.service.StaleArticleScanner;
 import com.heirloom.web.EntityResource;
@@ -34,6 +37,7 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     private final StaleArticleScanner staleScanner;
     private final KnowledgePerspectiveFilter perspectiveFilter;
     private final KnowledgeCoverageService coverageService;
+    private final KnowledgeWorkflowService workflowService;
 
     public KnowledgeArticleResource(Authorizer a, KnowledgeArticleJpaRepository j,
                                     KnowledgeGraphService gs, KnowledgeQualityScorer qs,
@@ -41,11 +45,12 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
                                     StaleArticleScanner sas,
                                     KnowledgePerspectiveFilter kpf,
                                     KnowledgeCoverageService kcs,
-                                    com.heirloom.knowledge.repository.KnowledgeArticleRepository ar) {
+                                    com.heirloom.knowledge.repository.KnowledgeArticleRepository ar,
+                                    KnowledgeWorkflowService wf) {
         super(EntityRegistry.KNOWLEDGE_ARTICLE, a);
         jpa=j; graphService=gs; qualityScorer=qs; promotionEngine=pe;
         embeddingProvider=ep; staleScanner=sas; perspectiveFilter=kpf;
-        coverageService=kcs; articleRepo=ar;
+        coverageService=kcs; articleRepo=ar; workflowService=wf;
     }
 
     // === Read endpoints (all pass through KnowledgePerspectiveFilter) ===
@@ -185,6 +190,42 @@ public class KnowledgeArticleResource extends EntityResource<KnowledgeArticle> {
     public ResponseEntity<?> promote(@RequestParam String sourceFqn) {
         return ResponseEntity.ok(promotionEngine.promote(sourceFqn));
     }
+
+    /** Phase 4.1: request a status transition. Auto-approves safe transitions. */
+    @PostMapping("/{id}/transitions")
+    public ResponseEntity<?> requestTransition(
+            @PathVariable Long id,
+            @RequestBody TransitionRequest body,
+            @RequestHeader(value = "X-Agent-Id", required = false) String agentId,
+            @RequestHeader(value = "X-User", required = false) String user) {
+        String caller = agentId != null ? "agent:" + agentId
+                : user != null ? "user:" + user : "anonymous";
+        try {
+            TransitionResult result = workflowService.requestTransition(
+                    id, body.targetStatus(), caller, body.comment());
+            return ResponseEntity.ok(result);
+        } catch (IllegalStateTransition e) {
+            return ResponseEntity.status(409).body(java.util.Map.of(
+                    "error", "invalid_transition",
+                    "from", e.getFrom().name(),
+                    "to", e.getTo().name()));
+        }
+    }
+
+    /** Apply an approved review proposal — actually perform the status change. */
+    @PostMapping("/{id}/transitions/{proposalId}/apply")
+    public ResponseEntity<?> applyTransition(
+            @PathVariable Long id,
+            @PathVariable Long proposalId,
+            @RequestHeader(value = "X-Agent-Id", required = false) String agentId,
+            @RequestHeader(value = "X-User", required = false) String user) {
+        String caller = agentId != null ? "agent:" + agentId
+                : user != null ? "user:" + user : "system";
+        TransitionResult result = workflowService.applyApprovedProposal(proposalId, caller);
+        return ResponseEntity.ok(result);
+    }
+
+    public record TransitionRequest(String targetStatus, String comment) {}
 
     @PostMapping("/stale-articles/scan")
     public ResponseEntity<?> scanStaleArticles(
