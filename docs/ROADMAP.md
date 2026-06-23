@@ -241,11 +241,11 @@
 
 ### 4.1 Ontology 治理增强
 
-- [ ] Ontology 分支（Branching）：在独立分支上修改 Schema，测试后合并（类似 Git）
-- [ ] 合并冲突检测与解决
+- [x] Ontology 分支（Branching）：在独立分支上修改 Schema，测试后合并（类似 Git） — `OntologyBranch` 实体 (V10) + `ResourceType.branch_name` 列 + `BranchService`；6 个 REST 端点（create/list/get/close/preview-merge/merge）
+- [x] 合并冲突检测与解决 — `BranchService.previewMerge` 对每个类型比较 base/main/branch hash，分为 unchanged / branch-only / main-only / conflict 4 类；conflict 需调用者提供 resolutions（main / branch / skip）
 - [ ] 跨 Ontology 的 RID 映射与联邦查询：多部门 Ontology 的互操作基础
 - [x] 知识条目版本化（每次更新保存旧版本 snapshot） — `KnowledgeArticleVersion` 实体 (V9) + `KnowledgeArticleRepository.update/delete/restoreVersion` 自动捕获 snapshot（reason=update/delete/restore）；3 个端点：list/get/restore
-- [ ] 知识条目审批流程（draft → review → published）
+- [x] 知识条目审批流程（draft → review → published） — `KnowledgeWorkflowService` + 2 个 REST 端点；DRAFT↔REVIEW auto-approve，REVIEW→PUBLISHED/ARCHIVED 通过 Proposal 走 governance；apply 端点执行已批准的 transition 并触发版本快照
 - [ ] 知识图谱可视化：实体 + 知识条目的引用关系图
 
 ### 4.2 条件式 Abilities
@@ -319,3 +319,4 @@
 | 2026-06-23 | v0.9 | Phase 0 完全收官：0.2 Resource Store 正式标为 out-of-scope（ADR-003/018 设计 pivoted）；0.3 GraphQL 端点落地（spring-boot-starter-graphql，schema 覆盖 ResourceType/KnowledgeArticle/Search/Coverage）。Phase 0 现在 100% done |
 | 2026-06-23 | v0.10 | 知识条目版本化（Phase 4.1）落地：KnowledgeArticleVersion (V9) + KnowledgeArticleRepository update/delete/restoreVersion 自动捕获 snapshot；3 个 REST 端点（list/get/restore）。现为 92/135 done |
 | 2026-06-23 | v0.11 | Heirloom CLI（Phase 4.4）落地：`heirloom-sdk/heirloom_sdk/cli.py` + `[project.scripts]` entry point，6 个 namespace，16 个 CLI 测试。SDK total 50/50。现为 93/135 done |
+| 2026-06-23 | v0.12 | Knowledge 审批工作流 + Ontology Branching（Phase 4.1 三项）落地：KnowledgeWorkflowService + 2 端点（auto-approve + Proposal 集成）；OntologyBranch (V10) + BranchService + 6 端点（创建/列表/关闭/preview-merge/merge with conflict resolution）。Server tests 174/174。现为 96/135 done |
