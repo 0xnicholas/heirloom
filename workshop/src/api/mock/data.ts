@@ -1,5 +1,28 @@
 import type { ResourceType, Role, Action, QueryDSL, QueryResult } from '@/lib/types';
 
+export interface ResourceInstance {
+  rid: string;
+  type: string;
+  state: string;
+  data: Record<string, unknown>;
+}
+
+export interface FunctionDef {
+  name: string;
+  description: string;
+  language: string;
+  signature: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  target: string;
+}
+
+
 export const mockTypes: ResourceType[] = [
   {
     name: 'Customer',
@@ -146,6 +169,27 @@ export const mockActions: Action[] = [
     validateRules: [],
     executeTemplate: '',
   },
+];
+
+export const mockResourceInstances: ResourceInstance[] = [
+  { rid: 'ri.customer.1', type: 'Customer', state: 'Active', data: { name: 'Acme Corp', tier: 'enterprise', arr: 1200000 } },
+  { rid: 'ri.customer.2', type: 'Customer', state: 'Active', data: { name: 'Beta Ltd', tier: 'pro', arr: 180000 } },
+  { rid: 'ri.order.1', type: 'Order', state: 'Shipped', data: { total: 5400, status: 'shipped' } },
+  { rid: 'ri.order.2', type: 'Order', state: 'Pending', data: { total: 1200, status: 'pending' } },
+  { rid: 'ri.contract.1', type: 'Contract', state: 'Active', data: { title: 'Enterprise SLA', value: 1200000 } },
+  { rid: 'ri.product.1', type: 'Product', state: 'Active', data: { name: 'Widget Pro', sku: 'WDG-001', price: 299 } },
+];
+
+export const mockFunctions: FunctionDef[] = [
+  { name: 'risk_score', description: 'Compute a risk score for a resource instance.', language: 'typescript', signature: 'risk_score(instance: ResourceInstance): number' },
+  { name: 'annual_recurring_revenue', description: 'Sum ARR across customers.', language: 'typescript', signature: 'annual_recurring_revenue(): number' },
+  { name: 'has_capability', description: 'Check whether an actor has a capability.', language: 'typescript', signature: 'has_capability(actor: string, ability: Ability, targetType: string): boolean' },
+];
+
+export const mockEvents: AuditEvent[] = [
+  { id: 'ev-1', timestamp: '2026-06-28T10:00:00Z', actor: 'user.admin', action: 'type.created', target: 'Customer' },
+  { id: 'ev-2', timestamp: '2026-06-28T10:05:00Z', actor: 'agent.supply_chain_analyst', action: 'query.executed', target: 'Inventory' },
+  { id: 'ev-3', timestamp: '2026-06-28T11:30:00Z', actor: 'user.bob', action: 'action.executed', target: 'approve_order' },
 ];
 
 export function generateMockResults(query: QueryDSL): QueryResult {

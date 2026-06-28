@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import { executeQuery } from '@/api/query';
 import type { QueryDSL, QueryResult } from '@/lib/types';
 
 interface QueryConsoleProps {
@@ -11,26 +12,26 @@ interface QueryConsoleProps {
 
 function MiniResults({ result }: { result: QueryResult }) {
   if (!result.rows.length) {
-    return <p className="text-xs text-gray-400 p-4">No rows returned ({result.meta.query_ms}ms)</p>;
+    return <p className="text-xs text-gray-400 dark:text-gray-500 p-4">No rows returned ({result.meta.query_ms}ms)</p>;
   }
   const cols = Object.keys(result.rows[0]).filter(k => k !== '_meta');
   return (
     <div className="overflow-auto p-2">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b">
-            {cols.map(c => <th key={c} className="text-left py-1 px-2 font-medium text-gray-600">{c}</th>)}
+          <tr className="border-b border-gray-200 dark:border-gray-700">
+            {cols.map(c => <th key={c} className="text-left py-1 px-2 font-medium text-gray-600 dark:text-gray-300">{c}</th>)}
           </tr>
         </thead>
         <tbody>
           {result.rows.map((row, i) => (
-            <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-              {cols.map(c => <td key={c} className="py-1 px-2 text-gray-700">{String(row[c] ?? '')}</td>)}
+            <tr key={i} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800">
+              {cols.map(c => <td key={c} className="py-1 px-2 text-gray-700 dark:text-gray-300">{String(row[c] ?? '')}</td>)}
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="text-xs text-gray-400 mt-1">{result.total} rows · {result.meta.query_ms}ms</p>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{result.total} rows · {result.meta.query_ms}ms</p>
     </div>
   );
 }
@@ -71,6 +72,19 @@ export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: Q
     };
   }, [dragging, onHeightChange, onMouseUp]);
 
+  const handleRun = useCallback(async () => {
+    const code = editorRef.current?.getValue();
+    if (!code) return;
+    try {
+      const query: QueryDSL = JSON.parse(code);
+      const data = await executeQuery(query);
+      setResult(data);
+      saveRecentRun(code);
+    } catch {
+      setResult({ rows: [], total: 0, meta: { query_ms: 0, plan: 'parse error' } });
+    }
+  }, []);
+
   // Ctrl+Enter to run
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -81,44 +95,26 @@ export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: Q
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  const handleRun = async () => {
-    const code = editorRef.current?.getValue();
-    if (!code) return;
-    try {
-      const query: QueryDSL = JSON.parse(code);
-      const res = await fetch('/api/query/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(query),
-      });
-      const data: QueryResult = await res.json();
-      setResult(data);
-      saveRecentRun(code);
-    } catch {
-      setResult({ rows: [], total: 0, meta: { query_ms: 0, plan: 'parse error' } });
-    }
-  };
+  }, [handleRun]);
 
   const defaultCode = defaultFrom
     ? JSON.stringify({ from: defaultFrom, select: [], limit: 10 }, null, 2)
     : '';
 
   return (
-    <div ref={containerRef} className="border-t border-gray-300 bg-white" style={{ height: `${height}%` }}>
+    <div ref={containerRef} className="border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ height: `${height}%` }}>
       {/* Resize handle */}
       <div
-        className="h-1.5 bg-gray-200 hover:bg-indigo-400 cursor-row-resize transition-colors"
+        className="h-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-indigo-400 cursor-row-resize transition-colors"
         onMouseDown={onMouseDown}
       />
-      <div className="flex items-center justify-between px-4 py-1 border-b border-gray-100">
-        <span className="text-xs font-medium text-gray-600">◆ Query Console</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm">&times;</button>
+      <div className="flex items-center justify-between px-4 py-1 border-b border-gray-100 dark:border-gray-700">
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">◆ Query Console</span>
+        <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-sm">&times;</button>
       </div>
       <div className="flex h-[calc(100%-3.5rem)]">
         {/* Editor pane */}
-        <div className="flex-1 border-r border-gray-100">
+        <div className="flex-1 border-r border-gray-100 dark:border-gray-700">
           <Editor
             height="100%"
             defaultLanguage="json"
@@ -138,18 +134,18 @@ export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: Q
           {result ? (
             <MiniResults result={result} />
           ) : (
-            <p className="text-xs text-gray-400 p-4">Run query (Ctrl+Enter) to see results</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 p-4">Run query (Ctrl+Enter) to see results</p>
           )}
         </div>
       </div>
       {/* Recent Runs bar */}
-      <div className="flex items-center gap-1 px-3 py-1 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 overflow-x-auto h-7">
+      <div className="flex items-center gap-1 px-3 py-1 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs text-gray-400 dark:text-gray-500 overflow-x-auto h-7">
         <span className="shrink-0">Recent:</span>
         {getRecentRuns().map((q, i) => (
           <button
             key={i}
             onClick={() => editorRef.current?.setValue(q)}
-            className="shrink-0 px-1.5 py-0.5 bg-white border rounded hover:bg-gray-100 font-mono truncate max-w-[200px]"
+            className="shrink-0 px-1.5 py-0.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-mono truncate max-w-[200px]"
           >
             {q.length > 60 ? q.slice(0, 60) + '...' : q}
           </button>

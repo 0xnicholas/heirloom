@@ -8,8 +8,7 @@ import { ValidationBar } from '@/components/shared/ValidationBar';
 import { createSnapshot } from '@/lib/validation/registry-snapshot';
 import { validateType } from '@/lib/validation/type-validator';
 
-// Inline stub hooks (to be replaced with debounced versions in Task 13)
-function useRegistrySnapshot(types: ResourceType[], _actions: never[]) {
+function useRegistrySnapshot(types: ResourceType[]) {
   return createSnapshot(types, [], []);
 }
 
@@ -29,10 +28,13 @@ export function TypeEditor({ type, allTypes, onSave }: TypeEditorProps) {
   const [draft, setDraft] = useState<ResourceType | null>(type);
   const [dirty, setDirty] = useState(false);
 
+  // Reset draft when the edited entity changes (form reset pattern)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setDraft(type);
     setDirty(false);
   }, [type]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Warn on browser tab close with unsaved changes
   useEffect(() => {
@@ -46,16 +48,16 @@ export function TypeEditor({ type, allTypes, onSave }: TypeEditorProps) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  const snapshot = useRegistrySnapshot(allTypes);
+  const diagnostics = useDebouncedTypeValidation(draft, snapshot);
+
   if (!draft) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400">
+      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
         Select a type or create a new one
       </div>
     );
   }
-
-  const snapshot = useRegistrySnapshot(allTypes, []);
-  const diagnostics = useDebouncedTypeValidation(draft, snapshot);
 
   const handleSave = () => {
     onSave(draft);
@@ -68,14 +70,14 @@ export function TypeEditor({ type, allTypes, onSave }: TypeEditorProps) {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-auto">
+    <div className="flex flex-col h-full overflow-auto bg-white dark:bg-gray-900">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white sticky top-0 z-10">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
         <input
           type="text"
           value={draft.name}
           onChange={e => update({ name: e.target.value })}
-          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800"
+          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
           placeholder="Type name"
         />
         <div className="flex items-center gap-2">
@@ -94,12 +96,12 @@ export function TypeEditor({ type, allTypes, onSave }: TypeEditorProps) {
       <div className="flex-1 p-6 space-y-6">
         {/* Description */}
         <div>
-          <label className="text-sm font-semibold text-gray-700 block mb-1">Description</label>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">Description</label>
           <input
             type="text"
             value={draft.description || ''}
             onChange={e => update({ description: e.target.value })}
-            className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+            className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="Optional description"
           />
         </div>

@@ -74,8 +74,8 @@ export function QueryPage() {
   }, []);
 
   return (
-    <div className="flex h-full">
-      <div className="w-[260px] border-r border-gray-200 bg-white overflow-auto shrink-0">
+    <div className="flex h-full bg-gray-50 dark:bg-gray-950">
+      <div className="w-[260px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-auto shrink-0">
         <QueryHistory
           queries={queriesQuery.data || []}
           onSelect={handleSelectQuery}
@@ -87,7 +87,7 @@ export function QueryPage() {
       </div>
       <div ref={containerRef} className="flex-1 flex flex-col">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-4 py-1.5 border-b bg-white shrink-0">
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
           <button
             onClick={handleRun}
             className="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700"
@@ -96,16 +96,16 @@ export function QueryPage() {
           </button>
           <button
             onClick={handleSaveQuery}
-            className="px-3 py-1 text-sm text-gray-600 border rounded hover:bg-gray-50"
+            className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
           >
             Save
           </button>
-          <span className="ml-2 text-xs text-gray-400">Snippets:</span>
+          <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Snippets:</span>
           {(['basic', 'traverse', 'aggregate', 'search'] as const).map(k => (
             <button
               key={k}
               onClick={() => setEditorValue(QUERY_TEMPLATES[k])}
-              className="px-2 py-0.5 text-xs text-gray-500 border rounded hover:bg-gray-100"
+              className="px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               {k}
             </button>
@@ -127,7 +127,7 @@ export function QueryPage() {
         </div>
         {/* Draggable divider */}
         <div
-          className="h-1 bg-gray-200 hover:bg-indigo-400 cursor-row-resize transition-colors shrink-0"
+          className="h-1 bg-gray-200 dark:bg-gray-700 hover:bg-indigo-400 cursor-row-resize transition-colors shrink-0"
           onMouseDown={onMouseDown}
         />
         {/* Results (bottom) */}

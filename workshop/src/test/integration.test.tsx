@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { SchemaPage } from '@/pages/SchemaPage';
-import { ConsoleContext } from '@/components/layout/AppLayout';
+import { ConsoleContext } from '@/components/layout/ConsoleContext';
 import { mockTypes, mockActions, mockRoles } from '@/api/mock/data';
 import type { ResourceType } from '@/lib/types';
 

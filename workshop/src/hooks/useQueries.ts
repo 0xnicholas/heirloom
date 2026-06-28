@@ -1,15 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { QueryDSL, QueryResult, SavedQuery } from '@/lib/types';
-
-async function executeQuery(query: QueryDSL): Promise<QueryResult> {
-  const res = await fetch('/api/query/execute', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(query),
-  });
-  if (!res.ok) throw new Error('Query execution failed');
-  return res.json();
-}
+import { executeQuery } from '@/api/query';
+import type { SavedQuery } from '@/lib/types';
 
 async function fetchQueries(): Promise<SavedQuery[]> {
   const res = await fetch('/api/queries');

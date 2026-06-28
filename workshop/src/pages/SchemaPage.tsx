@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { TypeList } from '@/components/schema/TypeList';
 import { TypeEditor } from '@/components/schema/TypeEditor';
 import { useSchemaRegistry } from '@/hooks/useSchemaRegistry';
-import { useConsoleContext } from '@/components/layout/AppLayout';
+import { useConsoleContext } from '@/components/layout/ConsoleContext';
 import type { ResourceType } from '@/lib/types';
 
 export function SchemaPage() {
@@ -51,8 +51,8 @@ export function SchemaPage() {
   };
 
   return (
-    <div className="flex h-full">
-      <div className="w-[260px] border-r border-gray-200 bg-white overflow-auto shrink-0">
+    <div className="flex h-full bg-gray-50 dark:bg-gray-950">
+      <div className="w-[260px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-auto shrink-0">
         <TypeList
           types={types}
           selected={selectedName}
@@ -60,8 +60,9 @@ export function SchemaPage() {
           onNew={handleNew}
         />
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-900">
         <TypeEditor
+          key={isNew ? '__new__' : selectedName ?? '__none__'}
           type={isNew ? newTypeTemplate : selectedType}
           allTypes={types}
           onSave={handleSave}

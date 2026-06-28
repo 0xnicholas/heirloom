@@ -1,16 +1,9 @@
-import { useState, useCallback, useEffect, createContext, useContext } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { NavBar } from './NavBar';
+import { TopBar } from './TopBar';
+import { SideNav } from './SideNav';
 import { QueryConsole } from './QueryConsole';
-
-export const ConsoleContext = createContext<{
-  activeType: string | null;
-  setActiveType: (t: string | null) => void;
-}>({ activeType: null, setActiveType: () => {} });
-
-export function useConsoleContext() {
-  return useContext(ConsoleContext);
-}
+import { ConsoleContext } from './ConsoleContext';
 
 export function AppLayout() {
   const [consoleOpen, setConsoleOpen] = useState(false);
@@ -32,26 +25,29 @@ export function AppLayout() {
 
   return (
     <ConsoleContext.Provider value={{ activeType, setActiveType }}>
-    <div className="flex flex-col h-screen bg-gray-50">
-      <NavBar />
-      <main className="flex-1 overflow-hidden" style={{ height: consoleOpen ? `${100 - consoleHeight}%` : '100%' }}>
-        <Outlet />
-      </main>
-      {consoleOpen && (
-        <QueryConsole
-          height={consoleHeight}
-          onHeightChange={setConsoleHeight}
-          onClose={() => setConsoleOpen(false)}
-          defaultFrom={activeType ?? undefined}
-        />
-      )}
-      <div className="flex items-center justify-between px-4 py-0.5 border-t border-gray-200 bg-white text-xs text-gray-500">
-        <button onClick={toggleConsole} className="hover:text-indigo-600 transition-colors">
-          ◆ Query Console
-        </button>
-        <span>Ctrl+`</span>
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
+        <TopBar />
+        <div className="flex flex-1 overflow-hidden">
+          <SideNav />
+          <main className="flex-1 overflow-hidden">
+            <Outlet />
+          </main>
+        </div>
+        {consoleOpen && (
+          <QueryConsole
+            height={consoleHeight}
+            onHeightChange={setConsoleHeight}
+            onClose={() => setConsoleOpen(false)}
+            defaultFrom={activeType ?? undefined}
+          />
+        )}
+        <div className="flex items-center justify-between px-4 py-0.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-gray-500 dark:text-gray-400">
+          <button onClick={toggleConsole} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+            ◆ Query Console
+          </button>
+          <span>Ctrl+`</span>
+        </div>
       </div>
-    </div>
     </ConsoleContext.Provider>
   );
 }

@@ -17,7 +17,7 @@ export function AbilitiesMatrix({ selected, onChange }: AbilitiesMatrixProps) {
 
   return (
     <div>
-      <h4 className="text-sm font-semibold text-gray-700 mb-2">Abilities</h4>
+      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Abilities</h4>
       <div className="grid grid-cols-2 gap-1.5">
         {ABILITIES.map(ability => {
           const checked = selected.includes(ability);
@@ -25,7 +25,9 @@ export function AbilitiesMatrix({ selected, onChange }: AbilitiesMatrixProps) {
             <label
               key={ability}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer transition-colors ${
-                checked ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                checked
+                  ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               <input
@@ -35,7 +37,7 @@ export function AbilitiesMatrix({ selected, onChange }: AbilitiesMatrixProps) {
                 className="sr-only"
                 aria-label={ability}
               />
-              <span className={`text-xs font-mono ${checked ? 'text-indigo-600' : 'text-gray-400'}`}>
+              <span className={`text-xs font-mono ${checked ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'}`}>
                 {checked ? '✓' : '○'}
               </span>
               <span>{ability}</span>

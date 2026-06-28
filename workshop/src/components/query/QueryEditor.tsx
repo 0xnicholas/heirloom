@@ -1,8 +1,8 @@
 import { useRef, useCallback } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
-import type { SchemaRegistrySnapshot, Diagnostic } from '@/lib/types';
+import { useTheme } from '@/hooks/useTheme';
+import type { SchemaRegistrySnapshot, Diagnostic, QueryDSL } from '@/lib/types';
 import { validateQuery } from '@/lib/validation/query-validator';
-import type { QueryDSL } from '@/lib/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Monaco = any;
@@ -15,6 +15,7 @@ interface QueryEditorProps {
 }
 
 export function QueryEditor({ value, onChange, snapshot, onDiagnostics }: QueryEditorProps) {
+  const { theme } = useTheme();
   const editorRef = useRef<Monaco>(null);
   const monacoRef = useRef<Monaco>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -146,6 +147,7 @@ export function QueryEditor({ value, onChange, snapshot, onDiagnostics }: QueryE
     <Editor
       height="100%"
       defaultLanguage="json"
+      theme={theme === 'dark' ? 'vs-dark' : 'light'}
       value={value}
       onChange={handleChange}
       onMount={handleMount}

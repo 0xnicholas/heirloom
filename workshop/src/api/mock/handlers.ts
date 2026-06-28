@@ -5,7 +5,7 @@ import {
   getActions, saveActions,
   getSavedQueries, saveSavedQueries,
 } from './store';
-import { generateMockResults } from './data';
+import { generateMockResults, mockResourceInstances, mockFunctions, mockEvents } from './data';
 import type { ResourceType, Role, Action, SavedQuery, QueryDSL } from '@/lib/types';
 
 const LATENCY = 200;
@@ -172,5 +172,32 @@ export const handlers = [
     const actions = getActions().filter(a => a.name !== params.name);
     saveActions(actions);
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // ============================================================
+  // Explorer — Resource Instances
+  // ============================================================
+
+  http.get('/api/instances', async () => {
+    await delay(LATENCY);
+    return HttpResponse.json(mockResourceInstances);
+  }),
+
+  // ============================================================
+  // Functions
+  // ============================================================
+
+  http.get('/api/functions', async () => {
+    await delay(LATENCY);
+    return HttpResponse.json(mockFunctions);
+  }),
+
+  // ============================================================
+  // Audit Events
+  // ============================================================
+
+  http.get('/api/events', async () => {
+    await delay(LATENCY);
+    return HttpResponse.json(mockEvents);
   }),
 ];

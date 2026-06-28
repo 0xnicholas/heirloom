@@ -39,10 +39,10 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
 
   return (
     <div>
-      <h4 className="text-sm font-semibold text-gray-700 mb-2">Fields</h4>
+      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fields</h4>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 text-xs">
+          <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
             <th className="pb-1.5 font-medium">Name</th>
             <th className="pb-1.5 font-medium">Type</th>
             <th className="pb-1.5 font-medium text-center">Required</th>
@@ -53,7 +53,7 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
           {fields.map((field, i) => (
             <tr
               key={i}
-              className="border-t border-gray-100"
+              className="border-t border-gray-100 dark:border-gray-800"
               draggable
               onDragStart={() => handleDragStart(i)}
               onDragOver={e => handleDragOver(e, i)}
@@ -65,7 +65,7 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
                   type="text"
                   value={field.name}
                   onChange={e => updateField(i, { name: e.target.value })}
-                  className="w-full px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  className="w-full px-1.5 py-0.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                   placeholder="field_name"
                 />
               </td>
@@ -73,7 +73,7 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
                 <select
                   value={field.type}
                   onChange={e => updateField(i, { type: e.target.value as FieldType })}
-                  className="px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  className="px-1.5 py-0.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100"
                 >
                   {FIELD_TYPES.map(ft => (
                     <option key={ft} value={ft}>{ft}</option>
@@ -103,7 +103,7 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
       </table>
       <button
         onClick={addField}
-        className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+        className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
       >
         + Add Field
       </button>

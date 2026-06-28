@@ -12,16 +12,19 @@ interface ActionEditorProps {
   isNew?: boolean;
 }
 
-export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: ActionEditorProps) {
+export function ActionEditor({ action, allTypes, onSave }: ActionEditorProps) {
   const [draft, setDraft] = useState<Action | null>(action);
   const [dirty, setDirty] = useState(false);
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Reset draft when the edited entity changes (form reset pattern)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setDraft(action);
     setDirty(false);
   }, [action]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Debounced live validation (300ms)
   useEffect(() => {
@@ -41,7 +44,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
 
   if (!draft) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400">
+      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
         Select an action or create one
       </div>
     );
@@ -84,15 +87,24 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
 
   const hasErrors = diagnostics.some(d => d.severity === 'error');
 
+  const inputClass =
+    'w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
+  const selectClass =
+    'w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
+  const tableInputClass =
+    'w-full px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500';
+  const tableSelectClass =
+    'px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
+
   return (
-    <div className="flex flex-col h-full overflow-auto">
+    <div className="flex flex-col h-full overflow-auto bg-white dark:bg-gray-900">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b bg-white sticky top-0 z-10">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
         <input
           type="text"
           value={draft.name}
           onChange={e => update({ name: e.target.value })}
-          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800"
+          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
           placeholder="Action name"
         />
         <div className="flex items-center gap-2">
@@ -112,7 +124,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
         {/* Target Type / Requires / Gate */}
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1">
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
               Target Type
             </label>
             <select
@@ -124,7 +136,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
                   requires: 'query',
                 })
               }
-              className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className={selectClass}
             >
               {allTypes.map(t => (
                 <option key={t.name} value={t.name}>
@@ -135,13 +147,13 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1">
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
               Requires
             </label>
             <select
               value={draft.requires}
               onChange={e => update({ requires: e.target.value as Ability })}
-              className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className={selectClass}
             >
               {declaredAbilities.map(a => (
                 <option key={a} value={a}>
@@ -157,7 +169,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1">
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
               Gate (state)
             </label>
             <input
@@ -168,7 +180,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
                   gate: e.target.value ? { state: e.target.value } : undefined,
                 })
               }
-              className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              className={inputClass}
               placeholder="e.g. Active"
               list="gate-states-list"
             />
@@ -182,10 +194,10 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
 
         {/* Parameters */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Parameters</h4>
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Parameters</h4>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 text-xs">
+              <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
                 <th className="pb-1 font-medium">Name</th>
                 <th className="pb-1 font-medium">Type</th>
                 <th className="pb-1 font-medium text-center">Required</th>
@@ -195,19 +207,19 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
             <tbody>
               {draft.parameters.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-2 text-xs text-gray-400">
+                  <td colSpan={4} className="py-2 text-xs text-gray-400 dark:text-gray-500">
                     No parameters defined
                   </td>
                 </tr>
               )}
               {draft.parameters.map((p, i) => (
-                <tr key={i} className="border-t border-gray-100">
+                <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
                   <td className="py-1.5">
                     <input
                       type="text"
                       value={p.name}
                       onChange={e => updateParam(i, { name: e.target.value })}
-                      className="w-full px-1 py-0.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      className={tableInputClass}
                       placeholder="param_name"
                     />
                   </td>
@@ -215,7 +227,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
                     <select
                       value={p.type}
                       onChange={e => updateParam(i, { type: e.target.value as FieldType })}
-                      className="px-1 py-0.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      className={tableSelectClass}
                     >
                       {FIELD_TYPES.map(ft => (
                         <option key={ft} value={ft}>
@@ -248,7 +260,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
           </table>
           <button
             onClick={addParam}
-            className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
           >
             + Add Parameter
           </button>
@@ -256,7 +268,7 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
 
         {/* Validate Rules */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Validate Rules</h4>
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Validate Rules</h4>
           <textarea
             value={draft.validateRules.join('\n')}
             onChange={e =>
@@ -266,18 +278,18 @@ export function ActionEditor({ action, allTypes, onSave, isNew: _isNew }: Action
                   .filter(line => line.trim() !== ''),
               })
             }
-            className="w-full h-20 px-3 py-2 text-sm font-mono border rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+            className="w-full h-20 px-3 py-2 text-sm font-mono border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="risk_score(inventory) > 0.3"
           />
         </div>
 
         {/* Execute */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Execute</h4>
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Execute</h4>
           <textarea
             value={draft.executeTemplate}
             onChange={e => update({ executeTemplate: e.target.value })}
-            className="w-full h-20 px-3 py-2 text-sm font-mono border rounded bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+            className="w-full h-20 px-3 py-2 text-sm font-mono border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-300 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="(Action execution DSL — format TBD in Phase 2 implementation)"
           />
         </div>
