@@ -1,0 +1,44 @@
+---
+title: Resource
+description: A Resource is Heirloom's first-class business entity and the only interface through which agents operate data.
+---
+
+A **Resource** is Heirloom's first-class business entity. Customers, orders, contracts, assets, and policies are all modeled as resources.
+
+Resources are not database rows. They have an independent lifecycle, a stable global identifier, and a complete event history.
+
+## Resource anatomy
+
+| Field | Meaning | Why it matters for agents |
+|-------|---------|---------------------------|
+| `rid` | Global, immutable Resource Identifier | Stable reference across data migrations |
+| `type` | Resource Type name | Defines abilities, fields, and state machine |
+| `owner` | Current owner | Drives permission propagation |
+| `state` | Current lifecycle state | Determines which actions are legal |
+| `fields` | Business attributes | Readable and writable structured data |
+| `relationships` | Links to other resources | Traversable dependency graph |
+| `events` | Immutable event stream | Full history for context and audit |
+| `version` | Monotonically increasing version | Optimistic concurrency control |
+
+## RID
+
+The Resource Identifier (`rid`) is globally unique and never changes. It lets agents reference the same customer as `ri.customer.123` whether the underlying data lives in PostgreSQL today, BigQuery tomorrow, or a REST API next quarter.
+
+## Resource lifecycle
+
+1. **Define** the Resource Type in the Schema Registry.
+2. **Materialize** instances from connected data sources.
+3. **Interact** through Actions, governed by capabilities and state.
+4. **Automate** via state-machine transitions and event triggers.
+5. **Govern** schema changes through proposals and branches.
+6. **Evolve** the type system based on agent usage patterns.
+
+## Resource Type lifecycle
+
+Resource Types themselves evolve through stages:
+
+```
+DISCOVERED → ACTIVE → EVOLVING → STALE → DEPRECATED → DELETED
+```
+
+Stage transitions are triggered through the proposal workflow.

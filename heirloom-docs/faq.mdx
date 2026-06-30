@@ -1,0 +1,44 @@
+---
+title: FAQ
+description: Common questions about Heirloom.
+---
+
+## What is Heirloom?
+
+Heirloom is an AI-native semantic ontology system. It provides a type-safe layer between enterprise data and AI agents, so agents can query and act on business data without direct database access.
+
+## How is this different from a data catalog?
+
+A data catalog tells an agent *where* data lives. Heirloom tells the agent what the data means and what operations are allowed — then enforces those operations through Actions, capabilities, and audit.
+
+## How is this different from a graph database?
+
+Graph databases let you traverse relationships. Heirloom adds precise relationship semantics (Ownership, Reference, Association), type-level abilities, state machines, and a unified governance chain.
+
+## Can an agent delete data?
+
+Only if the Resource Type explicitly declares the `drop` ability. If `drop` is not declared, no role — including admin — can create a delete action. Safety is enforced by the type system, not by a prompt.
+
+## Do agents have a separate security model?
+
+No. Agents, humans, and automation all flow through the same `Actor → Role → Capability → Action` chain. The difference is the Role each actor holds.
+
+## What query language does Heirloom use?
+
+Heirloom uses a JSON DSL designed to be LLM-friendly. It supports filtering, sorting, pagination, aggregation, relationship traversal, and hybrid semantic search. The Query Resolver translates it to the underlying sources.
+
+## Does Heirloom store my data?
+
+Heirloom is primarily a semantic layer on top of existing data sources. Resources are materialized views over PostgreSQL, REST APIs, streams, and files. The Knowledge Base does store indexed Markdown articles in Heirloom-managed storage.
+
+## What languages does the SDK support?
+
+Currently Python (`heirloom-sdk`). Additional language SDKs may be added in the future.
+
+## Can I run Heirloom on my own infrastructure?
+
+Yes. The server is a Spring Boot application that connects to PostgreSQL. You can run it locally, in a container, or on any cloud provider.
+
+## Where can I see the API documentation?
+
+When the server is running, visit http://localhost:8080/docs for interactive Swagger/OpenAPI documentation.

@@ -1,0 +1,94 @@
+---
+title: Security Model
+description: Agent and human parity, type-level abilities, and immutable audit.
+---
+
+Heirloom's security model is built on the premise that **agents should not be trusted more or less than humans**. Both are actors that hold roles, receive capabilities, and invoke actions through the same chain.
+
+## The chain
+
+```
+Actor → Role → Capability → Action → Resource
+```
+
+- **Actor** — the caller: human, agent, or automation.
+- **Role** — static identity granted at ontology, type, or instance scope.
+- **Capability** — short-lived ticket derived from a role.
+- **Action** — the only write path.
+- **Resource** — the target business entity.
+
+## Type-level enforcement
+
+Safety is declared in the Resource Type, not configured at runtime:
+
+- A Resource Type declares its **Abilities**.
+- An Action declares its **required abilities**.
+- If the type does not grant the ability, the Action cannot be registered.
+- If the actor does not hold the capability, the Action is denied.
+
+This two-layer check means an unsafe operation is blocked both at definition time and at request time.
+
+## Agent example: allowed action
+
+A `SupplyChainAnalyst` agent sends a low-stock alert:
+
+```http
+POST /actions/notification.send
+X-Agent-Id: supply_chain_analyst_1
+X-Agent-Role: SupplyChainAnalyst
+
+{
+  "to": "warehouse_manager",
+  "template": "low_stock_alert",
+  "sku": "WIDGET-42"
+}
+```
+
+The agent's role includes `notification.send`, so the request succeeds and is logged.
+
+## Agent example: denied action
+
+The same agent tries to update safety stock:
+
+```http
+POST /actions/inventory.update_safety_stock
+X-Agent-Id: supply_chain_analyst_1
+X-Agent-Role: SupplyChainAnalyst
+
+{
+  "rid": "ri.inventory.789",
+  "safety_stock": 80
+}
+```
+
+The action requires `Inventory.mutate`, which the role does not grant. The request is denied and recorded:
+
+```json
+{
+  "event_type": "action_denied",
+  "reason": "insufficient_capability",
+  "required": "Inventory.mutate",
+  "caller": "supply_chain_analyst_1",
+  "caller_type": "agent"
+}
+```
+
+## Audit
+
+Every action — success or denial — is appended to the Event Log. The log is immutable and queryable.
+
+This enables:
+
+- **Compliance reporting** — prove who did what and when.
+- **Anomaly detection** — flag actors with high denial rates.
+- **Replay** — reconstruct an agent's decision chain for debugging.
+
+## No prompt-based safety
+
+Heirloom does not rely on instructions like "do not delete data" in a prompt. Safety comes from the ontology:
+
+- Types declare what is possible.
+- Actions declare what they require.
+- The runtime enforces both.
+
+An LLM can hallucinate a destructive request, but the system will reject it before any data changes.

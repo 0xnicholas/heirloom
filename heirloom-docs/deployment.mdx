@@ -1,0 +1,91 @@
+---
+title: Deployment
+description: Run the Heirloom server locally or in your own environment.
+---
+
+The Heirloom server is a Spring Boot application backed by PostgreSQL. This guide covers a local development deployment.
+
+## Prerequisites
+
+- Java 21
+- Maven 3.9+ (or use the included `./mvnw` wrapper)
+- PostgreSQL 15+
+- Node.js 20+ (for the Workshop UI)
+
+## Database setup
+
+Create a database and user:
+
+```sql
+CREATE DATABASE heirloom;
+CREATE USER heirloom WITH PASSWORD 'heirloom';
+GRANT ALL PRIVILEGES ON DATABASE heirloom TO heirloom;
+```
+
+The default connection settings in `application.yml` are:
+
+```yaml
+spring.datasource.url: jdbc:postgresql://localhost:5432/heirloom
+spring.datasource.username: heirloom
+spring.datasource.password: heirloom
+```
+
+## Run the server
+
+```bash
+cd heirloom-server
+./mvnw spring-boot:run
+```
+
+The server starts on port `8080`. Flyway runs automatically on startup to apply database migrations.
+
+## Verify
+
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+Interactive API docs are available at http://localhost:8080/docs.
+
+## Configuration
+
+Key settings in `heirloom-server/src/main/resources/application.yml`:
+
+| Property | Default | Purpose |
+|----------|---------|---------|
+| `server.port` | `8080` | HTTP port |
+| `spring.datasource.url` | `jdbc:postgresql://localhost:5432/heirloom` | Database URL |
+| `springdoc.swagger-ui.path` | `/docs` | Swagger UI path |
+
+Override with environment variables or a profile-specific `application-{profile}.yml`.
+
+## Workshop UI
+
+The web interface is in the `website/` directory. To run it locally:
+
+```bash
+cd website
+npm install
+npm run dev
+```
+
+It typically serves on port `5173` and connects to the server at `http://localhost:8080`.
+
+## SDK connection
+
+Once the server is running, connect with the Python SDK:
+
+```python
+from heirloom_sdk import HeirloomClient
+
+client = HeirloomClient("http://localhost:8080")
+print(client.discover())
+```
+
+## Production considerations
+
+- Use a managed PostgreSQL instance with backups.
+- Enable TLS on the server and SDK endpoints.
+- Configure an external identity provider for Auth resolution.
+- Run the Event Log on durable storage for compliance.
+- Scale Query Resolver and Perspective Engine independently if needed.

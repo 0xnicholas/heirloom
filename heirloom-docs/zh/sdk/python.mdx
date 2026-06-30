@@ -1,0 +1,139 @@
+---
+title: Python SDK
+description: heirloom-sdk Python 包参考。
+---
+
+`heirloom-sdk` Python 包是 AI 智能体和自动化脚本的主要接口。它封装了 Heirloom REST API，并注入透视过滤与审计归因所需的请求头。
+
+## 安装
+
+```bash
+pip install heirloom-sdk
+```
+
+需要 Python 3.11+。
+
+## 初始化
+
+```python
+from heirloom_sdk import HeirloomClient
+
+client = HeirloomClient(
+    base_url="http://localhost:8080",
+    agent_id="my_agent_1",
+    agent_role="DataAnalyst",
+)
+```
+
+每个请求都会发送以下请求头：
+
+- `X-Agent-Id` —— 标识调用者以写入审计日志。
+- `X-Agent-Role` —— 驱动 Perspective Engine。
+- `Content-Type: application/json`
+
+## 资源类型发现
+
+```python
+client.discover()           # 列出可用资源类型
+client.get_type("Vendor")   # 按名称获取类型
+```
+
+## 查询
+
+```python
+client.query({
+    "from": "Vendor",
+    "filter": {"status": "active"},
+    "select": ["rid", "name"],
+    "limit": 50,
+})
+```
+
+## 语义搜索
+
+```python
+# 混合全文 + 向量搜索
+client.search_semantic("可再生能源供应商", limit=10)
+```
+
+## 知识命名空间
+
+```python
+client.knowledge.list()
+client.knowledge.get("domain.article-name")
+client.knowledge.search("入驻政策", limit=5)
+client.knowledge.traverse("domain.root-article", max_depth=3)
+client.knowledge.quality(article_id=42)
+client.knowledge.promote(article_id=42, target_status="published")
+```
+
+## 知识源命名空间
+
+```python
+client.knowledge_sources.list()
+client.knowledge_sources.get(1)
+client.knowledge_sources.create({
+    "name": "ops-knowledge",
+    "rootPath": "/path/to/knowledge",
+    "globPattern": "**/*.md",
+})
+client.knowledge_sources.sync(source_id=1)
+client.knowledge_sources.export(source_id=1)
+client.knowledge_sources.import_articles(source_id=1, archive=gz_bytes)
+```
+
+## 函数命名空间
+
+```python
+client.functions.list()
+client.functions.get("risk_score")
+client.functions.invoke("risk_score", inputs={"customer_rid": "ri.customer.123"})
+client.functions.create({
+    "name": "lifetime_value",
+    "description": "计算客户 LTV",
+    "code": "#customer.arr * #customer.years_active",
+    "inputType": "OBJECT",
+    "outputType": "NUMBER",
+    "auditEnabled": True,
+})
+```
+
+## 提案命名空间
+
+```python
+client.proposals.list(status="pending")
+client.proposals.get(7)
+client.proposals.approve(7, comment="LGTM")
+client.proposals.reject(7, reason="需要更多上下文")
+```
+
+## 审计命名空间
+
+```python
+client.audit.activity("my_agent_1")
+client.audit.anomaly("my_agent_1")
+client.audit.replay("my_agent_1")
+client.audit.entity_history("ri.vendor.123")
+```
+
+## 角色模板
+
+```python
+HeirloomClient.list_role_templates()
+# ['data_analyst', 'data_steward', 'supply_chain_analyst', 'notification_only']
+
+HeirloomClient.role_template("data_analyst")
+```
+
+## 清理
+
+```python
+client.close()
+```
+
+或作为上下文管理器使用：
+
+```python
+with HeirloomClient(...) as client:
+    client.query(...)
+```

@@ -1,0 +1,94 @@
+---
+title: 安全模型
+description: 智能体与人类平权、类型级能力与不可变审计。
+---
+
+Heirloom 的安全模型建立在**智能体不应比人类更受信任或更不被信任**的前提上。两者都是持有角色、获得能力票据、通过同一条链调用操作的行为体。
+
+## 安全链
+
+```
+行为体 → 角色 → 能力票据 → 操作 → 资源
+```
+
+- **行为体** —— 调用者：人类、智能体或自动化。
+- **角色** —— 在本体、类型或实例范围授予的静态身份。
+- **能力票据** —— 从角色派生的短期票据。
+- **操作** —— 唯一的写入路径。
+- **资源** —— 目标业务实体。
+
+## 类型级强制
+
+安全在资源类型中声明，而非运行时配置：
+
+- 资源类型声明其**能力**。
+- 操作声明其**所需能力**。
+- 如果类型未授予该能力，操作无法注册。
+- 如果行为体未持有该能力票据，操作被拒绝。
+
+这两层检查意味着不安全操作在定义时和请求时都会被阻止。
+
+## 智能体示例：允许的操作
+
+`SupplyChainAnalyst` 智能体发送低库存告警：
+
+```http
+POST /actions/notification.send
+X-Agent-Id: supply_chain_analyst_1
+X-Agent-Role: SupplyChainAnalyst
+
+{
+  "to": "warehouse_manager",
+  "template": "low_stock_alert",
+  "sku": "WIDGET-42"
+}
+```
+
+该智能体的角色包含 `notification.send`，请求成功并记录日志。
+
+## 智能体示例：被拒绝的操作
+
+同一智能体试图更新安全库存：
+
+```http
+POST /actions/inventory.update_safety_stock
+X-Agent-Id: supply_chain_analyst_1
+X-Agent-Role: SupplyChainAnalyst
+
+{
+  "rid": "ri.inventory.789",
+  "safety_stock": 80
+}
+```
+
+该操作需要 `Inventory.mutate`，而角色未授予。请求被拒绝并记录：
+
+```json
+{
+  "event_type": "action_denied",
+  "reason": "insufficient_capability",
+  "required": "Inventory.mutate",
+  "caller": "supply_chain_analyst_1",
+  "caller_type": "agent"
+}
+```
+
+## 审计
+
+每次操作——成功或被拒——都追加到 Event Log。日志不可变且可查询。
+
+这使以下功能成为可能：
+
+- **合规报告** —— 证明谁在何时做了什么。
+- **异常检测** —— 标记拒绝率高的行为体。
+- **回放** —— 重建智能体的决策链以进行调试。
+
+## 不依赖提示词安全
+
+Heirloom 不依赖"不要删除数据"这类提示词指令。安全来自本体：
+
+- 类型声明什么可能。
+- 操作声明需要什么。
+- 运行时强制执行两者。
+
+LLM 可能幻觉出破坏性请求，但系统会在任何数据变更前拒绝它。

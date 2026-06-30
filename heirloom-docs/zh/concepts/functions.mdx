@@ -1,0 +1,48 @@
+---
+title: 函数
+description: 函数是在本体中定义的只读计算，在沙箱中执行。
+---
+
+**函数（Function）**是在本体中定义的只读计算。它接收一个或多个资源或资源集作为输入，读取其属性与关系，并返回计算结果。
+
+函数从不改变资源状态。
+
+## 操作 vs 函数
+
+| | 操作 | 函数 |
+|--|--------|----------|
+| 改变资源状态？ | 是 | 否 |
+| 所需能力 | 匹配所需能力 | 仅需 `query` |
+| 产生审计事件 | 总是 | 可选 |
+| 典型调用者 | 人类、智能体、自动化 | 操作、应用、智能体 |
+| 示例 | `approve_order`、`transfer_ownership` | `risk_score`、`lifetime_value` |
+
+## 使用场景
+
+- **操作内校验** —— 可在操作的校验步骤调用 `risk_score` 函数。
+- **智能体推理支持** —— 智能体调用 `lifetime_value` 决定是否升级客户。
+- **应用逻辑** —— 仪表盘调用 `is_compliant` 渲染状态徽章。
+
+## 沙箱
+
+函数在受限环境中运行：
+
+- 只读绑定上下文。
+- 执行超时。
+- 禁止任意方法调用或构造器访问。
+- 每次调用可选择性产生审计事件。
+
+## 定义函数
+
+```json
+{
+  "name": "risk_score",
+  "description": "计算客户风险评分",
+  "code": "#customer.credit_limit > 100000 ? 0.1 : 0.5",
+  "inputType": "OBJECT",
+  "outputType": "NUMBER",
+  "auditEnabled": true
+}
+```
+
+函数注册在 Schema Registry 中，可通过 SDK 或 API 按名称调用。

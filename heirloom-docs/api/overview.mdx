@@ -1,0 +1,94 @@
+---
+title: API Overview
+description: Heirloom exposes REST and GraphQL APIs for agents, applications, and operators.
+---
+
+Heirloom exposes a REST API on `/v1/*` and a GraphQL endpoint on `/graphql`. Both go through the same authentication, role, capability, and audit layers.
+
+## Base URL
+
+```
+http://localhost:8080
+```
+
+## Authentication headers
+
+| Header | Meaning |
+|--------|---------|
+| `X-Agent-Id` | Caller identity for audit |
+| `X-Agent-Role` | Role used by Perspective Engine and capability checks |
+| `X-User` | Optional human user identity behind the agent |
+
+## OpenAPI / Swagger
+
+When the server is running, interactive docs are available at:
+
+```
+http://localhost:8080/docs
+```
+
+The raw OpenAPI spec is at `/api-docs`.
+
+## Endpoint categories
+
+| Category | Base path | Purpose |
+|----------|-----------|---------|
+| **Resource Types** | `/v1/resourceTypes` | Schema Registry CRUD |
+| **Query** | `/v1/query` | Semantic JSON DSL queries |
+| **Search** | `/v1/search` | Hybrid semantic search |
+| **Discovery** | `/v1/discovery/sources`, `/v1/discovery/reports` | Data source discovery |
+| **Knowledge** | `/v1/knowledge` | Articles, search, graph, context |
+| **Knowledge Sources** | `/v1/knowledge/sources` | Source registration and sync |
+| **Proposals** | `/v1/proposals` | Governance workflow |
+| **Functions** | `/v1/functions` | Function registration and invocation |
+| **Audit** | `/v1/audit/actors/{actor}/...`, `/v1/audit/entities/{fqn}/...` | Event log projections |
+| **GraphQL** | `/graphql` | Schema-driven queries |
+
+## Example: query endpoint
+
+```bash
+curl -X POST http://localhost:8080/v1/query \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Id: analyst_1" \
+  -H "X-Agent-Role: DataAnalyst" \
+  -d '{
+    "from": "Customer",
+    "filter": {"tier": "enterprise"},
+    "select": ["rid", "name", "arr"],
+    "limit": 50
+  }'
+```
+
+## Example: function invocation
+
+```bash
+curl -X POST http://localhost:8080/v1/functions/name/risk_score/invoke \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Id: analyst_1" \
+  -H "X-Agent-Role: DataAnalyst" \
+  -d '{"inputs": {"customer_rid": "ri.customer.123"}}'
+```
+
+## GraphQL
+
+The GraphQL schema covers Resource Types, Knowledge Articles, search, and coverage. Use it when you want strongly typed queries and introspection.
+
+```graphql
+query {
+  resourceTypes {
+    name
+    domain
+  }
+}
+```
+
+## Response format
+
+Successful responses return JSON. Errors include:
+
+- `400` — validation or DSL syntax error.
+- `403` — capability or perspective denial.
+- `404` — resource not found, or caller lacks visibility.
+- `409` — state machine or concurrency conflict.
+
+Denied requests are still recorded in the Event Log.

@@ -1,0 +1,127 @@
+---
+title: Quickstart
+description: Install the Heirloom Python SDK and run your first semantic query.
+---
+
+## Prerequisites
+
+You need a running Heirloom server. By default it listens on `http://localhost:8080`.
+
+To start the server locally:
+
+```bash
+cd heirloom-server
+./mvnw spring-boot:run
+```
+
+The server requires PostgreSQL. See [Deployment](/deployment) for a full setup guide.
+
+## Install the SDK
+
+```bash
+pip install heirloom-sdk
+```
+
+The SDK requires Python 3.11 or higher.
+
+## Connect an agent
+
+```python
+from heirloom_sdk import HeirloomClient
+
+client = HeirloomClient(
+    base_url="http://localhost:8080",
+    agent_id="supply_chain_analyst_1",
+    agent_role="SupplyChainAnalyst",
+)
+```
+
+Every request carries `X-Agent-Id` and `X-Agent-Role` headers. The server uses them for attribution, perspective filtering, and audit logging.
+
+## Discover the ontology
+
+List the Resource Types the agent is allowed to see:
+
+```python
+types = client.discover()
+for t in types:
+    print(t["name"])
+```
+
+The result is already filtered by the Perspective Engine based on the agent's role.
+
+## Run a semantic query
+
+Heirloom uses a JSON DSL that is easier for LLMs to generate and safer than raw SQL.
+
+```python
+result = client.query({
+    "from": "Customer",
+    "filter": {"tier": "enterprise"},
+    "select": ["rid", "name", "arr"],
+    "limit": 50,
+})
+
+print(result)
+```
+
+The query resolves to the underlying data source through the Mapping Engine. The agent never sees connection strings or table names.
+
+## Traverse relationships
+
+Agents can follow typed relationships across resources:
+
+```python
+result = client.query({
+    "from": "Customer",
+    "alias": "c",
+    "traverse": [
+        {
+            "path": "c --[placed]--> Order as o",
+            "filter": {"o.status": "pending"},
+            "traverse": [
+                {"path": "o --[contains]--> Product as p"}
+            ]
+        }
+    ],
+    "select": ["c.name", "o.total", "p.name"],
+    "limit": 100,
+})
+```
+
+## Search the knowledge base
+
+Heirloom indexes organizational knowledge as first-class resources. Agents can search them with full-text or hybrid retrieval:
+
+```python
+# Full-text search across knowledge articles
+hits = client.knowledge.search("vendor onboarding process", limit=5)
+
+# Hybrid full-text + vector search across the semantic index
+hits = client.search_semantic("rapidly growing renewable energy companies", limit=10)
+```
+
+## Invoke a function
+
+Functions are read-only computations registered in the ontology:
+
+```python
+risk = client.functions.invoke(
+    "risk_score",
+    inputs={"customer_rid": "ri.customer.123"}
+)
+print(risk)
+```
+
+Functions run in a sandboxed environment and cannot change resource state.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Core concepts" icon="book-open" href="/concepts">
+    Learn about Resources, Abilities, Actions, and Functions.
+  </Card>
+  <Card title="Python SDK reference" icon="code" href="/sdk/python">
+    Explore namespaces for knowledge, proposals, functions, and audit.
+  </Card>
+</CardGroup>

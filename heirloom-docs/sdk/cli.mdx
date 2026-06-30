@@ -1,0 +1,92 @@
+---
+title: CLI
+description: The heirloom command-line interface for operators and agents.
+---
+
+The `heirloom` CLI is built on top of the Python SDK. It exposes the same namespaces as terminal subcommands and is useful for scripting, CI, and operator workflows.
+
+## Install
+
+The CLI is included in the `heirloom-sdk` package:
+
+```bash
+pip install heirloom-sdk
+heirloom --help
+```
+
+## Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `HEIRLOOM_BASE_URL` | `http://localhost:8080` | Server base URL |
+| `HEIRLOOM_AGENT_ID` | `cli` | `X-Agent-Id` header |
+| `HEIRLOOM_AGENT_ROLE` | `admin` | `X-Agent-Role` header |
+
+Flags override environment variables.
+
+## Global flags
+
+```bash
+heirloom --base-url http://localhost:8080 \
+         --agent-id ops-bot \
+         --agent-role DataSteward \
+         --format text \
+         type list
+```
+
+Output is JSON by default. Use `--format text` for a human-readable summary.
+
+## Resource type commands
+
+```bash
+heirloom type list
+heirloom type get Customer
+heirloom type create --name Vendor --domain supply_chain
+```
+
+## Knowledge article commands
+
+```bash
+heirloom article list
+heirloom article get domain.article-name
+heirloom article search "vendor onboarding" --limit 5
+```
+
+## Knowledge aggregate commands
+
+```bash
+heirloom knowledge coverage
+heirloom knowledge stale-scan --dry-run
+heirloom knowledge stale-scan --commit
+```
+
+## Proposal commands
+
+```bash
+heirloom proposal list --status pending
+heirloom proposal approve 7 --comment "LGTM"
+heirloom proposal reject 7 --reason "needs review"
+```
+
+## Audit commands
+
+```bash
+heirloom audit activity my_agent_1
+heirloom audit replay my_agent_1
+```
+
+## Function commands
+
+```bash
+heirloom function list
+heirloom function invoke risk_score --input customer_rid=ri.customer.123
+```
+
+## Piping JSON output
+
+Because the default output is JSON, the CLI is easy to combine with `jq`:
+
+```bash
+heirloom type list | jq '.[].name'
+heirloom audit activity my_agent_1 | jq '.deniedRate'
+```

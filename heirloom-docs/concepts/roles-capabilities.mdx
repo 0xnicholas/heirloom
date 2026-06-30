@@ -1,0 +1,86 @@
+---
+title: Roles & Capabilities
+description: The Actor → Role → Capability → Action chain that governs every request.
+---
+
+Heirloom uses a single access-control chain for humans, agents, and automation:
+
+```
+Actor → Role → Capability → Action/Function
+```
+
+Agent security is not a separate system. Agents and humans are governed by the same rules, but they typically hold different Roles.
+
+## Actor
+
+An **Actor** is the caller. It can be:
+
+- A human user in the Workshop UI.
+- An AI agent using the SDK.
+- An automation workflow triggered by an event.
+
+## Role
+
+A **Role** answers "who are you?" It is a static identity granted at one of three scopes:
+
+1. **Ontology-global** — e.g., `SecurityAuditor`
+2. **Resource Type** — e.g., `Customer.Manager`
+3. **Resource Instance** — e.g., owner of `Customer#123`
+
+Roles are assigned to actors. One actor can hold multiple roles.
+
+## Capability
+
+A **Capability** is a short-lived, revocable ticket derived from a Role. It specifies:
+
+- Which Resource Type or instance can be accessed.
+- Which abilities are allowed.
+- When the capability expires.
+
+Capabilities bridge static roles to runtime requests. A role change can invalidate cached capabilities immediately.
+
+## Action
+
+An **Action** is the final step. It is the only write path. The Action checks the caller's capability against its own required ability before executing.
+
+## Example: agent role template
+
+The Python SDK ships with built-in role templates for common agent personas:
+
+```python
+from heirloom_sdk import HeirloomClient
+
+HeirloomClient.role_template("supply_chain_analyst")
+```
+
+This returns:
+
+```json
+{
+  "name": "SupplyChainAnalyst",
+  "capabilities": [
+    "query.read",
+    "knowledge.search",
+    "knowledge.read",
+    "query.aggregate"
+  ],
+  "restrictions": {
+    "mutate": false,
+    "admin": false,
+    "domain": "supply_chain"
+  }
+}
+```
+
+A `SupplyChainAnalyst` agent can query and search, but it cannot mutate resources or perform admin operations.
+
+## Denials are events too
+
+When a request is denied, the Event Log records:
+
+- The actor and role.
+- The requested action.
+- The missing capability or failed gate.
+- The timestamp.
+
+Denied operations are first-class observability data. They power anomaly detection and compliance reporting.

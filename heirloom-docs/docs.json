@@ -1,0 +1,150 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Heirloom",
+  "description": "AI-native semantic ontology system for governed agent operations",
+  "logo": {
+    "dark": "/logo/wordmark-dark.svg",
+    "light": "/logo/wordmark-light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0369a1",
+    "light": "#0ea5e9",
+    "dark": "#0284c7"
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "tabs": [
+          {
+            "tab": "Docs",
+            "groups": [
+              {
+                "group": "Getting Started",
+                "pages": [
+                  "introduction",
+                  "why-heirloom",
+                  "quickstart"
+                ]
+              },
+              {
+                "group": "Concepts",
+                "pages": [
+                  "concepts/index",
+                  "concepts/resource",
+                  "concepts/abilities",
+                  "concepts/relationships",
+                  "concepts/actions",
+                  "concepts/functions",
+                  "concepts/roles-capabilities"
+                ]
+              },
+              {
+                "group": "Architecture",
+                "pages": [
+                  "architecture",
+                  "security-model",
+                  "agent-workflow"
+                ]
+              },
+              {
+                "group": "SDK & API",
+                "pages": [
+                  "sdk/python",
+                  "sdk/cli",
+                  "api/overview"
+                ]
+              },
+              {
+                "group": "Operate",
+                "pages": [
+                  "deployment",
+                  "roadmap",
+                  "faq"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "language": "zh",
+        "tabs": [
+          {
+            "tab": "文档",
+            "groups": [
+              {
+                "group": "入门",
+                "pages": [
+                  "zh/introduction",
+                  "zh/why-heirloom",
+                  "zh/quickstart"
+                ]
+              },
+              {
+                "group": "概念",
+                "pages": [
+                  "zh/concepts/index",
+                  "zh/concepts/resource",
+                  "zh/concepts/abilities",
+                  "zh/concepts/relationships",
+                  "zh/concepts/actions",
+                  "zh/concepts/functions",
+                  "zh/concepts/roles-capabilities"
+                ]
+              },
+              {
+                "group": "架构",
+                "pages": [
+                  "zh/architecture",
+                  "zh/security-model",
+                  "zh/agent-workflow"
+                ]
+              },
+              {
+                "group": "SDK 与 API",
+                "pages": [
+                  "zh/sdk/python",
+                  "zh/sdk/cli",
+                  "zh/api/overview"
+                ]
+              },
+              {
+                "group": "运维",
+                "pages": [
+                  "zh/deployment",
+                  "zh/roadmap",
+                  "zh/faq"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/heirloom",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/heirloom"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/heirloom"
+    }
+  }
+}

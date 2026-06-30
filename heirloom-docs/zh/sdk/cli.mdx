@@ -1,0 +1,92 @@
+---
+title: CLI
+description: 面向操作员和智能体的 heirloom 命令行界面。
+---
+
+`heirloom` CLI 构建在 Python SDK 之上。它将相同的命名空间暴露为终端子命令，适用于脚本、CI 和操作员工作流。
+
+## 安装
+
+CLI 包含在 `heirloom-sdk` 包中：
+
+```bash
+pip install heirloom-sdk
+heirloom --help
+```
+
+## 环境变量
+
+| 变量 | 默认值 | 用途 |
+|----------|---------|---------|
+| `HEIRLOOM_BASE_URL` | `http://localhost:8080` | 服务器基础 URL |
+| `HEIRLOOM_AGENT_ID` | `cli` | `X-Agent-Id` 请求头 |
+| `HEIRLOOM_AGENT_ROLE` | `admin` | `X-Agent-Role` 请求头 |
+
+命令行标志覆盖环境变量。
+
+## 全局标志
+
+```bash
+heirloom --base-url http://localhost:8080 \
+         --agent-id ops-bot \
+         --agent-role DataSteward \
+         --format text \
+         type list
+```
+
+默认输出为 JSON。使用 `--format text` 获取人类可读摘要。
+
+## 资源类型命令
+
+```bash
+heirloom type list
+heirloom type get Customer
+heirloom type create --name Vendor --domain supply_chain
+```
+
+## 知识文章命令
+
+```bash
+heirloom article list
+heirloom article get domain.article-name
+heirloom article search "供应商入驻" --limit 5
+```
+
+## 知识聚合命令
+
+```bash
+heirloom knowledge coverage
+heirloom knowledge stale-scan --dry-run
+heirloom knowledge stale-scan --commit
+```
+
+## 提案命令
+
+```bash
+heirloom proposal list --status pending
+heirloom proposal approve 7 --comment "LGTM"
+heirloom proposal reject 7 --reason "需要复核"
+```
+
+## 审计命令
+
+```bash
+heirloom audit activity my_agent_1
+heirloom audit replay my_agent_1
+```
+
+## 函数命令
+
+```bash
+heirloom function list
+heirloom function invoke risk_score --input customer_rid=ri.customer.123
+```
+
+## 管道 JSON 输出
+
+由于默认输出为 JSON，CLI 易于与 `jq` 组合：
+
+```bash
+heirloom type list | jq '.[].name'
+heirloom audit activity my_agent_1 | jq '.deniedRate'
+```

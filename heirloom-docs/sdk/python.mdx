@@ -1,0 +1,139 @@
+---
+title: Python SDK
+description: Reference for the heirloom-sdk Python package.
+---
+
+The `heirloom-sdk` Python package is the primary interface for AI agents and automation scripts. It wraps the Heirloom REST API and injects the headers required for perspective filtering and audit attribution.
+
+## Install
+
+```bash
+pip install heirloom-sdk
+```
+
+Requires Python 3.11+.
+
+## Initialize
+
+```python
+from heirloom_sdk import HeirloomClient
+
+client = HeirloomClient(
+    base_url="http://localhost:8080",
+    agent_id="my_agent_1",
+    agent_role="DataAnalyst",
+)
+```
+
+Headers sent with every request:
+
+- `X-Agent-Id` — identifies the caller for the audit log.
+- `X-Agent-Role` — drives the Perspective Engine.
+- `Content-Type: application/json`
+
+## Resource type discovery
+
+```python
+client.discover()        # list available Resource Types
+client.get_type("Vendor")  # get one type by name
+```
+
+## Query
+
+```python
+client.query({
+    "from": "Vendor",
+    "filter": {"status": "active"},
+    "select": ["rid", "name"],
+    "limit": 50,
+})
+```
+
+## Semantic search
+
+```python
+# Hybrid full-text + vector search
+client.search_semantic("renewable energy vendors", limit=10)
+```
+
+## Knowledge namespace
+
+```python
+client.knowledge.list()
+client.knowledge.get("domain.article-name")
+client.knowledge.search("onboarding policy", limit=5)
+client.knowledge.traverse("domain.root-article", max_depth=3)
+client.knowledge.quality(article_id=42)
+client.knowledge.promote(article_id=42, target_status="published")
+```
+
+## Knowledge source namespace
+
+```python
+client.knowledge_sources.list()
+client.knowledge_sources.get(1)
+client.knowledge_sources.create({
+    "name": "ops-knowledge",
+    "rootPath": "/path/to/knowledge",
+    "globPattern": "**/*.md",
+})
+client.knowledge_sources.sync(source_id=1)
+client.knowledge_sources.export(source_id=1)
+client.knowledge_sources.import_articles(source_id=1, archive=gz_bytes)
+```
+
+## Function namespace
+
+```python
+client.functions.list()
+client.functions.get("risk_score")
+client.functions.invoke("risk_score", inputs={"customer_rid": "ri.customer.123"})
+client.functions.create({
+    "name": "lifetime_value",
+    "description": "Compute customer LTV",
+    "code": "#customer.arr * #customer.years_active",
+    "inputType": "OBJECT",
+    "outputType": "NUMBER",
+    "auditEnabled": True,
+})
+```
+
+## Proposal namespace
+
+```python
+client.proposals.list(status="pending")
+client.proposals.get(7)
+client.proposals.approve(7, comment="LGTM")
+client.proposals.reject(7, reason="needs more context")
+```
+
+## Audit namespace
+
+```python
+client.audit.activity("my_agent_1")
+client.audit.anomaly("my_agent_1")
+client.audit.replay("my_agent_1")
+client.audit.entity_history("ri.vendor.123")
+```
+
+## Role templates
+
+```python
+HeirloomClient.list_role_templates()
+# ['data_analyst', 'data_steward', 'supply_chain_analyst', 'notification_only']
+
+HeirloomClient.role_template("data_analyst")
+```
+
+## Cleanup
+
+```python
+client.close()
+```
+
+Or use the client as a context manager:
+
+```python
+with HeirloomClient(...) as client:
+    client.query(...)
+```

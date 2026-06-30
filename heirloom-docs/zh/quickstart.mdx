@@ -1,0 +1,127 @@
+---
+title: 快速开始
+description: 安装 Heirloom Python SDK 并运行第一次语义查询。
+---
+
+## 前提条件
+
+你需要一个运行中的 Heirloom 服务器。默认监听 `http://localhost:8080`。
+
+本地启动服务器：
+
+```bash
+cd heirloom-server
+./mvnw spring-boot:run
+```
+
+服务器需要 PostgreSQL。完整设置指南请参见[部署](/zh/deployment)。
+
+## 安装 SDK
+
+```bash
+pip install heirloom-sdk
+```
+
+SDK 需要 Python 3.11 或更高版本。
+
+## 连接智能体
+
+```python
+from heirloom_sdk import HeirloomClient
+
+client = HeirloomClient(
+    base_url="http://localhost:8080",
+    agent_id="supply_chain_analyst_1",
+    agent_role="SupplyChainAnalyst",
+)
+```
+
+每个请求都会携带 `X-Agent-Id` 和 `X-Agent-Role` 请求头。服务器用它们进行归因、透视过滤和审计记录。
+
+## 发现本体
+
+列出智能体被允许看到的资源类型：
+
+```python
+types = client.discover()
+for t in types:
+    print(t["name"])
+```
+
+结果已经过 Perspective Engine 基于智能体角色的过滤。
+
+## 运行语义查询
+
+Heirloom 使用 JSON DSL，比原始 SQL 更易于被 LLM 生成且更安全。
+
+```python
+result = client.query({
+    "from": "Customer",
+    "filter": {"tier": "enterprise"},
+    "select": ["rid", "name", "arr"],
+    "limit": 50,
+})
+
+print(result)
+```
+
+查询通过 Mapping Engine 解析到底层数据源。智能体永远看不到连接串或表名。
+
+## 遍历关系
+
+智能体可以跨资源跟踪类型化关系：
+
+```python
+result = client.query({
+    "from": "Customer",
+    "alias": "c",
+    "traverse": [
+        {
+            "path": "c --[placed]--> Order as o",
+            "filter": {"o.status": "pending"},
+            "traverse": [
+                {"path": "o --[contains]--> Product as p"}
+            ]
+        }
+    ],
+    "select": ["c.name", "o.total", "p.name"],
+    "limit": 100,
+})
+```
+
+## 搜索知识库
+
+Heirloom 将组织知识索引为一等资源。智能体可以用全文或混合检索搜索它们：
+
+```python
+# 知识文章全文搜索
+hits = client.knowledge.search("供应商入驻流程", limit=5)
+
+# 语义索引的混合全文 + 向量搜索
+hits = client.search_semantic("快速增长的新能源企业", limit=10)
+```
+
+## 调用函数
+
+函数是在本体中注册的只读计算：
+
+```python
+risk = client.functions.invoke(
+    "risk_score",
+    inputs={"customer_rid": "ri.customer.123"}
+)
+print(risk)
+```
+
+函数在沙箱环境中运行，不能改变资源状态。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="核心概念" icon="book-open" href="/zh/concepts">
+    了解资源、能力、操作与函数。
+  </Card>
+  <Card title="Python SDK 参考" icon="code" href="/zh/sdk/python">
+    探索知识、提案、函数与审计命名空间。
+  </Card>
+</CardGroup>

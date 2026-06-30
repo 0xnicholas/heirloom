@@ -1,0 +1,86 @@
+---
+title: 角色与能力票据
+description: 治理每个请求的 行为体 → 角色 → 能力票据 → 操作 链。
+---
+
+Heirloom 对人类、智能体和自动化使用单一的访问控制链：
+
+```
+行为体 → 角色 → 能力票据 → 操作/函数
+```
+
+智能体安全不是独立系统。智能体与人类受相同规则治理，但通常持有不同角色。
+
+## 行为体
+
+**行为体（Actor）**是调用者。它可以是：
+
+- Workshop UI 中的人类用户。
+- 使用 SDK 的 AI 智能体。
+- 由事件触发的自动化工作流。
+
+## 角色
+
+**角色（Role）**回答"你是谁？"它是一种静态身份，在以下三个范围之一授予：
+
+1. **本体全局** —— 如 `SecurityAuditor`
+2. **资源类型** —— 如 `Customer.Manager`
+3. **资源实例** —— 如 `Customer#123` 的所有者
+
+角色被分配给行为体。一个行为体可持有多个角色。
+
+## 能力票据
+
+**能力票据（Capability）**是从角色派生的短期、可撤销票据。它指定：
+
+- 可访问哪种资源类型或实例。
+- 允许哪些能力。
+- 票据何时过期。
+
+能力票据桥接静态角色与运行时请求。角色变更可立即使缓存的能力票据失效。
+
+## 操作
+
+**操作（Action）**是最后一步。它是唯一的写入路径。操作在执行前检查调用者的能力是否覆盖自身所需能力。
+
+## 示例：智能体角色模板
+
+Python SDK 内置了常见智能体角色的模板：
+
+```python
+from heirloom_sdk import HeirloomClient
+
+HeirloomClient.role_template("supply_chain_analyst")
+```
+
+返回：
+
+```json
+{
+  "name": "SupplyChainAnalyst",
+  "capabilities": [
+    "query.read",
+    "knowledge.search",
+    "knowledge.read",
+    "query.aggregate"
+  ],
+  "restrictions": {
+    "mutate": false,
+    "admin": false,
+    "domain": "supply_chain"
+  }
+}
+```
+
+`SupplyChainAnalyst` 智能体可以查询和搜索，但不能修改资源或执行管理操作。
+
+## 拒绝也是事件
+
+当请求被拒绝时，Event Log 会记录：
+
+- 行为体与角色。
+- 请求的操作。
+- 缺失的能力或失败的门禁。
+- 时间戳。
+
+被拒绝的操作是一等可观测数据。它们驱动异常检测与合规报告。

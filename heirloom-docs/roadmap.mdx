@@ -1,0 +1,46 @@
+---
+title: Roadmap
+description: Heirloom's phased maturity model and current status.
+---
+
+Heirloom's roadmap follows a four-stage maturity model, from a read-only query layer to trusted autonomous operations.
+
+## Maturity model
+
+| Stage | Focus | Outcome |
+|-------|-------|---------|
+| **1. Semantic Query Layer** | Unified read-only queries across sources | Agents query business data through a stable semantic interface |
+| **2. Secure Operations** | Action layer with abilities, roles, capabilities | Agents perform governed writes with full audit |
+| **3. AI Agent Integration** | Agent SDK, functions, semantic search, monitoring | Agents become first-class consumers |
+| **4. Governance & Scale** | Branching, conditional abilities, multi-backend | Enterprise-scale ontology governance |
+
+## Current status
+
+As of the latest roadmap update:
+
+- **Phase 0: Core Infrastructure** — complete. Schema Registry, REST/GraphQL APIs, and the Knowledge Base pipeline are operational.
+- **Phase 1: Semantic Query Layer** — largely complete. JSON DSL, Mapping Engine, Query Resolver, and Perspective Engine are in place.
+- **Phase 2: Secure Operations** — largely complete. Abilities, Action pipeline, Role/Capability model, state machines, and governance proposals are implemented.
+- **Phase 3: AI Agent Integration** — largely complete. Python SDK, Function sandbox, semantic search, and audit dashboards are available.
+- **Phase 4: Governance & Scale** — partially complete. Ontology branching, knowledge versioning, and cross-ontology mapping are done. Conditional abilities and dedicated graph/event stores are pending.
+- **Phase 5: Trusted Autonomy** — exploratory. Advanced agent collaboration, formal methods, and ecosystem marketplace are future work.
+
+## What's ready to use today
+
+- Define Resource Types with fields, abilities, and state machines.
+- Run semantic JSON DSL queries across mapped data sources.
+- Register knowledge sources, sync Markdown articles, and search them.
+- Define Actions with the nine-step validation pipeline.
+- Assign roles and capabilities to human users and agents.
+- Invoke sandboxed Functions from agents or Actions.
+- Audit actor activity, detect anomalies, and replay decision chains.
+
+## What's coming next
+
+- CDC-based incremental synchronization.
+- Dedicated Graph Store backend (e.g., Neo4j).
+- Conditional abilities tied to state, time, or context.
+- Agent role templates with minimal capability sets.
+- Formal verification of agent reachability boundaries.
+
+See the full internal roadmap at `docs/ROADMAP.md` for detailed subtasks and completion status.

@@ -1,0 +1,94 @@
+---
+title: API 概览
+description: Heirloom 为智能体、应用和操作员提供 REST 与 GraphQL API。
+---
+
+Heirloom 在 `/v1/*` 暴露 REST API，在 `/graphql` 暴露 GraphQL 端点。两者都经过相同的认证、角色、能力和审计层。
+
+## 基础 URL
+
+```
+http://localhost:8080
+```
+
+## 认证请求头
+
+| 请求头 | 含义 |
+|--------|---------|
+| `X-Agent-Id` | 审计用的调用者身份 |
+| `X-Agent-Role` | Perspective Engine 与能力检查使用的角色 |
+| `X-User` | 智能体背后可选的人类用户身份 |
+
+## OpenAPI / Swagger
+
+服务器运行时，交互式文档位于：
+
+```
+http://localhost:8080/docs
+```
+
+原始 OpenAPI 规范在 `/api-docs`。
+
+## 端点分类
+
+| 分类 | 基础路径 | 用途 |
+|----------|-----------|---------|
+| **资源类型** | `/v1/resourceTypes` | Schema Registry CRUD |
+| **查询** | `/v1/query` | 语义 JSON DSL 查询 |
+| **搜索** | `/v1/search` | 混合语义搜索 |
+| **发现** | `/v1/discovery/sources`、`/v1/discovery/reports` | 数据源发现 |
+| **知识** | `/v1/knowledge` | 文章、搜索、图、上下文 |
+| **知识源** | `/v1/knowledge/sources` | 源注册与同步 |
+| **提案** | `/v1/proposals` | 治理工作流 |
+| **函数** | `/v1/functions` | 函数注册与调用 |
+| **审计** | `/v1/audit/actors/{actor}/...`、`/v1/audit/entities/{fqn}/...` | 事件日志投影 |
+| **GraphQL** | `/graphql` | 模式驱动查询 |
+
+## 示例：查询端点
+
+```bash
+curl -X POST http://localhost:8080/v1/query \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Id: analyst_1" \
+  -H "X-Agent-Role: DataAnalyst" \
+  -d '{
+    "from": "Customer",
+    "filter": {"tier": "enterprise"},
+    "select": ["rid", "name", "arr"],
+    "limit": 50
+  }'
+```
+
+## 示例：函数调用
+
+```bash
+curl -X POST http://localhost:8080/v1/functions/name/risk_score/invoke \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Id: analyst_1" \
+  -H "X-Agent-Role: DataAnalyst" \
+  -d '{"inputs": {"customer_rid": "ri.customer.123"}}'
+```
+
+## GraphQL
+
+GraphQL 模式覆盖资源类型、知识文章、搜索与覆盖度。当你需要强类型查询与内省时使用它。
+
+```graphql
+query {
+  resourceTypes {
+    name
+    domain
+  }
+}
+```
+
+## 响应格式
+
+成功响应返回 JSON。错误码包括：
+
+- `400` —— 验证或 DSL 语法错误。
+- `403` —— 能力或透视拒绝。
+- `404` —— 资源不存在，或调用者无可见性。
+- `409` —— 状态机或并发冲突。
+
+被拒绝的请求仍然记录在 Event Log 中。

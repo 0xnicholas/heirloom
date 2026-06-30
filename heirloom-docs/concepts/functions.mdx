@@ -1,0 +1,48 @@
+---
+title: Functions
+description: Functions are read-only computations defined in the ontology and executed in a sandbox.
+---
+
+A **Function** is a read-only computation defined in the ontology. It receives one or more Resources or Resource sets as input, reads their properties and relationships, and returns a computed result.
+
+Functions never change Resource state.
+
+## Action vs Function
+
+| | Action | Function |
+|--|--------|----------|
+| Changes Resource state? | Yes | No |
+| Required capability | Matches required ability | `query` only |
+| Produces audit event | Always | Optional |
+| Typical callers | Human, agent, automation | Action, application, agent |
+| Examples | `approve_order`, `transfer_ownership` | `risk_score`, `lifetime_value` |
+
+## Use cases
+
+- **Validation inside Actions** — a `risk_score` Function can be called during the Validate step of an Action.
+- **Agent reasoning support** — an agent calls `lifetime_value` to decide whether to escalate a customer.
+- **Application logic** — a dashboard calls `is_compliant` to render a status badge.
+
+## Sandbox
+
+Functions run in a constrained environment:
+
+- Read-only binding context.
+- Execution timeout.
+- No arbitrary method invocation or constructor access.
+- Optional audit event per invocation.
+
+## Defining a function
+
+```json
+{
+  "name": "risk_score",
+  "description": "Compute a risk score for a customer",
+  "code": "#customer.credit_limit > 100000 ? 0.1 : 0.5",
+  "inputType": "OBJECT",
+  "outputType": "NUMBER",
+  "auditEnabled": true
+}
+```
+
+Functions are registered in the Schema Registry and can be invoked by name through the SDK or API.

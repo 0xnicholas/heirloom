@@ -1,0 +1,50 @@
+---
+title: Relationships
+description: Heirloom replaces generic graph edges with three precise relationship semantics.
+---
+
+Heirloom replaces the generic "edge" of a traditional graph database with three precise relationship types. Each type has well-defined lifecycle, deletion, permission, and ownership semantics.
+
+This lets agents understand the consequences of a write operation before they perform it.
+
+## Relationship types
+
+| Type | Lifecycle dependency | On delete | Permission propagation | Ownership transfer |
+|------|----------------------|-----------|------------------------|--------------------|
+| **Ownership** | Dependent | Owner deleted → dependent cascaded | Owner's capability propagates downward | Yes |
+| **Reference** | Independent | Referenced deleted → reference breaks | None | No |
+| **Association** | Independent | Either side deleted → other side unchanged | None | No |
+
+## Ownership
+
+An Ownership relationship means one resource controls the lifecycle of another.
+
+- Deleting the owner cascades to the owned resource.
+- Capabilities granted on the owner can propagate downward.
+- Ownership can be explicitly transferred through a governed Action.
+
+Example: A `Customer` owns `Address` resources. Deleting the customer also deletes its addresses.
+
+## Reference
+
+A Reference relationship is a pointer. The referenced resource has its own independent lifecycle.
+
+- Deleting the referenced resource breaks the reference.
+- The break is detectable and can trigger alerts.
+- The referencing resource continues to exist.
+
+Example: An `Order` references a `Product`. The product can be discontinued without deleting the order, but the order now points to a stale reference.
+
+## Association
+
+An Association relationship links two independent resources.
+
+- Either side can be deleted without affecting the other.
+- No permission propagation.
+- No ownership transfer.
+
+Example: A `Vendor` and a `CertificationBody` are associated through a partnership. Removing one does not remove the other.
+
+## Agent benefit
+
+When an agent plans a deletion, it can use relationship semantics to predict cascade consequences. It does not need to infer business rules from training data or query documentation.

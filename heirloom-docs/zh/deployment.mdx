@@ -1,0 +1,91 @@
+---
+title: 部署
+description: 在本地或自己的环境中运行 Heirloom 服务器。
+---
+
+Heirloom 服务器是一个基于 Spring Boot 的应用，后端为 PostgreSQL。本指南覆盖本地开发部署。
+
+## 前提条件
+
+- Java 21
+- Maven 3.9+（或使用内置的 `./mvnw` 包装器）
+- PostgreSQL 15+
+- Node.js 20+（用于 Workshop UI）
+
+## 数据库设置
+
+创建数据库和用户：
+
+```sql
+CREATE DATABASE heirloom;
+CREATE USER heirloom WITH PASSWORD 'heirloom';
+GRANT ALL PRIVILEGES ON DATABASE heirloom TO heirloom;
+```
+
+`application.yml` 中的默认连接设置：
+
+```yaml
+spring.datasource.url: jdbc:postgresql://localhost:5432/heirloom
+spring.datasource.username: heirloom
+spring.datasource.password: heirloom
+```
+
+## 运行服务器
+
+```bash
+cd heirloom-server
+./mvnw spring-boot:run
+```
+
+服务器在端口 `8080` 启动。Flyway 在启动时自动运行数据库迁移。
+
+## 验证
+
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+交互式 API 文档位于 http://localhost:8080/docs。
+
+## 配置
+
+`heirloom-server/src/main/resources/application.yml` 中的关键设置：
+
+| 属性 | 默认值 | 用途 |
+|----------|---------|---------|
+| `server.port` | `8080` | HTTP 端口 |
+| `spring.datasource.url` | `jdbc:postgresql://localhost:5432/heirloom` | 数据库 URL |
+| `springdoc.swagger-ui.path` | `/docs` | Swagger UI 路径 |
+
+可通过环境变量或特定 profile 的 `application-{profile}.yml` 覆盖。
+
+## Workshop UI
+
+Web 界面位于 `website/` 目录。本地运行：
+
+```bash
+cd website
+npm install
+npm run dev
+```
+
+它通常运行在 `5173` 端口，并连接 `http://localhost:8080` 的服务器。
+
+## SDK 连接
+
+服务器运行后，使用 Python SDK 连接：
+
+```python
+from heirloom_sdk import HeirloomClient
+
+client = HeirloomClient("http://localhost:8080")
+print(client.discover())
+```
+
+## 生产注意事项
+
+- 使用带备份的托管 PostgreSQL 实例。
+- 在服务器与 SDK 端点启用 TLS。
+- 为认证解析配置外部身份提供商。
+- 在耐用存储上运行 Event Log 以满足合规要求。
+- 按需独立扩展 Query Resolver 与 Perspective Engine。

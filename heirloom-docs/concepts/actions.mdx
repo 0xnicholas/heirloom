@@ -1,0 +1,52 @@
+---
+title: Actions
+description: Actions are the only structured write path in Heirloom. Every action passes through a nine-step validation pipeline.
+---
+
+An **Action** is the only way to change a Resource's state. It is a structured write operation with a target Resource, required abilities, state gates, validation rules, and side effects.
+
+Actions are defined in the ontology and enforced by the runtime. A request that does not satisfy every gate is rejected and logged.
+
+## The nine-step pipeline
+
+| Step | Name | Responsibility |
+|------|------|----------------|
+| 1 | **Auth** | Resolve caller identity: human, agent, or automation |
+| 2 | **Role** | Look up roles for the caller at the relevant scope |
+| 3 | **Capability** | Derive the caller's current capabilities |
+| 4 | **Gate** | Check that the capability covers the required ability |
+| 5 | **State** | Verify the target's current state allows the action |
+| 6 | **Validate** | Run business-rule validation |
+| 7 | **Execute** | Write to the Resource Store and update indexes |
+| 8 | **Event** | Append an immutable event, success or denial |
+| 9 | **Notify** | Publish change events to downstream subscribers |
+
+## Action definition rules
+
+When an Action is registered, it must satisfy three rules:
+
+1. **Ability gate** — the required ability must be declared on the target Resource Type.
+2. **State gate** — the gated state must exist in the target's state machine.
+3. **Type consistency** — target and parameter types must match the Schema Registry.
+
+If any rule is violated, the Action definition is rejected. Unsafe actions cannot be registered, so they can never be invoked.
+
+## Notification actions
+
+A **Notification Action** is a special Action subtype with no Resource target. It is used for external side effects like sending a message or calling a webhook. It skips State and Validate but still flows through Auth, Role, Capability, Event, and Notify.
+
+## Example: approve order
+
+```json
+{
+  "name": "approve_order",
+  "targetType": "Order",
+  "requires": ["mutate"],
+  "gate": {"state": "pending"},
+  "validate": [
+    {"function": "risk_score", "inputs": {"order_rid": "#target.rid"}}
+  ]
+}
+```
+
+An agent invoking `approve_order` must hold a capability that includes `Order.mutate`, and the target order must be in the `pending` state.

@@ -1,0 +1,54 @@
+---
+title: Abilities
+description: Abilities are type-level capability contracts declared when a Resource Type is defined.
+---
+
+**Abilities** answer the most important security question an agent can ask: "What am I allowed to do to this entity?"
+
+They are declared inside the Resource Type definition, not in a separate permissions table. This makes safety a property of the type system rather than a runtime configuration.
+
+## Ability catalog
+
+| Ability | Meaning | Typical agent constraint |
+|---------|---------|--------------------------|
+| `key` | Has a global RID and can be addressed independently | Available by default |
+| `store` | Can be nested inside another Resource | As needed |
+| `query` | Can be searched and listed | Most agents hold this |
+| `mutate` | Fields can be modified | Usually not granted to general agents |
+| `transfer` | Ownership can be transferred | High-risk operation |
+| `copy` | Can be cloned | As needed |
+| `drop` | Can be destroyed (logical delete) | Almost never granted to agents |
+| `freeze` | Can be frozen into an immutable state | As needed |
+
+## Key principle
+
+If a Resource Type does not declare an ability, then **no role can perform that operation** — not even an admin role. There is no backdoor.
+
+For example, if `Customer` does not declare `drop`, it is impossible to create an Action that deletes a Customer. The operation is inexpressible in the ontology.
+
+## Why this matters for agents
+
+Current agent safety often depends on:
+
+- Prompt instructions that can be bypassed.
+- API keys with coarse-grained scopes.
+- Tool developers remembering to add permission checks.
+
+Abilities move the guarantee from human diligence to type-system enforcement. An agent cannot accidentally delete data if the type system never allowed deletion in the first place.
+
+## Declaring abilities
+
+Abilities are part of the Resource Type definition:
+
+```json
+{
+  "name": "Customer",
+  "abilities": ["key", "query", "mutate", "freeze"],
+  "fields": {
+    "name": "string",
+    "tier": "string"
+  }
+}
+```
+
+Notice that `drop` is omitted. No one — human or agent — can create a delete action for this type without first changing the Resource Type through the governance workflow.
