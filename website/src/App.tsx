@@ -6,7 +6,6 @@ import { PrinciplesSection } from './sections/PrinciplesSection.tsx'
 import { CapabilitiesSection } from './sections/CapabilitiesSection.tsx'
 import { ArchitectureSection } from './sections/ArchitectureSection.tsx'
 import { UseCasesSection } from './sections/UseCasesSection.tsx'
-import { RoadmapSection } from './sections/RoadmapSection.tsx'
 import { ResourcesSection } from './sections/ResourcesSection.tsx'
 
 function App() {
@@ -20,7 +19,6 @@ function App() {
         <CapabilitiesSection />
         <ArchitectureSection />
         <UseCasesSection />
-        <RoadmapSection />
         <ResourcesSection />
       </main>
       <Footer />
