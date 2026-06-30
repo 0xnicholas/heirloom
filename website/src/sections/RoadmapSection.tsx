@@ -35,16 +35,16 @@ const phases = [
 
 export function RoadmapSection() {
   return (
-    <Section id="roadmap" className="bg-slate-50">
+    <Section id="roadmap" className="bg-stone-50">
       <div className="max-w-4xl mx-auto text-center">
-        <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900">路线图</h2>
-        <p className="mt-4 text-slate-600">
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-stone-900">路线图</h2>
+        <p className="mt-4 text-stone-600 leading-relaxed">
           从类型系统到可信自治，分阶段构建 AI 原生的语义本体系统。
         </p>
       </div>
 
       <div className="mt-14 relative">
-        <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-px bg-slate-200 md:-translate-x-px" />
+        <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-px bg-stone-300 md:-translate-x-px" />
         <div className="space-y-8">
           {phases.map((p, idx) => (
             <div
@@ -52,12 +52,12 @@ export function RoadmapSection() {
               className={`relative flex flex-col md:flex-row gap-8 ${idx % 2 === 0 ? 'md:flex-row-reverse' : ''}`}
             >
               <div className="flex-1 md:text-right md:px-8" />
-              <div className="absolute left-4 md:left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-violet-500 ring-4 ring-white" />
+              <div className="absolute left-4 md:left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-indigo-700 ring-4 ring-white" />
               <div className="flex-1 pl-12 md:pl-8 md:px-8">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                  <span className="text-xs font-mono text-violet-400">{p.phase}</span>
-                  <h3 className="mt-1 text-lg font-semibold text-slate-900">{p.title}</h3>
-                  <p className="mt-2 text-sm text-slate-600 leading-relaxed">{p.desc}</p>
+                <div className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+                  <span className="text-xs font-mono text-indigo-700">{p.phase}</span>
+                  <h3 className="mt-1 text-lg font-semibold text-stone-900">{p.title}</h3>
+                  <p className="mt-2 text-sm text-stone-600 leading-relaxed">{p.desc}</p>
                 </div>
               </div>
             </div>

@@ -44,8 +44,8 @@ export function ResourcesSection() {
   return (
     <Section id="resources" className="bg-white">
       <div className="max-w-4xl mx-auto text-center">
-        <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900">资源</h2>
-        <p className="mt-4 text-slate-600">
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-stone-900">资源</h2>
+        <p className="mt-4 text-stone-600 leading-relaxed">
           深入了解 Heirloom 的设计理念、实现进展与参与方式。
         </p>
       </div>
@@ -55,17 +55,17 @@ export function ResourcesSection() {
           <a
             key={r.title}
             href={r.href}
-            className="group rounded-2xl border border-slate-200 bg-white p-6 hover:border-violet-300 transition-colors"
+            className="group rounded-xl border border-stone-200 bg-white p-6 shadow-sm hover:border-indigo-300 transition-colors"
           >
             <div className="flex items-center justify-between">
-              <div className="rounded-lg bg-violet-100 p-2.5">
-                <r.icon className="w-5 h-5 text-violet-400" />
+              <div className="rounded-lg bg-indigo-50 p-2.5">
+                <r.icon className="w-5 h-5 text-indigo-700" />
               </div>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-slate-900 group-hover:text-violet-600 transition-colors">
+            <h3 className="mt-4 text-lg font-semibold text-stone-900 group-hover:text-indigo-700 transition-colors">
               {r.title}
             </h3>
-            <p className="mt-2 text-sm text-slate-600 leading-relaxed">{r.desc}</p>
+            <p className="mt-2 text-sm text-stone-600 leading-relaxed">{r.desc}</p>
           </a>
         ))}
       </div>
@@ -73,7 +73,7 @@ export function ResourcesSection() {
       <div className="mt-12 text-center">
         <a
           href="mailto:hello@heirloom.dev"
-          className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-6 py-3 text-base font-medium text-white hover:bg-violet-500 transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-6 py-3 text-base font-medium text-white hover:bg-indigo-800 transition-colors"
         >
           <Mail className="w-5 h-5" />
           与我们联系

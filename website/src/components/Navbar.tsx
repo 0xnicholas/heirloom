@@ -12,19 +12,19 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
+    <header className="fixed top-0 inset-x-0 z-50 border-b border-stone-200 bg-stone-50/90 backdrop-blur">
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <a href="#" className="flex items-center gap-2 text-slate-900 font-semibold tracking-tight">
-          <Hexagon className="w-7 h-7 text-violet-400" strokeWidth={2} />
+        <a href="#" className="flex items-center gap-2 text-stone-900 font-semibold tracking-tight">
+          <Hexagon className="w-7 h-7 text-indigo-700" strokeWidth={2} />
           <span>Heirloom</span>
         </a>
 
-        <ul className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
+        <ul className="hidden md:flex items-center gap-6 text-sm font-medium text-stone-600">
           {navLinks.map((link) => (
             <li key={link.href}>
               <a
                 href={link.href}
-                className="hover:text-violet-400 transition-colors"
+                className="hover:text-indigo-700 transition-colors"
               >
                 {link.label}
               </a>
@@ -35,7 +35,7 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           <a
             href="/whitepapers/00-abstract-introduction.md"
-            className="text-sm font-medium px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+            className="text-sm font-medium px-4 py-2 rounded-lg bg-indigo-700 text-white hover:bg-indigo-800 transition-colors"
           >
             白皮书
           </a>
@@ -43,7 +43,7 @@ export function Navbar() {
 
         <button
           type="button"
-          className="md:hidden p-2 text-slate-700 hover:text-slate-900"
+          className="md:hidden p-2 text-stone-600 hover:text-stone-900"
           onClick={() => setIsOpen((prev) => !prev)}
           aria-label={isOpen ? '关闭菜单' : '打开菜单'}
           aria-expanded={isOpen}
@@ -53,13 +53,13 @@ export function Navbar() {
       </nav>
 
       {isOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white">
-          <ul className="px-4 py-4 space-y-3 text-slate-700">
+        <div className="md:hidden border-t border-stone-200 bg-stone-50">
+          <ul className="px-4 py-4 space-y-3 text-stone-600">
             {navLinks.map((link) => (
               <li key={link.href}>
                 <a
                   href={link.href}
-                  className="block py-2 hover:text-violet-400 transition-colors"
+                  className="block py-2 hover:text-indigo-700 transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}
@@ -69,7 +69,7 @@ export function Navbar() {
             <li>
               <a
                 href="/whitepapers/00-abstract-introduction.md"
-                className="block py-2 text-violet-400 hover:text-violet-600"
+                className="block py-2 text-indigo-700 hover:text-indigo-800"
                 onClick={() => setIsOpen(false)}
               >
                 白皮书
