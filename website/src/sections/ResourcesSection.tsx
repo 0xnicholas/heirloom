@@ -1,4 +1,4 @@
-import { FileText, Map, BookOpen, Hammer, Code, Mail } from 'lucide-react';
+import { FileText, BookOpen, Hammer, Code, Mail } from 'lucide-react';
 import { Section } from '../components/Section.tsx';
 
 const resources = [
@@ -7,12 +7,6 @@ const resources = [
     title: '核心概念',
     desc: 'Resource、Abilities、State Machine 等关键概念速查。',
     href: '/docs/core-concepts.md',
-  },
-  {
-    icon: Map,
-    title: '路线图',
-    desc: 'Phase 0–5 的工程阶段与当前完成状态。',
-    href: '/docs/ROADMAP.md',
   },
   {
     icon: BookOpen,
@@ -46,7 +40,7 @@ export function ResourcesSection() {
       <div className="max-w-4xl mx-auto text-center">
         <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-stone-900">资源</h2>
         <p className="mt-4 text-stone-600 leading-relaxed">
-          深入了解 Heirloom 的设计理念、实现进展与参与方式。
+          深入了解 Heirloom 的设计理念、技术文档与参与方式。
         </p>
       </div>
 

@@ -33,9 +33,8 @@ export function Footer() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500">
+      <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-stone-200 text-xs text-stone-500">
         <p>&copy; {new Date().getFullYear()} Heirloom Project. All rights reserved.</p>
-        <p>License TBD · 构建中</p>
       </div>
     </footer>
   );

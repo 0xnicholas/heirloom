@@ -1,4 +1,4 @@
-import { ArrowDown, BookOpen } from 'lucide-react';
+import { Mail, BookOpen } from 'lucide-react';
 import { Specimen } from '../components/Specimen.tsx';
 
 export function HeroSection() {
@@ -27,11 +27,11 @@ export function HeroSection() {
 
           <div className="mt-10 flex flex-col sm:flex-row items-start gap-4">
             <a
-              href="#architecture"
+              href="mailto:hello@heirloom.dev?subject=预约 Heirloom 演示"
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-6 py-3 text-base font-medium text-white hover:bg-indigo-800 transition-colors"
             >
-              <ArrowDown className="w-5 h-5" />
-              探索架构
+              <Mail className="w-5 h-5" />
+              预约演示
             </a>
             <a
               href="/whitepapers/00-abstract-introduction.md"

@@ -4,17 +4,17 @@ import { Section } from '../components/Section.tsx';
 const groups = [
   {
     icon: Boxes,
-    title: '语义原语',
+    title: '统一语义建模层',
     items: ['Resource Type', 'Property', 'Relationship', 'Abilities', 'State Machine', 'Role'],
   },
   {
     icon: Zap,
-    title: '动力学原语',
+    title: '受控操作与计算',
     items: ['Action', 'Function'],
   },
   {
     icon: ListChecks,
-    title: 'Action 九步校验流水线',
+    title: '全链路安全校验',
     items: [
       'Auth',
       'Role',
@@ -29,12 +29,12 @@ const groups = [
   },
   {
     icon: Scissors,
-    title: 'Perspective Engine',
+    title: '细粒度数据脱敏',
     items: ['字段级可见性', '按 Role 裁剪', '查询计划阶段注入'],
   },
   {
     icon: ScrollText,
-    title: 'Event Log 审计',
+    title: '不可变审计追溯',
     items: ['不可变追加', '成功 / 拒绝均记录', '时序回放'],
   },
 ];
@@ -45,7 +45,7 @@ export function CapabilitiesSection() {
       <div className="max-w-4xl mx-auto text-center">
         <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-stone-900">核心能力</h2>
         <p className="mt-4 text-stone-600 leading-relaxed">
-          语义原语是动力学原语的硬边界：任何 Action 或 Function 能做的事情，必须是语义原语已声明允许的事情。
+          Heirloom 让业务语义成为安全边界：任何操作在类型定义阶段即被约束。
         </p>
       </div>
 
@@ -74,7 +74,7 @@ export function CapabilitiesSection() {
       </div>
 
       <p className="mt-12 text-center text-sm font-mono text-stone-500">
-        语义原语是动力学原语的硬边界。
+        业务语义即安全边界。
       </p>
     </Section>
   );

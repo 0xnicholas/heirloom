@@ -4,38 +4,38 @@ import { Section } from '../components/Section.tsx';
 const principles = [
   {
     icon: Fingerprint,
-    title: '资源是一等实体',
+    title: '业务实体全局统一',
     subtitle: 'RID / Owner / State / Events',
     snippet: 'rid: ri.customer.123',
-    desc: '每个业务实体拥有全局唯一、永不随数据源变迁而失效的 RID，以及明确的所有者、状态机和完整事件历史。',
+    desc: '每个客户、订单、合同都有唯一身份和完整生命周期，数据迁移、系统拆分也不影响 Agent 对业务的理解。',
   },
   {
     icon: Tag,
-    title: '能力在类型层声明',
+    title: '权限由模型强制约束',
     subtitle: 'Abilities: query / mutate / drop / transfer / freeze / copy / store / key',
     snippet: 'abilities: [query, mutate, drop, ...]',
-    desc: 'Resource Type 定义时即声明允许发生什么。未声明 drop，则没有任何 Role 能创建删除该类型的 Action。',
+    desc: '一个数据类型能否被删除、修改或转移，在定义时即已确定。不存在事后临时开后门或配置遗漏的风险。',
   },
   {
     icon: GitBranch,
-    title: '状态迁移可证明',
+    title: '业务状态合法可验证',
     subtitle: 'State Machine',
     snippet: 'Draft -> Active -> Frozen',
-    desc: '状态图在类型层定义，非法迁移在 Action 定义或运行时即被拒绝。Agent 无法将实体推入非法状态。',
+    desc: '任何状态变更必须符合预定义规则。Agent 无法把已归档合同改回草稿，也不能跳过审批直接生效。',
   },
   {
     icon: Network,
-    title: '关系语义决定生命周期',
+    title: '级联影响一目了然',
     subtitle: 'Ownership / Reference / Association',
     snippet: 'Ownership | Reference | Association',
-    desc: '三种精确关系语义取代无差别边。Agent 在执行写操作前即可判断级联后果。',
+    desc: '删除客户时，地址是否级联、订单是否断裂，由关系语义自动决定，Agent 不会误伤关联数据。',
   },
   {
     icon: Users,
-    title: 'Agent 与人类平权',
+    title: '统一安全校验链',
     subtitle: 'Actor → Role → Capability → Action',
     snippet: 'Actor -> Role -> Capability -> Action',
-    desc: '人类、AI Agent、自动化工作流走完全相同的校验链。Agent 的边界即 Role 的边界。',
+    desc: '人类、Agent、自动化工作流走同一套身份→角色→能力→审计链路，安全策略不再因使用者不同而分裂。',
   },
 ];
 
@@ -45,7 +45,7 @@ export function PrinciplesSection() {
       <div className="max-w-4xl mx-auto text-center">
         <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-stone-900">五条设计原则</h2>
         <p className="mt-4 text-stone-600 leading-relaxed">
-          安全不依赖 prompt，而依赖系统的不可逾越边界。
+          把安全从配置和提示词，前移到类型系统本身。
         </p>
       </div>
 
