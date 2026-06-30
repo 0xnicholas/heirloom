@@ -34,7 +34,9 @@ export function Navbar() {
 
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="/workshop/"
+            href="http://localhost:5200/"
+            target="_blank"
+            rel="noreferrer"
             className="text-sm font-medium px-4 py-2 rounded-lg bg-indigo-700 text-white hover:bg-indigo-800 transition-colors"
           >
             Workshop
@@ -68,7 +70,9 @@ export function Navbar() {
             ))}
             <li>
               <a
-                href="/workshop/"
+                href="http://localhost:5200/"
+                target="_blank"
+                rel="noreferrer"
                 className="block py-2 text-indigo-700 hover:text-indigo-800"
                 onClick={() => setIsOpen(false)}
               >

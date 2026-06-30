@@ -26,7 +26,7 @@ export function Footer() {
         <div>
           <h3 className="text-sm font-semibold text-stone-800">项目</h3>
           <ul className="mt-3 space-y-2 text-sm text-stone-600">
-            <li><a href="/workshop/" className="hover:text-indigo-700 transition-colors">Workshop</a></li>
+            <li><a href="http://localhost:5200/" target="_blank" rel="noreferrer" className="hover:text-indigo-700 transition-colors">Workshop</a></li>
             <li><a href="https://github.com/0xnicholas/heirloom" target="_blank" rel="noreferrer" className="hover:text-indigo-700 transition-colors">GitHub</a></li>
             <li><a href="mailto:hello@heirloom.dev" className="hover:text-indigo-700 transition-colors">联系我们</a></li>
           </ul>
