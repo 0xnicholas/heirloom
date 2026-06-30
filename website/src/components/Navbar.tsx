@@ -34,10 +34,10 @@ export function Navbar() {
 
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="/whitepapers/00-abstract-introduction.md"
+            href="/workshop/"
             className="text-sm font-medium px-4 py-2 rounded-lg bg-indigo-700 text-white hover:bg-indigo-800 transition-colors"
           >
-            白皮书
+            Workshop
           </a>
         </div>
 
@@ -68,11 +68,11 @@ export function Navbar() {
             ))}
             <li>
               <a
-                href="/whitepapers/00-abstract-introduction.md"
+                href="/workshop/"
                 className="block py-2 text-indigo-700 hover:text-indigo-800"
                 onClick={() => setIsOpen(false)}
               >
-                白皮书
+                Workshop
               </a>
             </li>
           </ul>
