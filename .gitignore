@@ -7,3 +7,5 @@ workshop/dist/
 workshop-dev/node_modules/
 workshop-dev/dist/
 screenshots/
+website/node_modules/
+website/dist/
