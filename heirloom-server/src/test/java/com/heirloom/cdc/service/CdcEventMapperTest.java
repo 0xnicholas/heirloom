@@ -51,7 +51,7 @@ class CdcEventMapperTest {
         source = new CdcSource();
         source.setName("test-source");
         source.setWatchedTables(Map.of(
-                "customers", new CdcSource.TableConfig("Customer", "status")
+                "customers", new CdcSource.TableConfig("Customer", "status", List.of("id"))
         ));
     }
 
@@ -59,9 +59,9 @@ class CdcEventMapperTest {
     @DisplayName("produces deterministic RID for same PK values")
     void deterministicRid() {
         String rid1 = mapper.buildDeterministicRid("Customer",
-                Map.of("id", "42", "name", "Test"));
+                Map.of("id", "42", "name", "Test"), List.of("id"));
         String rid2 = mapper.buildDeterministicRid("Customer",
-                Map.of("id", "42", "name", "Test"));
+                Map.of("id", "42", "name", "Changed"), List.of("id"));
         assertThat(rid1).isEqualTo(rid2);
         assertThat(rid1).startsWith("default.Customer.");
         assertThat(rid1).hasSize("default.Customer.".length() + 16); // 16 hex chars
@@ -70,8 +70,8 @@ class CdcEventMapperTest {
     @Test
     @DisplayName("different PK values produce different RIDs")
     void differentRids() {
-        String rid1 = mapper.buildDeterministicRid("Customer", Map.of("id", "42"));
-        String rid2 = mapper.buildDeterministicRid("Customer", Map.of("id", "99"));
+        String rid1 = mapper.buildDeterministicRid("Customer", Map.of("id", "42"), List.of("id"));
+        String rid2 = mapper.buildDeterministicRid("Customer", Map.of("id", "99"), List.of("id"));
         assertThat(rid1).isNotEqualTo(rid2);
     }
 

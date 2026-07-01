@@ -61,6 +61,10 @@ public class CdcEngineManager {
         state.engine().stop();
         try {
             state.thread().join(5000);
+            if (state.thread().isAlive()) {
+                log.warn("CDC engine thread did not stop within 5s for '{}', interrupting", sourceName);
+                state.thread().interrupt();
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

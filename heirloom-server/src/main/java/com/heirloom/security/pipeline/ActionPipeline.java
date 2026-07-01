@@ -1,5 +1,6 @@
 package com.heirloom.security.pipeline;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heirloom.domain.Resource;
 import com.heirloom.repository.RoleRepository;
 import com.heirloom.repository.TypeRepository;
@@ -27,6 +28,8 @@ import java.util.Map;
 public class ActionPipeline {
 
     private static final Logger log = LoggerFactory.getLogger(ActionPipeline.class);
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final TypeSafeCapabilityResolver capabilityResolver;
     private final ResourceService resourceService;
@@ -248,7 +251,7 @@ public class ActionPipeline {
             if (value instanceof String s && s.startsWith("{{") && s.endsWith("}}")) {
                 String key = s.substring(2, s.length() - 2).trim();
                 if (key.startsWith("params.")) {
-                    resolved.put(entry.getKey(), params.get(key.substring(7)));
+                    resolved.put(entry.getKey(), params.get(key.substring("params.".length())));
                 } else if ("actor.id".equals(key)) {
                     resolved.put(entry.getKey(), actorId);
                 } else {
@@ -265,7 +268,7 @@ public class ActionPipeline {
     private Map<String, Object> parseExecuteParams(String json) {
         if (json == null || json.isBlank() || json.equals("{}")) return Map.of();
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(json, Map.class);
+            return MAPPER.readValue(json, Map.class);
         } catch (Exception e) {
             throw new PipelineRejection(7, "EXECUTE",
                     "Failed to parse executeParams JSON: " + e.getMessage());

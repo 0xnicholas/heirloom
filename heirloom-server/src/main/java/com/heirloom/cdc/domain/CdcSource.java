@@ -6,6 +6,7 @@ import org.hibernate.annotations.Type;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -110,11 +111,20 @@ public class CdcSource {
     /**
      * Per-table CDC configuration.
      */
-    public record TableConfig(String resourceType, String stateColumn) {
+    public record TableConfig(String resourceType, String stateColumn, List<String> pkColumns) {
         public TableConfig {
             if (resourceType == null || resourceType.isBlank()) {
                 throw new IllegalArgumentException("resourceType is required");
             }
+            pkColumns = pkColumns != null ? pkColumns : List.of();
+        }
+
+        // Backward-compatible constructors
+        public TableConfig(String resourceType, String stateColumn) {
+            this(resourceType, stateColumn, List.of());
+        }
+        public TableConfig(String resourceType) {
+            this(resourceType, null, List.of());
         }
     }
 }

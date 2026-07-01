@@ -4,7 +4,6 @@ import com.heirloom.cdc.domain.CdcOffset;
 import com.heirloom.cdc.domain.CdcSource;
 import com.heirloom.cdc.repository.CdcOffsetRepository;
 import org.postgresql.PGConnection;
-import org.postgresql.replication.LogSequenceNumber;
 import org.postgresql.replication.PGReplicationStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +14,6 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Manages PostgreSQL logical replication connections and event streaming.
@@ -74,7 +72,7 @@ public class CdcEngine implements Runnable {
 
             // Create publication if not exists
             String tableList = buildTableList();
-            stmt.execute("CREATE PUBLICATION " + source.getPublicationName()
+            stmt.execute("CREATE PUBLICATION IF NOT EXISTS " + source.getPublicationName()
                     + " FOR TABLE " + tableList);
 
             log.info("Publication '{}' created for tables: {}",
@@ -85,9 +83,16 @@ public class CdcEngine implements Runnable {
         try (Connection replConn = createReplicationConnection();
              Statement stmt = replConn.createStatement()) {
 
-            stmt.execute("CREATE_REPLICATION_SLOT " + source.getSlotName()
-                    + " LOGICAL pgoutput");
-            log.info("Replication slot '{}' created", source.getSlotName());
+            // Check if slot already exists before creating
+            var slotRs = stmt.executeQuery(
+                    "SELECT 1 FROM pg_replication_slots WHERE slot_name = '" + source.getSlotName() + "'");
+            if (!slotRs.next()) {
+                stmt.execute("CREATE_REPLICATION_SLOT " + source.getSlotName()
+                        + " LOGICAL pgoutput");
+                log.info("Replication slot '{}' created", source.getSlotName());
+            } else {
+                log.info("Replication slot '{}' already exists", source.getSlotName());
+            }
         }
     }
 
@@ -115,8 +120,8 @@ public class CdcEngine implements Runnable {
                     .logical()
                     .withSlotName(source.getSlotName())
                     .withStartPosition(startLsnStr != null
-                            ? LogSequenceNumber.valueOf(startLsnStr)
-                            : LogSequenceNumber.INVALID_LSN)
+                            ? org.postgresql.replication.LogSequenceNumber.valueOf(startLsnStr)
+                            : org.postgresql.replication.LogSequenceNumber.INVALID_LSN)
                     .start();
 
             log.info("CDC streaming started for '{}' from LSN={}",
@@ -142,12 +147,15 @@ public class CdcEngine implements Runnable {
                 if (event != null && source.getWatchedTables().containsKey(event.tableName())) {
                     eventMapper.handleEvent(event, source);
 
-                    // Advance LSN after successful processing
-                    stream.setAppliedLSN(event.lsn());
-                    stream.setFlushedLSN(event.lsn());
+                    stream.setAppliedLSN(stream.getLastReceiveLSN());
+                    stream.setFlushedLSN(stream.getLastReceiveLSN());
 
-                    lastLsn = event.lsn().toString();
-                    offsetRepo.save(new CdcOffset(source.getName(), lastLsn));
+                    // Track actual LSN from the stream, not the event (decoder returns INVALID_LSN)
+                    var actualLsn = stream.getLastReceiveLSN();
+                    if (actualLsn != null && actualLsn != org.postgresql.replication.LogSequenceNumber.INVALID_LSN) {
+                        lastLsn = actualLsn.toString();
+                        offsetRepo.save(new CdcOffset(source.getName(), lastLsn));
+                    }
                     eventsProcessed++;
                 }
             }
