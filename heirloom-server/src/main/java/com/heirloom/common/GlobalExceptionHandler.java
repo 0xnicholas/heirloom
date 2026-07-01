@@ -5,6 +5,9 @@ import com.heirloom.schema.service.TypeAlreadyExistsException;
 import com.heirloom.schema.service.TypeNotFoundException;
 import com.heirloom.schema.service.TypeValidationException;
 import com.heirloom.schema.service.TypeValidator;
+import com.heirloom.schema.guard.StateGuardException;
+import com.heirloom.security.validation.ActionValidationException;
+import com.heirloom.service.ResourceValidationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -62,6 +65,33 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create("https://heirloom.dev/errors/unauthorized"));
         pd.setProperty("entityType", ex.getEntityType());
         pd.setProperty("operation", ex.getOperation());
+        return pd;
+    }
+
+    @ExceptionHandler(StateGuardException.class)
+    public ProblemDetail handleStateGuard(StateGuardException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, ex.getMessage());
+        pd.setTitle("State transition rejected");
+        pd.setType(URI.create("https://heirloom.dev/errors/state-guard"));
+        return pd;
+    }
+
+    @ExceptionHandler(ActionValidationException.class)
+    public ProblemDetail handleActionValidation(ActionValidationException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setTitle("Action validation failed");
+        pd.setType(URI.create("https://heirloom.dev/errors/action-validation"));
+        return pd;
+    }
+
+    @ExceptionHandler(ResourceValidationException.class)
+    public ProblemDetail handleResourceValidation(ResourceValidationException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setTitle("Resource validation failed");
+        pd.setType(URI.create("https://heirloom.dev/errors/resource-validation"));
         return pd;
     }
 

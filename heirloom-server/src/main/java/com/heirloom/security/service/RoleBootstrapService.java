@@ -17,11 +17,11 @@ public class RoleBootstrapService {
     @PostConstruct
     void init() {
         createIfMissing("DataAnalyst", "ontology",
-            "[{\"entityType\":\"*\",\"operation\":\"QUERY\"}]");
+            "[{\"ability\":\"QUERY\",\"resourceType\":\"*\"}]");
         createIfMissing("DataSteward", "ontology",
-            "[{\"entityType\":\"*\",\"operation\":\"QUERY\"},{\"entityType\":\"resourceType\",\"operation\":\"MUTATE\"}]");
+            "[{\"ability\":\"QUERY\",\"resourceType\":\"*\"},{\"ability\":\"MUTATE\",\"resourceType\":\"*\"}]");
         createIfMissing("SupplyChainAnalyst", "ontology",
-            "[{\"entityType\":\"resourceType\",\"operation\":\"QUERY\"},{\"entityType\":\"table\",\"operation\":\"QUERY\"}]");
+            "[{\"ability\":\"QUERY\",\"resourceType\":\"*\"}]");
     }
 
     private void createIfMissing(String name, String scope, String capabilitiesJson) {

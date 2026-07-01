@@ -75,6 +75,8 @@ class HeirloomClient:
         self._proposals: Optional["ProposalsNamespace"] = None
         self._functions: Optional["FunctionsNamespace"] = None
         self._audit: Optional["AuditNamespace"] = None
+        self._resources: Optional["ResourcesNamespace"] = None
+        self._actions: Optional["ActionsNamespace"] = None
 
     # --- Namespace accessors ---
 
@@ -107,6 +109,18 @@ class HeirloomClient:
         if self._audit is None:
             self._audit = AuditNamespace(self)
         return self._audit
+
+    @property
+    def resources(self) -> "ResourcesNamespace":
+        if self._resources is None:
+            self._resources = ResourcesNamespace(self)
+        return self._resources
+
+    @property
+    def actions(self) -> "ActionsNamespace":
+        if self._actions is None:
+            self._actions = ActionsNamespace(self)
+        return self._actions
 
     # === Discovery ===
 
@@ -523,6 +537,87 @@ class AuditNamespace:
         r = self._client._session.get(
             f"{self._client.base_url}/v1/audit/entities/{entity_fqn}/history",
             params=params,
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+@dataclass
+class ResourcesNamespace:
+    """Resource instance operations — ``client.resources.*``."""
+
+    _client: HeirloomClient
+
+    def create(self, resource_type: str, fields: Dict[str, Any],
+               owner: str = "agent") -> Dict[str, Any]:
+        """Create a new Resource instance. RID is auto-generated."""
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/resources",
+            json={"resourceType": resource_type, "owner": owner, "fields": fields},
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def get(self, rid: str) -> Dict[str, Any]:
+        """Get a Resource by RID."""
+        r = self._client._session.get(f"{self._client.base_url}/v1/resources/{rid}")
+        r.raise_for_status()
+        return r.json()
+
+    def list(self, type: Optional[str] = None, state: Optional[str] = None,
+             limit: int = 20, offset: int = 0) -> Dict[str, Any]:
+        """List resources with optional type/state filters."""
+        params = {"limit": limit, "offset": offset}
+        if type:
+            params["type"] = type
+        if state:
+            params["state"] = state
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/resources", params=params
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def update(self, rid: str, fields: Dict[str, Any],
+               expected_version: int = 0) -> Dict[str, Any]:
+        """Update fields on a Resource (partial merge). Uses optimistic locking."""
+        headers = {"If-Match": str(expected_version)}
+        r = self._client._session.put(
+            f"{self._client.base_url}/v1/resources/{rid}",
+            json={"fields": fields},
+            headers=headers,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def transition_state(self, rid: str, target_state: str) -> Dict[str, Any]:
+        """Transition a Resource to a new lifecycle state."""
+        r = self._client._session.patch(
+            f"{self._client.base_url}/v1/resources/{rid}/state",
+            json={"targetState": target_state},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+@dataclass
+class ActionsNamespace:
+    """Action execution — ``client.actions.*``."""
+
+    _client: HeirloomClient
+
+    def execute(self, action_name: str, target_resource_id: str,
+                params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Execute an Action through the nine-step pipeline.
+
+        Returns a PipelineResult with step-level status and timing.
+        """
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/actions/{action_name}/execute",
+            json={
+                "targetResourceId": target_resource_id,
+                "params": params or {},
+            },
         )
         r.raise_for_status()
         return r.json()

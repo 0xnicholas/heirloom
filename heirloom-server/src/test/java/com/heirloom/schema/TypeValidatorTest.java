@@ -29,6 +29,7 @@ class TypeValidatorTest {
             new StateTransition("Active", "Frozen"),
             new StateTransition("Frozen", "Active", "unfreeze")
         ));
+        t.setInitialState("Draft");
         t.setRelationships(List.of(
             new Relationship("placed", "Order", RelationshipSemantics.ASSOCIATION)
         ));
@@ -168,6 +169,82 @@ class TypeValidatorTest {
             assertThat(diags.stream().noneMatch(
                 d -> d.severity() == TypeValidator.Severity.WARNING
                   && d.message().contains("orphan"))).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("initialState")
+    class InitialState {
+
+        @Test
+        @DisplayName("requires initialState when state machine is non-empty")
+        void requiresInitialState() {
+            ResourceType t = new ResourceType("Test");
+            t.setFields(List.of(new Field("x", FieldType.STRING, true)));
+            t.setAbilities(List.of(Ability.KEY));
+            t.setStateMachine(List.of(
+                new StateTransition("Draft", "Active")
+            ));
+            t.setRelationships(List.of());
+            // initialState not set
+
+            var diags = TypeValidator.validate(t, Map.of());
+            assertThat(diags.stream().anyMatch(
+                d -> d.severity() == TypeValidator.Severity.ERROR
+                  && d.message().toLowerCase().contains("initialstate"))).isTrue();
+        }
+
+        @Test
+        @DisplayName("rejects initialState not in state machine")
+        void rejectsInvalidInitialState() {
+            ResourceType t = new ResourceType("Test");
+            t.setFields(List.of(new Field("x", FieldType.STRING, true)));
+            t.setAbilities(List.of(Ability.KEY));
+            t.setStateMachine(List.of(
+                new StateTransition("Draft", "Active")
+            ));
+            t.setRelationships(List.of());
+            t.setInitialState("Archived"); // not in state machine
+
+            var diags = TypeValidator.validate(t, Map.of());
+            assertThat(diags.stream().anyMatch(
+                d -> d.severity() == TypeValidator.Severity.ERROR
+                  && d.message().contains("Archived")
+                  && d.message().toLowerCase().contains("not a valid state"))).isTrue();
+        }
+
+        @Test
+        @DisplayName("accepts valid initialState")
+        void acceptsValidInitialState() {
+            ResourceType t = new ResourceType("Test");
+            t.setFields(List.of(new Field("x", FieldType.STRING, true)));
+            t.setAbilities(List.of(Ability.KEY));
+            t.setStateMachine(List.of(
+                new StateTransition("Draft", "Active")
+            ));
+            t.setRelationships(List.of());
+            t.setInitialState("Draft");
+
+            var diags = TypeValidator.validate(t, Map.of());
+            assertThat(diags.stream().noneMatch(
+                d -> d.severity() == TypeValidator.Severity.ERROR
+                  && d.message().toLowerCase().contains("initial"))).isTrue();
+        }
+
+        @Test
+        @DisplayName("no error when state machine is empty (initialState optional)")
+        void initialStateOptionalWhenNoStateMachine() {
+            ResourceType t = new ResourceType("Test");
+            t.setFields(List.of(new Field("x", FieldType.STRING, true)));
+            t.setAbilities(List.of(Ability.KEY));
+            t.setStateMachine(List.of());
+            t.setRelationships(List.of());
+            // initialState not set — should be fine
+
+            var diags = TypeValidator.validate(t, Map.of());
+            assertThat(diags.stream().noneMatch(
+                d -> d.severity() == TypeValidator.Severity.ERROR
+                  && d.message().toLowerCase().contains("initial"))).isTrue();
         }
     }
 }

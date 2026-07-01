@@ -94,6 +94,14 @@ public class ResourceType implements HeirloomEntity {
     private String branchName;
 
     /**
+     * Phase 2.6 / I-0: initial state for new Resource instances of this type.
+     * Required when the state machine is non-empty. TypeValidator enforces
+     * that this value is a valid state in the state machine.
+     */
+    @Column(name = "initial_state", length = 64)
+    private String initialState;
+
+    /**
      * Monotonically increasing version number. Incremented on
      * every schema change. Kept for historical query compatibility.
      */
@@ -173,6 +181,9 @@ public class ResourceType implements HeirloomEntity {
 
     public String getBranchName() { return branchName; }
     public void setBranchName(String branchName) { this.branchName = branchName; }
+
+    public String getInitialState() { return initialState; }
+    public void setInitialState(String initialState) { this.initialState = initialState; }
 
     @Override
     public Long getVersion() { return (long) version; }

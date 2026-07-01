@@ -16,6 +16,8 @@ import java.util.*;
  *   <li>Orphan state nodes (no incoming transitions) produce a warning</li>
  *   <li>Empty abilities list produces a warning</li>
  *   <li>PascalCase naming convention (info-level)</li>
+ *   <li>Initial state required when state machine is non-empty (I-0)</li>
+ *   <li>Initial state must be a valid state in the state machine (I-0)</li>
  * </ul>
  */
 public class TypeValidator {
@@ -33,6 +35,7 @@ public class TypeValidator {
         checkOrphanStates(type, diagnostics);
         checkAbilities(type, diagnostics);
         checkNaming(type, diagnostics);
+        checkInitialState(type, diagnostics);
 
         return diagnostics;
     }
@@ -102,6 +105,33 @@ public class TypeValidator {
             out.add(new Diagnostic(Severity.INFO,
                     "Type name \"" + name
                     + "\" should use PascalCase by convention"));
+        }
+    }
+
+    private static void checkInitialState(ResourceType type, List<Diagnostic> out) {
+        boolean hasStateMachine = type.getStateMachine() != null && !type.getStateMachine().isEmpty();
+        String initialState = type.getInitialState();
+
+        if (hasStateMachine && (initialState == null || initialState.isBlank())) {
+            out.add(new Diagnostic(Severity.ERROR,
+                    "Type \"" + type.getName()
+                    + "\" has a state machine but no initialState declared. "
+                    + "Declare an initialState that is a valid state in the state machine."));
+            return;
+        }
+
+        if (initialState != null && !initialState.isBlank() && hasStateMachine) {
+            Set<String> allStates = new HashSet<>();
+            for (StateTransition t : type.getStateMachine()) {
+                allStates.add(t.from());
+                allStates.add(t.to());
+            }
+            if (!allStates.contains(initialState)) {
+                out.add(new Diagnostic(Severity.ERROR,
+                        "Initial state \"" + initialState
+                        + "\" is not a valid state in type \"" + type.getName()
+                        + "\" state machine. Valid states: " + allStates));
+            }
         }
     }
 
