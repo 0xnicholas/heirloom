@@ -56,8 +56,9 @@ PostgreSQL
 
 1. Heirloom 向源 PG 创建 `PUBLICATION`（声明监听哪些表）和 `REPLICATION SLOT`（记录消费位点）
 2. Heirloom 通过 JDBC replication connection 连接到 PG，开始 streaming
+- Heirloom 通过 JDBC replication connection 连接到 PG，开始 streaming
 3. PG 将 WAL 中已提交事务的变更通过 pgoutput plugin 解码为逻辑事件
-4. Heirloom 收到事件 → 映射为 Resource 操作 → 写入 Resource Store
+4. Heirloom 收到事件 → 通过 CdcPgOutputDecoder 解码为 CdcEvent → CdcEventMapper 映射为 Resource 操作 → 写入 Resource Store
 5. 每处理一批事件，更新 LSN offset（持久化到 Heirloom 自己的表）
 6. 重启时从上次的 LSN 恢复，不丢不重
 
@@ -118,7 +119,7 @@ PostgreSQL
 |---------|------------|
 | `DiscoverySource` | CDC 复用 Discovery 的 schema 信息（表→ResourceType 映射），但不触发全量扫描 |
 | `MappingRule` | CDC 通过 MappingRule 解析列名→字段名的映射（复现已有的 field→column 关系） |
-| `ResourceService` | CDC 直接调用 `create()` / `updateFields()` / transitionState / 软删除 |
+| `ResourceService` | CDC 调用 `createWithRid()` / `cdcUpdateFields()` / `transitionState()` / `markDeleted()` |
 | `ChangeEventInterceptor` | Resource 变更自动产生审计事件（与手动 API 创建同等对待） |
 | `SchemaExtractor` | CDC Source 注册时做一次 schema 提取，确保 Publication 中的表都有对应的 ResourceType |
 
@@ -166,7 +167,7 @@ CREATE TABLE cdc_sources (
     pg_password     VARCHAR(256) NOT NULL,  -- Spring @Convert + AES-GCM encrypted at rest
     publication_name VARCHAR(128) NOT NULL,
     slot_name       VARCHAR(128) NOT NULL,
-    watched_tables  JSONB        NOT NULL DEFAULT '{}',    -- {"customers": "Customer", "orders": "PurchaseOrder"}
+    watched_tables  JSONB        NOT NULL DEFAULT '{}',    -- {"customers": {"resourceType":"Customer","stateColumn":"status"}}
     status          VARCHAR(32)  NOT NULL DEFAULT 'STOPPED',  -- STOPPED, STARTING, RUNNING, ERROR
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -197,7 +198,10 @@ POST /v1/cdc/sources
   "pgSchema": "public",
   "pgUsername": "heirloom_cdc",
   "pgPassword": "***",
-  "watchedTables": {"customers": "Customer", "orders": "PurchaseOrder"}
+  "watchedTables": {
+    "customers": {"resourceType": "Customer", "stateColumn": "status"},
+    "orders": {"resourceType": "PurchaseOrder"}
+  }
 }
 → 201 { ...source... }
 
@@ -227,7 +231,8 @@ GET /v1/cdc/sources/{name}/status
   "lastLsn": "0/16B3748",
   "lastSyncedAt": "2026-07-01T12:00:00Z",
   "lagSeconds": 0.5,
-  "eventsProcessed": 15234
+  "eventsProcessed": 15234,
+  "backfillProgress": null  // or {"customers": {"done":4500,"total":10000}}
 }
 ```
 
@@ -265,13 +270,17 @@ public void stream(CdcSource source) {
 
     // 3. 消费循环
     while (running) {
-        ByteBuffer msg = stream.readPending();  // 非阻塞
-
-        if (msg != null) {
+        ByteBuffer msg = stream.readPending();
+            // 非阻塞；无消息时 Thread.sleep(10) 避免 CPU 忙等
+            if (msg == null) {
+                Thread.sleep(10);
+                stream.forceUpdateStatus();
+                continue;
+            }
             CdcEvent event = decodePgoutputMessage(msg);
             
             // 过滤：只处理 watchedTables 中的表
-            if (!source.getWatchedTables().contains(event.tableName())) {
+            if (!source.getWatchedTables().containsKey(event.tableName())) {
                 stream.setAppliedLSN(event.lsn());
                 stream.setFlushedLSN(event.lsn());
                 continue;
@@ -313,8 +322,8 @@ private void handleUpdate(CdcEvent event) {
     String resourceType = resolveResourceType(event.tableName());
     String rid = buildDeterministicRid(resourceType, event.oldValues());
     
-    // 区分字段变更和状态变更
-    String stateField = resolveStateColumn(resourceType);  // 返回匹配状态机的列名，或 null
+    // 整个 handler 在 @Transactional 内——状态迁移和字段更新原子执行
+    String stateField = resolveStateColumn(event.tableName(), resourceType);
     Map<String, Object> newValues = event.newValues();
     
     if (stateField != null && newValues.containsKey(stateField)) {
@@ -340,9 +349,16 @@ private void handleDelete(CdcEvent event) {
 }
 ```
 
-**stateColumn 解析**：`resolveStateColumn(resourceType)` 检查 ResourceType 的 stateMachine 中的状态名是否与某个 field 名匹配。例如状态机有 `Draft, Active, Frozen`，而 ResourceType 有 field `status`——则该 field 被识别为 state column。如果无法自动识别，CdcSource 注册时提供显式的 `stateColumnMapping` 配置。
+**stateColumn 解析**：
+1. 优先读取 CdcSource.watchedTables 中的 `stateColumn` 显式配置
+2. 若未配置，尝试自动推断：检查 ResourceType 的 stateMachine 状态名是否与某个 field 名匹配（如状态机有 `Draft, Active` 而 ResourceType 有 field `status` → 推断 stateColumn=`status`）
+3. 若推断失败（field 名与状态名不匹配），stateColumn 为 null——CDC 仅同步字段，不触发状态迁移
 
-**cdcUpdateFields vs updateFields**：`cdcUpdateFields()` 是新增方法——绕过乐观锁 version 检查，直接 UPDATE 字段。CDC 场景下，源 PG 是数据的权威来源，Heirloom 不应因版本号不匹配而拒绝同步。乐观锁仅适用于通过 Action 流水线或 REST API 的人工写入。
+**CdcPgOutputDecoder vs CdcEventMapper 分界**：
+- `CdcPgOutputDecoder`：解析 pgoutput binary protocol → 产生 `CdcEvent` 对象（relation, insert, update, delete messages）
+- `CdcEventMapper`：接收 CdcEvent + CdcSource 配置 → 映射为 ResourceService 调用
+
+**cdcUpdateFields 实现**：使用 JPA `@Modifying @Query` 执行原生 SQL UPDATE，绕过 `@Version`。同时手动设置 `updated_at = NOW()` 保持审计字段正确。不使用 entityManager.merge()——避免乐观锁拦截。
 
 ### 6.3 RID 稳定性
 
@@ -352,11 +368,11 @@ CDC 的核心挑战：**UPDATE 和 DELETE 事件需要找到对应的 Resource**
 
 ```
 外部表 customers，主键 id=42
-→ RID = "default.Customer.{sha256_hex(pk_concat)[0:8]}"
-→ 例: "default.Customer.a1b2c3d4"
+→ RID = "default.Customer.{sha256_hex(pk_concat)[0:16]}"
+→ 例: "default.Customer.a1b2c3d4e5f6a7b"
 
 下次 UPDATE id=42 的行：
-→ 同样的 RID "default.Customer.a1b2c3d4"
+→ 同样的 RID "default.Customer.a1b2c3d4e5f6a7b"
 → ResourceService.updateFields(rid, ...) 找到正确的 Resource
 ```
 
@@ -481,5 +497,6 @@ POST /v1/cdc/sources/{name}/start
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
-| 2026-07-01 | v0.1 | 初版：pgoutput 方案、架构、API、实现计划 |
-| 2026-07-01 | v0.2 | Review fixes：新增全量回填（initial backfill）；currentState 映射（state column 识别 → transitionState）；`cdcUpdateFields` 替代 broken updateFields 乐观锁；`markDeleted` 走业务层；`createWithRid` 解耦 RID 策略；watchedTables 改为显式 Map；slot 清理；TOAST 全行覆盖；吞吐量上限标注；性能估计上调 |
+| 2026-07-01 | v0.1 | 初版 |
+| 2026-07-01 | v0.2 | Review：全量回填、currentState 映射、cdcUpdateFields/markDeleted/createWithRid、watchedTables→Map、slot 清理、TOAST 全行覆盖、吞吐量标注 |
+| 2026-07-01 | v0.3 | Review：RID 碰撞修正（32→64 bit）；event loop busy-wait 加 sleep；handleUpdate 事务原子性；watchedTables 加 stateColumn 配置；API example 补全 |
