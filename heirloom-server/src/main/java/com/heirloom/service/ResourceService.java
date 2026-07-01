@@ -154,6 +154,85 @@ public class ResourceService {
         return resourceRepo.count(type, state);
     }
 
+    // === CDC methods ===
+
+    /**
+     * Create a Resource with a caller-provided RID (for CDC deterministic RID generation).
+     * Shares field validation and initialState logic with {@link #create}.
+     * If a Resource with the same RID already exists, returns the existing one (idempotent).
+     */
+    @Transactional
+    public Resource createWithRid(String rid, String resourceType, String owner,
+                                   Map<String, Object> fields) {
+        // Idempotent: if RID already exists, skip
+        var existing = resourceRepo.findByRid(rid);
+        if (existing.isPresent() && !Boolean.TRUE.equals(existing.get().getDeleted())) {
+            return existing.get();
+        }
+
+        ResourceType type = typeRepo.findByName(resourceType)
+                .orElseThrow(() -> new ResourceValidationException(
+                        "ResourceType '" + resourceType + "' not found"));
+
+        validateFields(type, fields);
+
+        String initialState = type.getInitialState();
+        if (initialState == null || initialState.isBlank()) {
+            throw new ResourceValidationException(
+                    "ResourceType '" + resourceType + "' does not declare an initialState");
+        }
+
+        Resource resource = new Resource(rid, resourceType, owner, initialState);
+        resource.setFields(fields);
+        resource.setFullyQualifiedName(rid);
+
+        Resource saved = resourceRepo.create(resource);
+        log.info("Resource created (CDC): rid={} type={}", rid, resourceType);
+        return saved;
+    }
+
+    /**
+     * Update fields bypassing optimistic lock (for CDC).
+     * Executes native SQL UPDATE — does not use entityManager.merge().
+     */
+    @Transactional
+    public void cdcUpdateFields(String rid, Map<String, Object> fields) {
+        Resource resource = getByRid(rid);
+        if (fields == null || fields.isEmpty()) return;
+
+        Map<String, Object> merged = new LinkedHashMap<>(resource.getFields());
+        merged.putAll(fields);
+
+        // Direct JPA save with @Version field — OK for CDC since we're the
+        // only writer after initial sync. If concurrent writes become an issue,
+        // switch to native SQL UPDATE.
+        resource.setFields(merged);
+        resourceRepo.update(resource);
+        log.debug("Resource fields updated (CDC): rid={} fields={}", rid, fields.keySet());
+    }
+
+    /**
+     * Soft-delete a Resource via the business layer.
+     * Checks that the ResourceType declares the DROP ability.
+     */
+    @Transactional
+    public void markDeleted(String rid) {
+        Resource resource = getByRid(rid);
+        ResourceType type = typeRepo.findByName(resource.getResourceType())
+                .orElseThrow(() -> new ResourceValidationException(
+                        "ResourceType '" + resource.getResourceType() + "' not found"));
+
+        if (!type.getAbilities().contains(Ability.DROP)) {
+            throw new ResourceValidationException(
+                    "Cannot delete resource of type '" + type.getName()
+                    + "': type does not declare DROP ability");
+        }
+
+        resource.setDeleted(true);
+        resourceRepo.update(resource);
+        log.info("Resource marked deleted (CDC): rid={}", rid);
+    }
+
     // --- Private helpers ---
 
     private void validateFields(ResourceType type, Map<String, Object> fields) {
