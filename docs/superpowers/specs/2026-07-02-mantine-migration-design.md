@@ -3,7 +3,7 @@
 **日期**: 2026-07-02
 **关联**: `7abe028 feat(workshop): rewrite Heirloom frontend with full concept coverage and dark mode`（当前 Workshop 主分支）
 **状态**: Draft v1
-**范围**: 把 `workshop/` 项目的自定义 UI 层（Tailwind v4 + lucide-react + 手写组件）替换为 Mantine v7。保持数据契约、域模型、验证器、MSW mock、Monaco、xyflow 不动。
+**范围**: 把 `workshop/` 项目的自定义 UI 层（Tailwind v4 + inline SVG 图标 + 手写组件）替换为 Mantine v7。保持数据契约、域模型、验证器、MSW mock、Monaco、xyflow 不动。
 
 ---
 
@@ -658,7 +658,7 @@ if (typeof window !== 'undefined' && !window.localStorage) {
 | **6** | Stats tab：5 组件 + StatsPage.test 重写 | 低 | 3-4 |
 | **7** | Pages：14 文件轻调 | 低 | 2-3 |
 | **8** | Tests 收尾：所有未过 component tests 修绿 + 新增 6 tests | 低 | 3-4 |
-| **9** | Cleanup：卸载 tailwindcss + @tailwindcss/vite + lucide-react + @tanstack/react-table + 清 vite.config + 清 index.css + 更新 README | 低 | 1 |
+| **9** | Cleanup：卸载 tailwindcss + @tailwindcss/vite + @tanstack/react-table + 清 vite.config + 清 index.css + 更新 README | 低 | 1 |
 | **总计** | — | — | **~30** |
 
 ### 6.2 工作模式
@@ -774,7 +774,7 @@ Phase 0 后每 phase 必跑这 5 步；任一失败必须修通才能 commit。
    - SettingsPage 的 theme `<select>` 替换为 `SegmentedControl`（light/dark/auto）或 `Select`
 8. ✅ 通知系统：错误 mutation 触发红色 toast
 9. ✅ `git grep "className=\"" workshop/src/ | grep -E "flex|gap-|p-|m-|w-|h-|bg-|text-|border-"` 零结果
-10. ✅ `package.json` 无 `tailwindcss` / `@tailwindcss/vite` / `lucide-react` / `@tanstack/react-table`
+10. ✅ `package.json` 无 `tailwindcss` / `@tailwindcss/vite` / `@tanstack/react-table`
 11. ✅ `vite.config.ts` 不引入 `tailwindcss()` plugin
 12. ✅ `index.css` 不含 `@import "tailwindcss"` 或 `@variant dark`
 13. ✅ `src/components/theme/` 目录不存在
