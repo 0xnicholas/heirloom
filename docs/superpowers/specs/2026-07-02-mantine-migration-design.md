@@ -766,7 +766,7 @@ Phase 0 后每 phase 必跑这 5 步；任一失败必须修通才能 commit。
 1. ✅ `npm run build` 成功，无 TS 错误
 2. ✅ `npm run lint` 零 warning
 3. ✅ `npx vitest run` 100% 绿（~85-90 tests）
-4. ✅ 14 个 page 都能正常加载、渲染、操作（注：`App.tsx` 实际声明 22 条 `path`，其中 6 个 `PlaceholderPage` 共享同一组件 + 1 个 `/objects` → `/explorer` 重定向）
+4. ✅ 14 个 page 都能正常加载、渲染、操作（注：`App.tsx` 实际声明 23 条 `path`：17 unique page routes + 6 个 `PlaceholderPage` 共享同一组件，含 1 个 `/objects` → `/explorer` 重定向）
 5. ✅ Monaco 编辑器在 QueryEditor + QueryConsole（inline 底部面板）中正常工作
 6. ✅ xyflow 图在 OntologyGraph + StateMachineEditor 中正常渲染、深色模式颜色正确
 7. ✅ 暗色模式切换：localStorage 持久化 + 跨页同步 + 无 FOUC
