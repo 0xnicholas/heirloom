@@ -10,7 +10,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useTheme } from '@/hooks/useTheme';
+import { useComputedColorScheme } from '@mantine/core';
 import type { RelationshipSemantics, ResourceType } from '@/lib/types';
 
 interface OntologyGraphProps {
@@ -68,8 +68,8 @@ function buildGraph(types: ResourceType[], isDark: boolean) {
 }
 
 export function OntologyGraph({ types }: OntologyGraphProps) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const computedColorScheme = useComputedColorScheme('light');
+  const isDark = computedColorScheme === 'dark';
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(types, isDark), [types, isDark]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

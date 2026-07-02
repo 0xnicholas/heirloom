@@ -2,19 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { MantineProvider } from '@mantine/core';
 import { AppLayout } from './AppLayout';
+import { theme } from '@/lib/theme';
 
 function renderWithProviders(initialRoute = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={qc}>
-      <ThemeProvider>
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <QueryClientProvider client={qc}>
         <MemoryRouter initialEntries={[initialRoute]}>
           <AppLayout />
         </MemoryRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </MantineProvider>
   );
 }
 

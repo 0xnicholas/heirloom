@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { useTheme } from '@/hooks/useTheme';
+import { useComputedColorScheme } from '@mantine/core';
 import type { SchemaRegistrySnapshot, Diagnostic, QueryDSL } from '@/lib/types';
 import { validateQuery } from '@/lib/validation/query-validator';
 
@@ -15,7 +15,8 @@ interface QueryEditorProps {
 }
 
 export function QueryEditor({ value, onChange, snapshot, onDiagnostics }: QueryEditorProps) {
-  const { theme } = useTheme();
+  const computedColorScheme = useComputedColorScheme('light');
+  const theme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
   const editorRef = useRef<Monaco>(null);
   const monacoRef = useRef<Monaco>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -147,7 +148,7 @@ export function QueryEditor({ value, onChange, snapshot, onDiagnostics }: QueryE
     <Editor
       height="100%"
       defaultLanguage="json"
-      theme={theme === 'dark' ? 'vs-dark' : 'light'}
+      theme={theme}
       value={value}
       onChange={handleChange}
       onMount={handleMount}

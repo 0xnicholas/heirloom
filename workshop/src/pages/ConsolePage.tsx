@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
-import { useTheme } from '@/hooks/useTheme';
+import { useComputedColorScheme } from '@mantine/core';
 import { executeQuery } from '@/api/query';
 import type { QueryDSL, QueryResult } from '@/lib/types';
 
 export function ConsolePage() {
-  const { theme } = useTheme();
+  const computedColorScheme = useComputedColorScheme('light');
+  const theme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
   const [result, setResult] = useState<QueryResult | null>(null);
   const editorRef = useRef<{ getValue: () => string } | null>(null);
 
@@ -40,7 +41,7 @@ export function ConsolePage() {
           <Editor
             height="100%"
             defaultLanguage="json"
-            theme={theme === 'dark' ? 'vs-dark' : 'light'}
+            theme={theme}
             defaultValue={`{\n  "from": "Customer",\n  "select": ["name"],\n  "limit": 10\n}`}
             onMount={editor => { editorRef.current = editor; }}
             options={{
