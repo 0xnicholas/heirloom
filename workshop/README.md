@@ -31,7 +31,6 @@ npx vitest run        # 77 tests across 14 files
 src/
 ├── api/                    # TanStack Query hooks (no UI deps)
 │   ├── query.ts            #   executeQuery()
-│   ├── client.ts           #   ApiClient interface (currently dead code)
 │   └── mock/               # MSW handlers + localStorage-backed store
 ├── components/
 │   ├── layout/             # AppLayout (AppShell) + TopBar + SideNav + QueryConsole
@@ -84,5 +83,6 @@ jsdom 27+ missing some browser APIs; polyfilled in `src/test/setup.ts`:
 
 - **No Tailwind**: UI uses Mantine primitives only. `src/index.css` imports only Mantine CSS.
 - **No TanStack Table**: only used to be imported but never actually used; removed in cleanup.
+- **No `@mantine/code-highlight` / `@mantine/dates`**: Installed in Phase 0 as part of package set, but never wired in (date fields use string `Select`; code blocks use Mantine `Code`). Removed in Phase 9 cleanup.
 - **No `@lucide/react`**: Workshop never used lucide; all icons are `@tabler/icons-react`.
 - **No Phase 9 code-splitting**: Bundle is 233KB JS gzip. `npm run build` warns about 500KB+ chunk; defer code-splitting until needed.

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Action } from '@/lib/types';
+import { notifyError, notifySuccess } from '@/lib/notifications';
 
 async function fetchActions(): Promise<Action[]> {
   const res = await fetch('/api/actions');
@@ -32,12 +33,20 @@ export function useActions() {
   const saveActionMutation = useMutation({
     mutationFn: ({ action, isNew }: { action: Action; isNew: boolean }) =>
       saveAction(action, isNew),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['actions'] });
+      notifySuccess(vars.isNew ? 'Action created' : 'Action updated');
+    },
+    onError: (err) => notifyError('Failed to save action', err),
   });
 
   const deleteActionMutation = useMutation({
     mutationFn: (name: string) => deleteAction(name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+    onSuccess: (_data, name) => {
+      qc.invalidateQueries({ queryKey: ['actions'] });
+      notifySuccess(`Action "${name}" deleted`);
+    },
+    onError: (err) => notifyError('Failed to delete action', err),
   });
 
   return {
