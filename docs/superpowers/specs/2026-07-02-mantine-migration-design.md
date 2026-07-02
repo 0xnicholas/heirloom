@@ -9,7 +9,7 @@
 
 ## 0. 问题陈述
 
-Workshop 当前是 React 19 + Vite 8 + Tailwind v4 + TypeScript 项目，5,975 行代码 / 30+ 自定义组件 / 14 路由 / 79 tests（73 ✅ / 6 ❌）。三类问题驱动这次迁移：
+Workshop 当前是 React 19 + Vite 8 + Tailwind v4 + TypeScript 项目，5,975 行代码 / 30+ 自定义组件 / **14 page 路由**（共 22 条 path 条目，含 6 个 PlaceholderPage + 1 条 `/objects` → `/explorer` 重定向） / 79 tests（73 ✅ / 6 ❌）。三类问题驱动这次迁移：
 
 ### 0.1 组件可重用性低
 
@@ -145,7 +145,7 @@ export const theme = createTheme({
 - `src/lib/validation/*`（4 个验证器 + 4 个测试文件 = 31 tests）
 - `src/api/mock/*`（`data.ts` 225 行 mock data + `handlers.ts` MSW handlers + `store.ts` localStorage 持久化）
 - `src/api/query.ts`（`executeQuery` 函数）
-- `src/hooks/useSchemaRegistry.ts` / `useQueries.ts` / `useSecurity.ts` / `useValidation.ts` / `useActions.ts` / `useRoles.ts`（7 个数据 hook，零 UI 依赖）
+- `src/hooks/useSchemaRegistry.ts` / `useQueries.ts` / `useSecurity.ts` / `useValidation.ts` / `useActions.ts` / `useRoles.ts`（**6 个数据 hook，零 UI 依赖**）
 - `src/mocks/browser.ts`（MSW worker 入口）
 - `public/mockServiceWorker.js`（MSW 生成的 service worker）
 - 所有 `*.test.ts`（除 UI 组件测试外）
@@ -154,16 +154,15 @@ export const theme = createTheme({
 
 ### 1.7 测试策略
 
-**当前 79 tests 分布**：
+**当前 79 tests 分布**（完整分项表见 §5.1，本节给出粗略分布供快速参考）：
 
 | 类别 | 文件数 | tests |
 |---|---|---|
-| 单元（validators） | 4 | 28 |
-| 单元（types） | 1 | 3 |
-| 组件行为 | 9 | 38 |
+| 单元（validators + types） | 5 | 31 |
+| 组件行为 | 6 | 34 |
 | 集成（MSW 端到端） | 1 | 3 |
 | ThemeProvider | 1 | 2 |
-| Shared | 1 | 9（其中 ValidationBar / ConfirmDialog 4 个）|
+| Shared | 1 | 9（含 ValidationBar / ConfirmDialog）|
 
 **改动原则**：
 - 每个组件迁移时，**同步更新它的测试**（同 PR 提交）
@@ -235,7 +234,7 @@ workshop/
 │   │       └── ThemeProvider.test.tsx # 删
 │   ├── hooks/                        # 改一个
 │   │   ├── useTheme.ts               # 删
-│   │   └── (其余 7 个不动)
+│   │   └── (其余 6 个不动)
 │   ├── lib/                          # 加/改/删
 │   │   ├── types.ts                  # 不动
 │   │   ├── constants.ts              # 不动
@@ -391,7 +390,6 @@ function validate() {
 
 // 之后
 import { useForm } from '@mantine/form'
-import { z } from 'zod'
 
 const form = useForm({
   initialValues: { name: '', type: 'string' as FieldType, required: false },
@@ -400,6 +398,8 @@ const form = useForm({
   },
 })
 ```
+
+> **不引入 zod**：验证用 `@mantine/form` 内联函数即可。如果未来需要 schema 级校验，单独评估。
 
 **错误处理统一模式**：
 
@@ -425,7 +425,7 @@ export function notifySuccess(message: string) {
 }
 ```
 
-应用点：所有 8 个 hook 的 `onError` 钩子统一调 `notifyError`，所有 mutation 成功路径调 `notifySuccess`。
+应用点：所有 **6 个数据 hook** 的 `onError` 钩子统一调 `notifyError`，所有 mutation 成功路径调 `notifySuccess`。
 
 ---
 
@@ -560,7 +560,7 @@ const saveMutation = useMutation({
 })
 ```
 
-8 个 hook 全部按此模式改造。
+**6 个数据 hook** 全部按此模式改造。
 
 ---
 
@@ -620,7 +620,7 @@ if (typeof window !== 'undefined' && !window.localStorage) {
 | 类型 + Validator 单元（31 tests） | 0 改 | 0 |
 | 集成（3 tests） | 0 改 | 0 |
 | ThemeProvider 测试（2 tests） | **删除文件** | 0 |
-| 组件行为测试（38 tests） | 重写 selector，部分加新场景 | 中 |
+| 组件行为测试（34 tests） | 重写 selector，部分加新场景 | 中 |
 | Shared 测试（9 tests） | 重写 selector | 中 |
 | **新增** notifications.test.tsx | ~3 tests | 短 |
 | **新增** useModals.test.tsx | ~2 tests | 短 |
@@ -654,7 +654,7 @@ if (typeof window !== 'undefined' && !window.localStorage) {
 | **6** | Stats tab：5 组件 + StatsPage.test 重写 | 低 | 3-4 |
 | **7** | Pages：14 文件轻调 | 低 | 2-3 |
 | **8** | Tests 收尾：所有未过 component tests 修绿 + 新增 6 tests | 低 | 3-4 |
-| **9** | Cleanup：卸载 tailwindcss + @tailwindcss/vite + lucide-react + 清 vite.config + 清 index.css + 更新 README | 低 | 1 |
+| **9** | Cleanup：卸载 tailwindcss + @tailwindcss/vite + lucide-react + @tanstack/react-table + 清 vite.config + 清 index.css + 更新 README | 低 | 1 |
 | **总计** | — | — | **~30** |
 
 ### 6.2 工作模式
@@ -762,13 +762,13 @@ Phase 0 后每 phase 必跑这 5 步；任一失败必须修通才能 commit。
 1. ✅ `npm run build` 成功，无 TS 错误
 2. ✅ `npm run lint` 零 warning
 3. ✅ `npx vitest run` 100% 绿（~85-90 tests）
-4. ✅ 14 个 route 都能正常加载、渲染、操作
+4. ✅ 14 个 page 都能正常加载、渲染、操作（注：`App.tsx` 实际声明 22 条 `path`，其中 6 个 `PlaceholderPage` 共享同一组件 + 1 个 `/objects` → `/explorer` 重定向）
 5. ✅ Monaco 编辑器在 QueryEditor + QueryConsole Drawer 中正常工作
 6. ✅ xyflow 图在 OntologyGraph + StateMachineEditor 中正常渲染、深色模式颜色正确
 7. ✅ 暗色模式切换：localStorage 持久化 + 跨页同步 + 无 FOUC
 8. ✅ 通知系统：错误 mutation 触发红色 toast
 9. ✅ `git grep "className=\"" workshop/src/ | grep -E "flex|gap-|p-|m-|w-|h-|bg-|text-|border-"` 零结果
-10. ✅ `package.json` 无 `tailwindcss` / `@tailwindcss/vite` / `lucide-react`
+10. ✅ `package.json` 无 `tailwindcss` / `@tailwindcss/vite` / `lucide-react` / `@tanstack/react-table`
 11. ✅ `vite.config.ts` 不引入 `tailwindcss()` plugin
 12. ✅ `index.css` 不含 `@import "tailwindcss"` 或 `@variant dark`
 13. ✅ `src/components/theme/` 目录不存在
