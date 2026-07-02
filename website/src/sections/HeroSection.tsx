@@ -1,5 +1,6 @@
 import { Mail, BookOpen } from 'lucide-react';
 import { Specimen } from '../components/Specimen.tsx';
+import { contactMailto } from '../config';
 
 export function HeroSection() {
   return (
@@ -27,7 +28,7 @@ export function HeroSection() {
 
           <div className="mt-10 flex flex-col sm:flex-row items-start gap-4">
             <a
-              href="mailto:hello@heirloom.dev?subject=预约 Heirloom 演示"
+              href={contactMailto('预约 Heirloom 演示')}
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-6 py-3 text-base font-medium text-white hover:bg-indigo-800 transition-colors"
             >
               <Mail className="w-5 h-5" />

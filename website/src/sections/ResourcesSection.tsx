@@ -1,5 +1,6 @@
 import { FileText, BookOpen, Hammer, Code, Mail } from 'lucide-react';
 import { Section } from '../components/Section.tsx';
+import { GITHUB_URL, WORKSHOP_URL, contactMailto } from '../config';
 
 const resources = [
   {
@@ -18,19 +19,19 @@ const resources = [
     icon: Hammer,
     title: 'Workshop',
     desc: '面向开发者的建模与调试工作台。',
-    href: '/workshop/',
+    href: WORKSHOP_URL,
   },
   {
     icon: Code,
     title: 'GitHub',
     desc: '源码、Issue 与贡献指南。',
-    href: 'https://github.com/0xnicholas/heirloom',
+    href: GITHUB_URL,
   },
   {
     icon: Mail,
     title: '联系我们',
     desc: '交流架构设计、合作与企业级部署。',
-    href: 'mailto:hello@heirloom.dev',
+    href: contactMailto(),
   },
 ];
 
@@ -66,7 +67,7 @@ export function ResourcesSection() {
 
       <div className="mt-12 text-center">
         <a
-          href="mailto:hello@heirloom.dev"
+          href={contactMailto()}
           className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-6 py-3 text-base font-medium text-white hover:bg-indigo-800 transition-colors"
         >
           <Mail className="w-5 h-5" />

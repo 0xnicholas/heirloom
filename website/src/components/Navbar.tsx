@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Menu, X, Hexagon } from 'lucide-react';
+import { WORKSHOP_URL } from '../config';
 
 const navLinks = [
   { label: '首页', href: '#' },
@@ -34,7 +35,7 @@ export function Navbar() {
 
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="http://localhost:5200/"
+            href={WORKSHOP_URL}
             target="_blank"
             rel="noreferrer"
             className="text-sm font-medium px-4 py-2 rounded-lg bg-indigo-700 text-white hover:bg-indigo-800 transition-colors"
@@ -70,7 +71,7 @@ export function Navbar() {
             ))}
             <li>
               <a
-                href="http://localhost:5200/"
+                href={WORKSHOP_URL}
                 target="_blank"
                 rel="noreferrer"
                 className="block py-2 text-indigo-700 hover:text-indigo-800"
