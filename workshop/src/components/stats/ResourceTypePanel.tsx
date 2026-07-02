@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
+import { Paper, Group, Title, Table, Collapse, ActionIcon, Box, Text, UnstyledButton } from '@mantine/core';
+import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import type { ResourceType } from '@/lib/types';
 
 interface ResourceTypePanelProps {
@@ -10,32 +12,47 @@ export function ResourceTypePanel({ types }: ResourceTypePanelProps) {
   const [open, setOpen] = useState(true);
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-t-lg"
+    <Paper withBorder shadow="sm" radius="md">
+      <Group
+        justify="space-between"
+        px="md"
+        py="sm"
+        style={{ cursor: 'pointer' }}
+        onClick={() => setOpen((o) => !o)}
       >
-        <span>Resource Types ({types.length})</span>
-        <span className="text-gray-400 dark:text-gray-500">{open ? '−' : '+'}</span>
-      </button>
-      {open && (
-        <ul className="border-t border-gray-100 dark:border-gray-800">
-          {types.map(type => (
-            <li key={type.name} className="border-b border-gray-50 dark:border-gray-800 last:border-0">
-              <Link
-                to={`/schema/${type.name}`}
-                className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <span>{type.name}</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">v{type.version}</span>
-              </Link>
-            </li>
-          ))}
-          {types.length === 0 && (
-            <li className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">No types defined</li>
-          )}
-        </ul>
-      )}
-    </div>
+        <Title order={3} size="h4">Resource Types ({types.length})</Title>
+        <ActionIcon variant="subtle" size="sm" aria-label={open ? 'Collapse' : 'Expand'}>
+          {open ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+        </ActionIcon>
+      </Group>
+      <Collapse expanded={open}>
+        {types.length === 0 ? (
+          <Box px="md" pb="md">
+            <Text size="sm" c="dimmed">No types defined</Text>
+          </Box>
+        ) : (
+          <Table verticalSpacing="xs" horizontalSpacing="sm">
+            <Table.Tbody>
+              {types.map((type) => (
+                <Table.Tr key={type.name}>
+                  <Table.Td>
+                    <UnstyledButton
+                      component={NavLink}
+                      to={`/schema/${type.name}`}
+                      style={{ display: 'block', width: '100%' }}
+                    >
+                      <Group justify="space-between" px="xs" py={4} style={{ borderRadius: 4 }}>
+                        <Text size="sm">{type.name}</Text>
+                        <Text size="xs" c="dimmed">v{type.version}</Text>
+                      </Group>
+                    </UnstyledButton>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Collapse>
+    </Paper>
   );
 }

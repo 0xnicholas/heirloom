@@ -1,3 +1,4 @@
+import { SimpleGrid, Card, Text } from '@mantine/core';
 import { useSecurity } from '@/hooks/useSecurity';
 import { mockFunctions, mockResourceInstances } from '@/api/mock/data';
 import type { ResourceType } from '@/lib/types';
@@ -22,17 +23,20 @@ export function MetricCards({ types, relationships }: MetricCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-      {metrics.map(m => (
-        <div
+    <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
+      {metrics.map((m) => (
+        <Card
           key={m.label}
+          withBorder
+          shadow="sm"
+          radius="md"
+          padding="md"
           data-testid={`metric-${m.label.toLowerCase().replace(/\s+/g, '-')}`}
-          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm"
         >
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{m.value}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{m.label}</div>
-        </div>
+          <Text size="xl" fw={600}>{m.value}</Text>
+          <Text size="xs" c="dimmed">{m.label}</Text>
+        </Card>
       ))}
-    </div>
+    </SimpleGrid>
   );
 }
