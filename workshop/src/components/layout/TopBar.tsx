@@ -1,8 +1,13 @@
-import { useMantineColorScheme, ActionIcon, Group, Menu, Button } from '@mantine/core';
+import { useMantineColorScheme, ActionIcon, Group, Menu, Button, Burger } from '@mantine/core';
 import { IconHexagons, IconDatabase, IconChevronDown, IconSun, IconMoon, IconBook, IconExternalLink } from '@tabler/icons-react';
 import { API_DOCS_URL, DEFAULT_ONTOLOGY, ONTOLOGIES } from '@/lib/constants';
 
-export function TopBar() {
+interface TopBarProps {
+  onBurgerClick?: () => void;
+  burgerOpen?: boolean;
+}
+
+export function TopBar({ onBurgerClick, burgerOpen }: TopBarProps) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -17,6 +22,14 @@ export function TopBar() {
       }}
     >
       <Group gap="sm">
+        {onBurgerClick && (
+          <Burger
+            opened={burgerOpen ?? false}
+            onClick={onBurgerClick}
+            hiddenFrom="sm"
+            size="sm"
+          />
+        )}
         <Group gap={6} align="center">
           <IconHexagons size={20} color="var(--mantine-color-indigo-6)" />
           <span style={{ fontWeight: 600, fontSize: 14 }}>Heirloom</span>
