@@ -1,12 +1,14 @@
 import { useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { Box, Button, Code, Group, Paper, Text, Title } from '@mantine/core';
+import { IconPlayerPlay } from '@tabler/icons-react';
 import { useComputedColorScheme } from '@mantine/core';
 import { executeQuery } from '@/api/query';
 import type { QueryDSL, QueryResult } from '@/lib/types';
 
 export function ConsolePage() {
   const computedColorScheme = useComputedColorScheme('light');
-  const theme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
+  const monacoTheme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
   const [result, setResult] = useState<QueryResult | null>(null);
   const editorRef = useRef<{ getValue: () => string } | null>(null);
 
@@ -23,27 +25,26 @@ export function ConsolePage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950">
-      <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Console</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Interactive query console</p>
-        </div>
-        <button
-          onClick={handleRun}
-          className="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
-        >
-          Run
-        </button>
-      </div>
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 border-r border-gray-200 dark:border-gray-700">
+    <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Paper p="md" radius={0} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Group justify="space-between" align="flex-start">
+          <Box>
+            <Title order={2}>Console</Title>
+            <Text size="xs" c="dimmed">Interactive query console</Text>
+          </Box>
+          <Button onClick={handleRun} leftSection={<IconPlayerPlay size={14} />}>
+            Run
+          </Button>
+        </Group>
+      </Paper>
+      <Box style={{ flex: 1, display: 'flex' }}>
+        <Box style={{ flex: 1, borderRight: '1px solid var(--mantine-color-default-border)' }}>
           <Editor
             height="100%"
             defaultLanguage="json"
-            theme={theme}
+            theme={monacoTheme}
             defaultValue={`{\n  "from": "Customer",\n  "select": ["name"],\n  "limit": 10\n}`}
-            onMount={editor => { editorRef.current = editor; }}
+            onMount={(editor) => { editorRef.current = editor; }}
             options={{
               minimap: { enabled: false },
               fontSize: 13,
@@ -52,17 +53,17 @@ export function ConsolePage() {
               tabSize: 2,
             }}
           />
-        </div>
-        <div className="flex-1 overflow-auto bg-white dark:bg-gray-900">
+        </Box>
+        <Box style={{ flex: 1, overflow: 'auto' }}>
           {result ? (
-            <pre className="p-4 text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            <Code block fz="xs" p="md">
               {JSON.stringify(result, null, 2)}
-            </pre>
+            </Code>
           ) : (
-            <p className="p-4 text-sm text-gray-400 dark:text-gray-500">Run a query to see results</p>
+            <Text size="sm" c="dimmed" p="md">Run a query to see results</Text>
           )}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }

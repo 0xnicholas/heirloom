@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Box } from '@mantine/core';
 import { RoleList } from '@/components/security/RoleList';
 import { RoleEditor } from '@/components/security/RoleEditor';
 import { useRoles } from '@/hooks/useRoles';
@@ -14,7 +15,7 @@ export function RolesPage() {
   const types = typesQuery.data || [];
   const roles = rolesQuery.data || [];
 
-  const activeRole = roleName ? roles.find(r => r.name === roleName) || null : null;
+  const activeRole = roleName ? roles.find((r) => r.name === roleName) || null : null;
   const [isNew, setIsNew] = useState(false);
 
   const handleSelect = (name: string) => {
@@ -42,24 +43,24 @@ export function RolesPage() {
   };
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-gray-950">
-      <div className="w-[260px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-auto shrink-0">
+    <Box style={{ display: 'flex', height: '100%' }}>
+      <Box w={260} style={{ borderRight: '1px solid var(--mantine-color-default-border)', overflow: 'auto', flexShrink: 0 }}>
         <RoleList
           roles={roles}
           selected={activeRole?.name || null}
           onSelect={handleSelect}
           onNew={handleNew}
         />
-      </div>
-      <div className="flex-1 overflow-auto bg-white dark:bg-gray-900">
+      </Box>
+      <Box style={{ flex: 1, overflow: 'auto' }}>
         <RoleEditor
-          key={isNew ? '__new__' : roleName ?? '__none__'}
+          key={isNew ? '__new__' : (roleName ?? '__none__')}
           role={isNew ? newRoleTemplate : activeRole}
           allTypes={types}
           onSave={handleSave}
           isNew={isNew}
         />
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
