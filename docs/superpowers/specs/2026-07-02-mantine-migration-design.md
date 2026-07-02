@@ -9,7 +9,7 @@
 
 ## 0. 问题陈述
 
-Workshop 当前是 React 19 + Vite 8 + Tailwind v4 + TypeScript 项目，5,975 行代码 / 30+ 自定义组件 / **14 page 路由**（共 22 条 path 条目，含 6 个 PlaceholderPage + 1 条 `/objects` → `/explorer` 重定向） / 79 tests（73 ✅ / 6 ❌）。三类问题驱动这次迁移：
+Workshop 当前是 React 19 + Vite 8 + Tailwind v4 + TypeScript 项目，5,975 行代码 / 30+ 自定义组件 / **14 page 路由**（共 23 条 path 条目：17 unique page routes + 6 个 PlaceholderPage，含 1 条 `/objects` → `/explorer` 重定向） / 79 tests（73 ✅ / 6 ❌）。三类问题驱动这次迁移：
 
 ### 0.1 组件可重用性低
 
@@ -438,10 +438,10 @@ export function notifySuccess(message: string) {
 
 | 现有 | Mantine 替代 | 关键决策 |
 |---|---|---|
-| `AppLayout.tsx`（57 行） | `AppShell` + 自定义底部栏 | 保留 Ctrl+` 快捷键监听；QueryConsole 改成 `Drawer` fromBottom |
+| `AppLayout.tsx`（57 行） | `AppShell` + 自定义底部栏 | 保留 Ctrl+` 快捷键监听；QueryConsole **保留 inline** 模式（见下）|
 | `TopBar.tsx`（~50 行） | `Group` + `Burger`（移动端）+ `ActionIcon`（主题切换）| |
 | `SideNav.tsx`（**250 行**） | `AppShell.Navbar` + `NavLink` + 分组 `Stack` | **删 19 个 inline SVG 组件**（~200 行），改用 Tabler 图标 |
-| `QueryConsole.tsx`（155 行） | **保留 inline 底部面板**（外层 `Paper` + `Group` 标题栏） | **不切 Drawer**：现有 3-pane 布局（editor / results / recent runs）+ 拖拽缩放（25-75% height）Drawer 无法承载。用 `useDisclosure` 替代 useState；保留 `RECENT_RUNS_KEY`；保留 `onMouseDown/onMouseUp` 拖拽逻辑 |
+| `QueryConsole.tsx`（155 行） | **保留 inline 底部面板**（外层 `Paper` + `Group` 标题栏） | **不切 Drawer**：现有 3-pane 布局（editor / results / recent runs）+ 拖拽缩放（25-75% height）Drawer 无法承载。外层 `useDisclosure` 控制整体 open/close；内部 `result` / `dragging` / `containerRef` 维持原 useState；保留 `RECENT_RUNS_KEY`；保留 `onMouseDown/onMouseUp` 拖拽逻辑 |
 | `ConsoleContext.tsx` | **保留** | 跟 UI 无关 |
 
 ### 3.2 Shared 层
@@ -729,7 +729,7 @@ Phase 0 后每 phase 必跑这 5 步；任一失败必须修通才能 commit。
 | 79 tests 静默失败的连锁影响 | 中 | Phase 0 修 localStorage polyfill；Phase 8 全量验证 |
 | Mantine 7 主题与现有视觉差异 | 低 | §1.2 显式定义 indigo/stone 调色板对齐；Phase 1 视觉冒烟 |
 | Bundle 体积 +85KB gzipped | 低 | Workshop 是内部工具，可接受；后续可 tree-shake 优化 |
-| Monaco + Mantine Drawer 集成未知行为 | 中 | Phase 5 先小样验证；Drawer size={} + padding 0 让 Monaco 占满 |
+| Monaco 在 Mantine `Paper` + `Group` 容器中的尺寸适配 | 低 | QueryConsole 保留 inline 模式，Monaco 在 Paper 内的 `100% height` 已验证可行；如出问题改 `flex: 1` 容器 |
 | 14 个 page 隐藏的 Tailwind 依赖 | 中 | Phase 7 集中处理；如发现某 page 用了复杂 utility，单独评估 |
 | 丢 TanStack Table 后 QueryResults 性能 | 低 | Mock 数据 200 行内，Mantine Table 完全够用；真实后端再说 |
 | 单次会话不能完成 | 中 | worktree + 分 3-4 session |
@@ -744,7 +744,7 @@ Phase 0 后每 phase 必跑这 5 步；任一失败必须修通才能 commit。
 | 主题 | 自定义 indigo/stone 调色板 | 用 Mantine 默认 indigo | 与 `website/` 营销站一致；调色板已与设计对齐 |
 | 暗色模式 | 删 ThemeContext，完全交给 Mantine | 保留 React Context 桥接 | 简化架构；Mantine 内建持久化 |
 | Tailwind | 立即清掉（不留过渡期） | Phase 9 才清 | 避免技术债；用户明确要求 |
-| QueryConsole | Drawer 模式 | 保留 inline 底部栏 | Drawer 更符合"工作台"语义；移动端可用 |
+| QueryConsole | **保留 inline 底部面板** | Drawer 模式 | Drawer 不支持拖拽缩放 / 3-pane 布局；inline 模式更适合 IDE 风格的 Console |
 | TanStack Table | 丢 | 保留 | Workshop 数据规模小；统一 Mantine 减少包 |
 | 测试快照 | 不写 | 写 | Mantine 内部 DOM 易变；行为测试更稳 |
 | 工作模式 | worktree + 分 session | 直接在 main 改 | 风险太大；30+ commits 不应污染 main |
@@ -767,7 +767,7 @@ Phase 0 后每 phase 必跑这 5 步；任一失败必须修通才能 commit。
 2. ✅ `npm run lint` 零 warning
 3. ✅ `npx vitest run` 100% 绿（~85-90 tests）
 4. ✅ 14 个 page 都能正常加载、渲染、操作（注：`App.tsx` 实际声明 22 条 `path`，其中 6 个 `PlaceholderPage` 共享同一组件 + 1 个 `/objects` → `/explorer` 重定向）
-5. ✅ Monaco 编辑器在 QueryEditor + QueryConsole Drawer 中正常工作
+5. ✅ Monaco 编辑器在 QueryEditor + QueryConsole（inline 底部面板）中正常工作
 6. ✅ xyflow 图在 OntologyGraph + StateMachineEditor 中正常渲染、深色模式颜色正确
 7. ✅ 暗色模式切换：localStorage 持久化 + 跨页同步 + 无 FOUC
    - TopBar 的 `useTheme` 替换为 `useMantineColorScheme`，sun/moon 图标根据 `computedColorScheme` 渲染
