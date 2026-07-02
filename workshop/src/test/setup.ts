@@ -35,6 +35,16 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   });
 }
 
+// jsdom doesn't implement ResizeObserver; Mantine Select / Popover need it.
+if (typeof window !== 'undefined' && !window.ResizeObserver) {
+  class MockResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (window as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver = MockResizeObserver;
+}
+
 // Mock ReactFlow for jsdom — no browser layout APIs
 vi.mock('@xyflow/react', async () => {
   const actual = await vi.importActual('@xyflow/react');

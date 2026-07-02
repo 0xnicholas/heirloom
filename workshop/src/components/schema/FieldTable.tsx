@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { ActionIcon, Button, Checkbox, Group, Select, Table, Text, TextInput, Stack } from '@mantine/core';
+import { IconPlus, IconTrash } from '@tabler/icons-react';
 import type { Field, FieldType } from '@/lib/types';
 import { FIELD_TYPES } from '@/lib/constants';
 
@@ -38,75 +40,82 @@ export function FieldTable({ fields, onChange }: FieldTableProps) {
   const handleDragEnd = () => setDragIndex(null);
 
   return (
-    <div>
-      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fields</h4>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
-            <th className="pb-1.5 font-medium">Name</th>
-            <th className="pb-1.5 font-medium">Type</th>
-            <th className="pb-1.5 font-medium text-center">Required</th>
-            <th className="pb-1.5 w-8"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {fields.map((field, i) => (
-            <tr
-              key={i}
-              className="border-t border-gray-100 dark:border-gray-800"
-              draggable
-              onDragStart={() => handleDragStart(i)}
-              onDragOver={e => handleDragOver(e, i)}
-              onDragEnd={handleDragEnd}
-              style={{ cursor: 'grab', opacity: dragIndex === i ? 0.5 : 1 }}
-            >
-              <td className="py-1.5">
-                <input
-                  type="text"
-                  value={field.name}
-                  onChange={e => updateField(i, { name: e.target.value })}
-                  className="w-full px-1.5 py-0.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                  placeholder="field_name"
-                />
-              </td>
-              <td className="py-1.5">
-                <select
-                  value={field.type}
-                  onChange={e => updateField(i, { type: e.target.value as FieldType })}
-                  className="px-1.5 py-0.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100"
-                >
-                  {FIELD_TYPES.map(ft => (
-                    <option key={ft} value={ft}>{ft}</option>
-                  ))}
-                </select>
-              </td>
-              <td className="py-1.5 text-center">
-                <input
-                  type="checkbox"
-                  checked={field.required}
-                  onChange={e => updateField(i, { required: e.target.checked })}
-                  aria-label={`${field.name || 'field'} required`}
-                />
-              </td>
-              <td className="py-1.5">
-                <button
-                  onClick={() => removeField(i)}
-                  className="text-red-400 hover:text-red-600 text-xs"
-                  aria-label={`Remove ${field.name || 'field'}`}
-                >
-                  ✕
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <button
-        onClick={addField}
-        className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
-      >
-        + Add Field
-      </button>
-    </div>
+    <Stack gap="xs">
+      <Text size="sm" fw={600}>Fields</Text>
+      {fields.length > 0 && (
+        <Table withTableBorder verticalSpacing="xs" horizontalSpacing="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th ta="center" w={100}>Required</Table.Th>
+              <Table.Th w={40}></Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {fields.map((field, i) => (
+              <Table.Tr
+                key={i}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDragEnd={handleDragEnd}
+                style={{ cursor: 'grab', opacity: dragIndex === i ? 0.5 : 1 }}
+              >
+                <Table.Td>
+                  <TextInput
+                    size="xs"
+                    value={field.name}
+                    onChange={(e) => updateField(i, { name: e.currentTarget.value })}
+                    placeholder="field_name"
+                    aria-label="Field name"
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <Select
+                    size="xs"
+                    value={field.type}
+                    onChange={(value) => value && updateField(i, { type: value as FieldType })}
+                    data={FIELD_TYPES.map((ft) => ({ value: ft, label: ft }))}
+                    allowDeselect={false}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <Group justify="center">
+                    <Checkbox
+                      checked={field.required}
+                      onChange={(e) => updateField(i, { required: e.currentTarget.checked })}
+                      aria-label={`${field.name || 'field'} required`}
+                    />
+                  </Group>
+                </Table.Td>
+                <Table.Td>
+                  <ActionIcon
+                    onClick={() => removeField(i)}
+                    color="red"
+                    variant="subtle"
+                    aria-label={`Remove ${field.name || 'field'}`}
+                    size="sm"
+                  >
+                    <IconTrash size={14} />
+                  </ActionIcon>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+      <Group>
+        <Button
+          onClick={addField}
+          variant="subtle"
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+        >
+          Add Field
+        </Button>
+      </Group>
+    </Stack>
   );
 }

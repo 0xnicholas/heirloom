@@ -1,4 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useForm } from '@mantine/form';
+import {
+  Box, Button, Group, Paper, ScrollArea, Stack, Tabs, Text, TextInput, Center,
+} from '@mantine/core';
+import { IconDeviceFloppy } from '@tabler/icons-react';
 import type { ResourceType, Ability, SchemaRegistrySnapshot, Diagnostic } from '@/lib/types';
 import { FieldTable } from './FieldTable';
 import { StateMachineEditor } from './StateMachineEditor';
@@ -25,114 +30,150 @@ interface TypeEditorProps {
 }
 
 export function TypeEditor({ type, allTypes, onSave }: TypeEditorProps) {
-  const [draft, setDraft] = useState<ResourceType | null>(type);
-  const [dirty, setDirty] = useState(false);
+  const form = useForm<ResourceType>({
+    mode: 'controlled',
+    initialValues: type ?? {
+      name: '',
+      description: '',
+      fields: [],
+      abilities: [],
+      stateMachine: [],
+      relationships: [],
+      version: 1,
+    },
+    validate: {
+      name: (value) => (value.trim() ? null : 'Name is required'),
+    },
+  });
 
-  // Reset draft when the edited entity changes (form reset pattern)
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Reset form when edited entity changes
   useEffect(() => {
-    setDraft(type);
-    setDirty(false);
+    if (type) {
+      form.setValues(type);
+      form.resetDirty();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Warn on browser tab close with unsaved changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (dirty) {
+      if (form.isDirty()) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
+  }, [form]);
 
   const snapshot = useRegistrySnapshot(allTypes);
-  const diagnostics = useDebouncedTypeValidation(draft, snapshot);
+  const diagnostics = useDebouncedTypeValidation(form.values, snapshot);
 
-  if (!draft) {
+  if (!type) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-        Select a type or create a new one
-      </div>
+      <Center h="100%">
+        <Text c="dimmed">Select a type or create a new one</Text>
+      </Center>
     );
   }
 
   const handleSave = () => {
-    onSave(draft);
-    setDirty(false);
+    if (form.validate().hasErrors) return;
+    onSave(form.values);
+    form.resetDirty();
   };
 
-  const update = (patch: Partial<ResourceType>) => {
-    setDraft(prev => prev ? { ...prev, ...patch } : prev);
-    setDirty(true);
-  };
+  const hasErrors = diagnostics.some((d) => d.severity === 'error');
+  const isDirty = form.isDirty();
 
   return (
-    <div className="flex flex-col h-full overflow-auto bg-white dark:bg-gray-900">
+    <Stack h="100%" gap={0}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
-        <input
-          type="text"
-          value={draft.name}
-          onChange={e => update({ name: e.target.value })}
-          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-          placeholder="Type name"
-        />
-        <div className="flex items-center gap-2">
-          <ValidationBar diagnostics={diagnostics} />
-          <button
-            onClick={handleSave}
-            disabled={diagnostics.some(d => d.severity === 'error')}
-            className="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {dirty ? 'Save *' : 'Save'}
-          </button>
-        </div>
-      </div>
+      <Paper
+        p="md"
+        withBorder={false}
+        radius={0}
+        style={{ borderBottom: '1px solid var(--mantine-color-default-border)', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--mantine-color-body)' }}
+      >
+        <Group justify="space-between" align="center">
+          <TextInput
+            size="md"
+            variant="unstyled"
+            {...form.getInputProps('name')}
+            placeholder="Type name"
+            styles={{ input: { fontWeight: 600, fontSize: 18 } }}
+            style={{ flex: 1 }}
+          />
+          <Group gap="sm">
+            <ValidationBar diagnostics={diagnostics} />
+            <Button
+              onClick={handleSave}
+              disabled={hasErrors}
+              leftSection={<IconDeviceFloppy size={16} />}
+            >
+              {isDirty ? 'Save *' : 'Save'}
+            </Button>
+          </Group>
+        </Group>
+      </Paper>
 
       {/* Body */}
-      <div className="flex-1 p-6 space-y-6">
-        {/* Description */}
-        <div>
-          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">Description</label>
-          <input
-            type="text"
-            value={draft.description || ''}
-            onChange={e => update({ description: e.target.value })}
-            className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-            placeholder="Optional description"
-          />
-        </div>
+      <ScrollArea style={{ flex: 1 }}>
+        <Box p="md">
+          <Stack gap="lg">
+            {/* Description */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Description</Text>
+              <TextInput
+                size="sm"
+                placeholder="Optional description"
+                {...form.getInputProps('description')}
+              />
+            </Box>
 
-        {/* Fields */}
-        <FieldTable
-          fields={draft.fields}
-          onChange={fields => update({ fields })}
-        />
+            <Tabs defaultValue="fields" keepMounted={false}>
+              <Tabs.List>
+                <Tabs.Tab value="fields">Fields</Tabs.Tab>
+                <Tabs.Tab value="abilities">Abilities</Tabs.Tab>
+                <Tabs.Tab value="states">State Machine</Tabs.Tab>
+                <Tabs.Tab value="relationships">Relationships</Tabs.Tab>
+              </Tabs.List>
 
-        {/* State Machine + Abilities side by side */}
-        <div className="grid grid-cols-2 gap-6">
-          <StateMachineEditor
-            key={draft.name}
-            transitions={draft.stateMachine}
-            onChange={stateMachine => update({ stateMachine })}
-          />
-          <AbilitiesMatrix
-            selected={draft.abilities}
-            onChange={abilities => update({ abilities: abilities as Ability[] })}
-          />
-        </div>
+              <Tabs.Panel value="fields" pt="md">
+                <FieldTable
+                  fields={form.values.fields}
+                  onChange={(fields) => form.setFieldValue('fields', fields)}
+                />
+              </Tabs.Panel>
 
-        {/* Relationships */}
-        <RelationshipList
-          relationships={draft.relationships}
-          typeName={draft.name}
-          allTypes={allTypes.filter(t => t.name !== draft.name).map(t => t.name)}
-          onChange={relationships => update({ relationships })}
-        />
-      </div>
-    </div>
+              <Tabs.Panel value="abilities" pt="md">
+                <AbilitiesMatrix
+                  selected={form.values.abilities}
+                  onChange={(abilities) => form.setFieldValue('abilities', abilities as Ability[])}
+                />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="states" pt="md">
+                <StateMachineEditor
+                  key={form.values.name}
+                  transitions={form.values.stateMachine}
+                  onChange={(stateMachine) => form.setFieldValue('stateMachine', stateMachine)}
+                />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="relationships" pt="md">
+                <RelationshipList
+                  relationships={form.values.relationships}
+                  typeName={form.values.name}
+                  allTypes={allTypes.filter((t) => t.name !== form.values.name).map((t) => t.name)}
+                  onChange={(relationships) => form.setFieldValue('relationships', relationships)}
+                />
+              </Tabs.Panel>
+            </Tabs>
+          </Stack>
+        </Box>
+      </ScrollArea>
+    </Stack>
   );
 }

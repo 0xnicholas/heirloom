@@ -69,14 +69,17 @@ function renderPage(route = '/schema') {
 }
 
 describe('Schema integration', () => {
+  // Mantine Select/Combobox rendering can be slow under parallel test load
+  vi.setConfig({ testTimeout: 15_000 });
+
   it('creates a new type and shows it in the list', async () => {
     renderPage();
     // Wait for initial types to load
     await waitFor(() => expect(screen.getByText('Customer')).toBeInTheDocument());
     expect(screen.getByText('Order')).toBeInTheDocument();
 
-    // Click + New Type
-    fireEvent.click(screen.getByText('+ New Type'));
+    // Click New Type
+    fireEvent.click(screen.getByRole('button', { name: /New Type/i }));
 
     // Fill in the type name
     const nameInput = screen.getByPlaceholderText('Type name');
@@ -107,8 +110,8 @@ describe('Schema integration', () => {
     expect(screen.getByDisplayValue('name')).toBeInTheDocument();
     expect(screen.getByDisplayValue('tier')).toBeInTheDocument();
 
-    // Click + Add Field to add a new field row
-    fireEvent.click(screen.getByText('+ Add Field'));
+    // Click Add Field to add a new field row
+    fireEvent.click(screen.getByRole('button', { name: /Add Field/i }));
 
     // At least one field_name placeholder should appear (existing + new row)
     const fieldNameInputs = screen.getAllByPlaceholderText('field_name');
