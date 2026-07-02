@@ -1,8 +1,10 @@
 import { useRef, useCallback } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { useComputedColorScheme } from '@mantine/core';
+import { useComputedColorScheme, Tabs, Box, Group, Button, Text, ScrollArea } from '@mantine/core';
+import { IconPlayerPlay, IconDeviceFloppy } from '@tabler/icons-react';
 import type { SchemaRegistrySnapshot, Diagnostic, QueryDSL } from '@/lib/types';
 import { validateQuery } from '@/lib/validation/query-validator';
+import { QUERY_TEMPLATES } from '@/lib/constants';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Monaco = any;
@@ -12,11 +14,13 @@ interface QueryEditorProps {
   onChange: (value: string) => void;
   snapshot: SchemaRegistrySnapshot;
   onDiagnostics: (diags: Diagnostic[]) => void;
+  onRun?: () => void;
+  onSave?: () => void;
 }
 
-export function QueryEditor({ value, onChange, snapshot, onDiagnostics }: QueryEditorProps) {
+export function QueryEditor({ value, onChange, snapshot, onDiagnostics, onRun, onSave }: QueryEditorProps) {
   const computedColorScheme = useComputedColorScheme('light');
-  const theme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
+  const monacoTheme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
   const editorRef = useRef<Monaco>(null);
   const monacoRef = useRef<Monaco>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -144,21 +148,130 @@ export function QueryEditor({ value, onChange, snapshot, onDiagnostics }: QueryE
     [onChange, snapshot, onDiagnostics]
   );
 
+  const handleTemplateClick = (template: string) => {
+    onChange(template);
+    editorRef.current?.setValue?.(template);
+  };
+
   return (
-    <Editor
-      height="100%"
-      defaultLanguage="json"
-      theme={theme}
-      value={value}
-      onChange={handleChange}
-      onMount={handleMount}
-      options={{
-        minimap: { enabled: false },
-        fontSize: 13,
-        lineNumbers: 'on',
-        scrollBeyondLastLine: false,
-        tabSize: 2,
-      }}
-    />
+    <Box h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Action bar */}
+      <Group justify="space-between" px="md" py="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Text size="sm" fw={500}>Query</Text>
+        <Group gap="xs">
+          {onRun && (
+            <Button onClick={onRun} size="xs" leftSection={<IconPlayerPlay size={14} />}>
+              Run
+            </Button>
+          )}
+          {onSave && (
+            <Button onClick={onSave} size="xs" variant="default" leftSection={<IconDeviceFloppy size={14} />}>
+              Save
+            </Button>
+          )}
+        </Group>
+      </Group>
+
+      {/* Tabs: Editor / Templates */}
+      <Tabs defaultValue="editor" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Tabs.List>
+          <Tabs.Tab value="editor">Editor</Tabs.Tab>
+          <Tabs.Tab value="templates">Templates</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="editor" style={{ flex: 1, minHeight: 0 }}>
+          <Editor
+            height="100%"
+            defaultLanguage="json"
+            theme={monacoTheme}
+            value={value}
+            onChange={handleChange}
+            onMount={handleMount}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              lineNumbers: 'on',
+              scrollBeyondLastLine: false,
+              tabSize: 2,
+            }}
+          />
+        </Tabs.Panel>
+        <Tabs.Panel value="templates" style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
+          <ScrollArea h="100%">
+            <Tabs defaultValue="basic" orientation="vertical" variant="pills">
+              <Tabs.List>
+                <Tabs.Tab value="basic">Basic</Tabs.Tab>
+                <Tabs.Tab value="traverse">Traverse</Tabs.Tab>
+                <Tabs.Tab value="aggregate">Aggregate</Tabs.Tab>
+                <Tabs.Tab value="search">Search</Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel value="basic" pt="xs">
+                <Box
+                  component="pre"
+                  onClick={() => handleTemplateClick(QUERY_TEMPLATES.basic)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: 12,
+                    backgroundColor: 'var(--mantine-color-gray-0)',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {QUERY_TEMPLATES.basic}
+                </Box>
+              </Tabs.Panel>
+              <Tabs.Panel value="traverse" pt="xs">
+                <Box
+                  component="pre"
+                  onClick={() => handleTemplateClick(QUERY_TEMPLATES.traverse)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: 12,
+                    backgroundColor: 'var(--mantine-color-gray-0)',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {QUERY_TEMPLATES.traverse}
+                </Box>
+              </Tabs.Panel>
+              <Tabs.Panel value="aggregate" pt="xs">
+                <Box
+                  component="pre"
+                  onClick={() => handleTemplateClick(QUERY_TEMPLATES.aggregate)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: 12,
+                    backgroundColor: 'var(--mantine-color-gray-0)',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {QUERY_TEMPLATES.aggregate}
+                </Box>
+              </Tabs.Panel>
+              <Tabs.Panel value="search" pt="xs">
+                <Box
+                  component="pre"
+                  onClick={() => handleTemplateClick(QUERY_TEMPLATES.search)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: 12,
+                    backgroundColor: 'var(--mantine-color-gray-0)',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {QUERY_TEMPLATES.search}
+                </Box>
+              </Tabs.Panel>
+            </Tabs>
+          </ScrollArea>
+        </Tabs.Panel>
+      </Tabs>
+    </Box>
   );
 }

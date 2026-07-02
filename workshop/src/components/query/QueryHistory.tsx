@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Stack, TextInput, ScrollArea, Card, Group, Text, ActionIcon, Code, Box, Divider } from '@mantine/core';
+import { IconSearch, IconStar, IconStarFilled, IconTrash } from '@tabler/icons-react';
 import type { SavedQuery } from '@/lib/types';
 
 interface QueryHistoryProps {
@@ -10,57 +12,67 @@ interface QueryHistoryProps {
 
 export function QueryHistory({ queries, onSelect, onDelete, onToggleFavorite }: QueryHistoryProps) {
   const [search, setSearch] = useState('');
-
-  const filtered = queries.filter(q =>
-    q.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = queries.filter((q) =>
+    q.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-        <input
-          type="text"
+    <Stack gap={0} h="100%">
+      <Stack p="sm" gap="xs">
+        <TextInput
           placeholder="Search queries..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          leftSection={<IconSearch size={14} />}
+          size="sm"
         />
-      </div>
-      <div className="flex-1 overflow-auto">
+      </Stack>
+      <Divider />
+      <ScrollArea style={{ flex: 1 }}>
         {filtered.length === 0 && (
-          <p className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">No saved queries</p>
+          <Text size="sm" c="dimmed" px="md" py="sm">
+            No saved queries
+          </Text>
         )}
-        {filtered.map(q => (
-          <div
+        {filtered.map((q) => (
+          <Card
             key={q.id}
-            className="group px-4 py-3 border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+            p="sm"
+            withBorder={false}
+            style={{ borderBottom: '1px solid var(--mantine-color-default-border)', borderRadius: 0, cursor: 'pointer' }}
             onClick={() => onSelect(q)}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate flex-1">{q.name}</span>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={e => { e.stopPropagation(); onToggleFavorite(q.id); }}
-                  className={q.favorited ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600 hover:text-yellow-400'}
+            <Group justify="space-between" wrap="nowrap" align="flex-start">
+              <Box style={{ minWidth: 0, flex: 1 }}>
+                <Text size="sm" fw={500} truncate>{q.name}</Text>
+                <Code block fz="xs" mt={4} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {JSON.stringify(q.query).slice(0, 80)}
+                </Code>
+              </Box>
+              <Group gap={2} wrap="nowrap">
+                <ActionIcon
+                  onClick={(e) => { e.stopPropagation(); onToggleFavorite(q.id); }}
+                  color="yellow"
+                  variant="subtle"
                   aria-label={q.favorited ? 'Unfavorite' : 'Favorite'}
+                  size="sm"
                 >
-                  {q.favorited ? '★' : '☆'}
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onDelete(q.id); }}
-                  className="text-gray-300 dark:text-gray-600 hover:text-red-500"
+                  {q.favorited ? <IconStarFilled size={14} /> : <IconStar size={14} />}
+                </ActionIcon>
+                <ActionIcon
+                  onClick={(e) => { e.stopPropagation(); onDelete(q.id); }}
+                  color="red"
+                  variant="subtle"
                   aria-label="Delete query"
+                  size="sm"
                 >
-                  🗑
-                </button>
-              </div>
-            </div>
-            <code className="text-xs text-gray-400 dark:text-gray-500 block truncate mt-1 font-mono">
-              {JSON.stringify(q.query).slice(0, 80)}
-            </code>
-          </div>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+            </Group>
+          </Card>
         ))}
-      </div>
-    </div>
+      </ScrollArea>
+    </Stack>
   );
 }
