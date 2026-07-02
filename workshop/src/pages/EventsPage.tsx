@@ -1,38 +1,47 @@
+import { Box, Badge, Container, Paper, Table, Text, Title } from '@mantine/core';
 import { mockEvents } from '@/api/mock/data';
 
 export function EventsPage() {
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950 overflow-auto">
-      <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Audit</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Event log and change history</p>
-      </div>
-      <div className="p-6 max-w-4xl">
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                <th className="text-left py-2 px-4 font-medium text-gray-600 dark:text-gray-300">Time</th>
-                <th className="text-left py-2 px-4 font-medium text-gray-600 dark:text-gray-300">Actor</th>
-                <th className="text-left py-2 px-4 font-medium text-gray-600 dark:text-gray-300">Action</th>
-                <th className="text-left py-2 px-4 font-medium text-gray-600 dark:text-gray-300">Target</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockEvents.map(event => (
-                <tr key={event.id} className="border-b border-gray-50 dark:border-gray-800 last:border-0">
-                  <td className="py-2 px-4 text-xs text-gray-500 dark:text-gray-400 font-mono">{event.timestamp}</td>
-                  <td className="py-2 px-4 text-gray-700 dark:text-gray-300">{event.actor}</td>
-                  <td className="py-2 px-4">
-                    <span className="px-1.5 py-0.5 text-xs rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{event.action}</span>
-                  </td>
-                  <td className="py-2 px-4 text-gray-700 dark:text-gray-300 font-mono text-xs">{event.target}</td>
-                </tr>
+    <Box style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
+      <Paper p="md" radius={0} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Title order={2}>Audit</Title>
+        <Text size="xs" c="dimmed">Event log and change history</Text>
+      </Paper>
+      <Container size="lg" py="md">
+        <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+          <Table verticalSpacing="xs" horizontalSpacing="md">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Time</Table.Th>
+                <Table.Th>Actor</Table.Th>
+                <Table.Th>Action</Table.Th>
+                <Table.Th>Target</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {mockEvents.map((event) => (
+                <Table.Tr key={event.id}>
+                  <Table.Td>
+                    <Text size="xs" c="dimmed" ff="monospace">{event.timestamp}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{event.actor}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="sm" color="indigo" variant="light">
+                      {event.action}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs" ff="monospace">{event.target}</Text>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+            </Table.Tbody>
+          </Table>
+        </Paper>
+      </Container>
+    </Box>
   );
 }

@@ -1,51 +1,63 @@
-import { useTheme } from '@/hooks/useTheme';
-import { WORKSHOP_CONFIG } from '@/lib/config';
+import { useMantineColorScheme, Container, Stack, Title, Text, Paper, SegmentedControl, Select, Anchor, Group } from '@mantine/core';
+import { IconExternalLink } from '@tabler/icons-react';
+import { API_DOCS_URL, DEFAULT_ONTOLOGY, ONTOLOGIES } from '@/lib/constants';
 
 export function SettingsPage() {
-  const { theme, setTheme } = useTheme();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950 overflow-auto">
-      <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Workshop preferences</p>
-      </div>
-      <div className="p-6 max-w-xl space-y-6">
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Appearance</h2>
-          <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Theme</label>
-          <select
-            value={theme}
-            onChange={e => setTheme(e.target.value as 'light' | 'dark')}
-            className="px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200"
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+    <Container size="md" py="md">
+      <Stack gap="lg">
+        <div>
+          <Title order={1}>Settings</Title>
+          <Text c="dimmed" size="sm">Workshop preferences</Text>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Workspace</h2>
-          <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Active ontology</label>
-          <select className="px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200">
-            {WORKSHOP_CONFIG.ontologies.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </div>
+        <Paper p="md" withBorder>
+          <Stack gap="sm">
+            <Title order={3} size="h4">Appearance</Title>
+            <Text size="sm" c="dimmed">Theme</Text>
+            <SegmentedControl
+              value={colorScheme}
+              onChange={(value) => setColorScheme(value as 'light' | 'dark' | 'auto')}
+              data={[
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+                { value: 'auto', label: 'Auto' },
+              ]}
+            />
+          </Stack>
+        </Paper>
 
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Documentation</h2>
-          <a
-            href={WORKSHOP_CONFIG.apiDocsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            Open API Docs →
-          </a>
-        </div>
-      </div>
-    </div>
+        <Paper p="md" withBorder>
+          <Stack gap="sm">
+            <Title order={3} size="h4">Workspace</Title>
+            <Text size="sm" c="dimmed">Active ontology</Text>
+            <Select
+              defaultValue={DEFAULT_ONTOLOGY}
+              data={ONTOLOGIES.map((name) => ({ value: name, label: name }))}
+              allowDeselect={false}
+            />
+          </Stack>
+        </Paper>
+
+        <Paper p="md" withBorder>
+          <Stack gap="sm">
+            <Title order={3} size="h4">Documentation</Title>
+            <Anchor
+              href={API_DOCS_URL}
+              target="_blank"
+              rel="noreferrer"
+              size="sm"
+            >
+              <Group gap={4} align="center">
+                <span>Open API Docs</span>
+                <IconExternalLink size={14} />
+              </Group>
+            </Anchor>
+          </Stack>
+        </Paper>
+      </Stack>
+    </Container>
   );
 }

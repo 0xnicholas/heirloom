@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ResourceType } from '@/lib/types';
+import { notifyError, notifySuccess } from '@/lib/notifications';
 
 const API = '/api/types';
 
@@ -36,12 +37,20 @@ export function useSchemaRegistry() {
   const saveMutation = useMutation({
     mutationFn: ({ type, isNew }: { type: ResourceType; isNew: boolean }) =>
       saveType(type, isNew),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['types'] }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['types'] });
+      notifySuccess(vars.isNew ? 'Type created' : 'Type updated');
+    },
+    onError: (err) => notifyError('Failed to save type', err),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (name: string) => deleteType(name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['types'] }),
+    onSuccess: (_data, name) => {
+      qc.invalidateQueries({ queryKey: ['types'] });
+      notifySuccess(`Type "${name}" deleted`);
+    },
+    onError: (err) => notifyError('Failed to delete type', err),
   });
 
   return { typesQuery, saveMutation, deleteMutation };

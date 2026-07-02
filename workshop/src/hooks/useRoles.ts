@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@/lib/types';
+import { notifyError, notifySuccess } from '@/lib/notifications';
 
 async function fetchRoles(): Promise<Role[]> {
   const res = await fetch('/api/roles');
@@ -32,12 +33,20 @@ export function useRoles() {
   const saveRoleMutation = useMutation({
     mutationFn: ({ role, isNew }: { role: Role; isNew: boolean }) =>
       saveRole(role, isNew),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['roles'] });
+      notifySuccess(vars.isNew ? 'Role created' : 'Role updated');
+    },
+    onError: (err) => notifyError('Failed to save role', err),
   });
 
   const deleteRoleMutation = useMutation({
     mutationFn: (name: string) => deleteRole(name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
+    onSuccess: (_data, name) => {
+      qc.invalidateQueries({ queryKey: ['roles'] });
+      notifySuccess(`Role "${name}" deleted`);
+    },
+    onError: (err) => notifyError('Failed to delete role', err),
   });
 
   return {

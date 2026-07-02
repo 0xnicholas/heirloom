@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Tabs, Center, Text, Group, Table, Box, Code, Stack } from '@mantine/core';
 import type { QueryResult } from '@/lib/types';
 
 type ViewMode = 'table' | 'graph' | 'raw';
@@ -22,7 +23,6 @@ function GraphResultView({ rows }: { rows: QueryResult['rows'] }) {
     }
   }
 
-  // Create edges from consecutive RIDs for basic rendering
   const rids = [...seen];
   const edges: { id: string; source: string; target: string }[] = [];
   for (let i = 1; i < rids.length; i++) {
@@ -30,29 +30,29 @@ function GraphResultView({ rows }: { rows: QueryResult['rows'] }) {
   }
 
   return (
-    <div className="p-4">
-      <p className="text-xs text-gray-500 mb-3">
+    <Box p="md">
+      <Text size="xs" c="dimmed" mb="sm">
         Graph: {nodes.length} node{nodes.length !== 1 ? 's' : ''},{' '}
         {edges.length} edge{edges.length !== 1 ? 's' : ''}
-      </p>
-      <div className="text-xs font-mono text-gray-600 space-y-2">
-        {nodes.map(n => (
-          <div key={n.id} className="flex items-center gap-2">
-            <span className="text-indigo-500">⬤</span>
-            <span>{n.label}</span>
-          </div>
+      </Text>
+      <Stack gap="xs">
+        {nodes.map((n) => (
+          <Group key={n.id} gap="xs">
+            <Text c="indigo" size="xs">⬤</Text>
+            <Text size="xs" ff="monospace">{n.label}</Text>
+          </Group>
         ))}
         {edges.length > 0 && (
-          <div className="mt-3 text-gray-400">
-            {edges.map(e => (
-              <div key={e.id}>
+          <Stack gap={2} mt="xs">
+            {edges.map((e) => (
+              <Text key={e.id} size="xs" c="dimmed" ff="monospace">
                 {e.source.split('.').pop()} → {e.target.split('.').pop()}
-              </div>
+              </Text>
             ))}
-          </div>
+          </Stack>
         )}
-      </div>
-    </div>
+      </Stack>
+    </Box>
   );
 }
 
@@ -61,91 +61,76 @@ export function QueryResults({ result }: QueryResultsProps) {
 
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
-        Run a query to see results
-      </div>
+      <Center h="100%">
+        <Text c="dimmed" size="sm">Run a query to see results</Text>
+      </Center>
     );
   }
 
   if (result.rows.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
-        No rows returned ({result.meta.query_ms}ms)
-      </div>
+      <Center h="100%">
+        <Text c="dimmed" size="sm">No rows returned ({result.meta.query_ms}ms)</Text>
+      </Center>
     );
   }
 
   const columns =
     result.rows.length > 0
-      ? Object.keys(result.rows[0]).filter(k => k !== '_meta')
+      ? Object.keys(result.rows[0]).filter((k) => k !== '_meta')
       : [];
 
   return (
-    <div className="flex flex-col h-full">
+    <Stack gap={0} h="100%">
       {/* View toggle bar */}
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        {(['table', 'graph', 'raw'] as ViewMode[]).map(m => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`px-3 py-0.5 text-xs rounded transition-colors ${
-              mode === m
-                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            {m === 'table' ? 'Table' : m === 'graph' ? 'Graph' : 'Raw JSON'}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+      <Group justify="space-between" px="md" py="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Tabs value={mode} onChange={(v) => v && setMode(v as ViewMode)} variant="pills">
+          <Tabs.List>
+            <Tabs.Tab value="table">Table</Tabs.Tab>
+            <Tabs.Tab value="graph">Graph</Tabs.Tab>
+            <Tabs.Tab value="raw">Raw JSON</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+        <Text size="xs" c="dimmed">
           {result.total} rows · {result.meta.query_ms}ms
-        </span>
-      </div>
+        </Text>
+      </Group>
 
       {/* View content */}
-      <div className="flex-1 overflow-auto">
+      <Box style={{ flex: 1, overflow: 'auto' }}>
         {mode === 'table' && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0">
-                {columns.map(col => (
-                  <th
-                    key={col}
-                    className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-300"
-                  >
-                    {col}
-                  </th>
+          <Table striped highlightOnHover withTableBorder={false}>
+            <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--mantine-color-body)', zIndex: 1 }}>
+              <Table.Tr>
+                {columns.map((col) => (
+                  <Table.Th key={col}>{col}</Table.Th>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {result.rows.map((row, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-gray-50 dark:border-gray-800 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20"
-                >
-                  {columns.map(col => (
-                    <td
-                      key={col}
-                      className="py-1.5 px-3 text-gray-700 dark:text-gray-300 font-mono text-xs"
-                    >
-                      {String(row[col] ?? '')}
-                    </td>
+                <Table.Tr key={i}>
+                  {columns.map((col) => (
+                    <Table.Td key={col}>
+                      <Code fz="xs">{String(row[col] ?? '')}</Code>
+                    </Table.Td>
                   ))}
-                </tr>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         )}
 
         {mode === 'graph' && <GraphResultView rows={result.rows} />}
 
         {mode === 'raw' && (
-          <pre className="p-4 text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-            {JSON.stringify(result, null, 2)}
-          </pre>
+          <Box p="md">
+            <Code block fz="xs">
+              {JSON.stringify(result, null, 2)}
+            </Code>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Stack>
   );
 }

@@ -1,11 +1,10 @@
-@import "tailwindcss";
-
-@variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@import "@mantine/core/styles.css";
+@import "@mantine/notifications/styles.css";
 
 :root {
   color-scheme: light;
 }
 
-[data-theme="dark"] {
+[data-mantine-color-scheme="dark"] {
   color-scheme: dark;
 }

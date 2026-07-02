@@ -1,13 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MantineProvider } from '@mantine/core';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { SchemaPage } from '@/pages/SchemaPage';
 import { ConsoleContext } from '@/components/layout/ConsoleContext';
 import { mockTypes, mockActions, mockRoles } from '@/api/mock/data';
 import type { ResourceType } from '@/lib/types';
+import { theme } from '@/lib/theme';
 
 // Clone mock data so tests can mutate it without affecting other tests
 let types: ResourceType[] = JSON.parse(JSON.stringify(mockTypes));
@@ -54,25 +56,30 @@ function renderPage(route = '/schema') {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={qc}>
-      <ConsoleContext.Provider value={{ activeType: null, setActiveType: () => {} }}>
-        <MemoryRouter initialEntries={[route]}>
-          <SchemaPage />
-        </MemoryRouter>
-      </ConsoleContext.Provider>
-    </QueryClientProvider>,
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <QueryClientProvider client={qc}>
+        <ConsoleContext.Provider value={{ activeType: null, setActiveType: () => {} }}>
+          <MemoryRouter initialEntries={[route]}>
+            <SchemaPage />
+          </MemoryRouter>
+        </ConsoleContext.Provider>
+      </QueryClientProvider>
+    </MantineProvider>,
   );
 }
 
 describe('Schema integration', () => {
+  // Mantine Select/Combobox rendering can be slow under parallel test load
+  vi.setConfig({ testTimeout: 15_000 });
+
   it('creates a new type and shows it in the list', async () => {
     renderPage();
     // Wait for initial types to load
     await waitFor(() => expect(screen.getByText('Customer')).toBeInTheDocument());
     expect(screen.getByText('Order')).toBeInTheDocument();
 
-    // Click + New Type
-    fireEvent.click(screen.getByText('+ New Type'));
+    // Click New Type
+    fireEvent.click(screen.getByRole('button', { name: /New Type/i }));
 
     // Fill in the type name
     const nameInput = screen.getByPlaceholderText('Type name');
@@ -103,8 +110,8 @@ describe('Schema integration', () => {
     expect(screen.getByDisplayValue('name')).toBeInTheDocument();
     expect(screen.getByDisplayValue('tier')).toBeInTheDocument();
 
-    // Click + Add Field to add a new field row
-    fireEvent.click(screen.getByText('+ Add Field'));
+    // Click Add Field to add a new field row
+    fireEvent.click(screen.getByRole('button', { name: /Add Field/i }));
 
     // At least one field_name placeholder should appear (existing + new row)
     const fieldNameInputs = screen.getAllByPlaceholderText('field_name');

@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import { useComputedColorScheme, Paper, Group, ActionIcon, Text, ScrollArea, Box } from '@mantine/core';
+import { IconX, IconGripVertical } from '@tabler/icons-react';
 import { executeQuery } from '@/api/query';
 import type { QueryDSL, QueryResult } from '@/lib/types';
 
@@ -12,38 +14,71 @@ interface QueryConsoleProps {
 
 function MiniResults({ result }: { result: QueryResult }) {
   if (!result.rows.length) {
-    return <p className="text-xs text-gray-400 dark:text-gray-500 p-4">No rows returned ({result.meta.query_ms}ms)</p>;
+    return (
+      <Text size="xs" c="dimmed" p="sm">
+        No rows returned ({result.meta.query_ms}ms)
+      </Text>
+    );
   }
-  const cols = Object.keys(result.rows[0]).filter(k => k !== '_meta');
+  const cols = Object.keys(result.rows[0]).filter((k) => k !== '_meta');
   return (
-    <div className="overflow-auto p-2">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-gray-200 dark:border-gray-700">
-            {cols.map(c => <th key={c} className="text-left py-1 px-2 font-medium text-gray-600 dark:text-gray-300">{c}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {result.rows.map((row, i) => (
-            <tr key={i} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800">
-              {cols.map(c => <td key={c} className="py-1 px-2 text-gray-700 dark:text-gray-300">{String(row[c] ?? '')}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{result.total} rows · {result.meta.query_ms}ms</p>
-    </div>
+    <ScrollArea h="100%">
+      <Box p="xs">
+        <Box component="table" w="100%" style={{ fontSize: 12, borderCollapse: 'collapse' }}>
+          <Box component="thead">
+            <Box component="tr">
+              {cols.map((c) => (
+                <Box
+                  component="th"
+                  key={c}
+                  style={{
+                    textAlign: 'left',
+                    padding: '4px 8px',
+                    borderBottom: '1px solid var(--mantine-color-default-border)',
+                    fontWeight: 500,
+                  }}
+                >
+                  {c}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+          <Box component="tbody">
+            {result.rows.map((row, i) => (
+              <Box component="tr" key={i}>
+                {cols.map((c) => (
+                  <Box
+                    component="td"
+                    key={c}
+                    style={{ padding: '4px 8px' }}
+                  >
+                    {String(row[c] ?? '')}
+                  </Box>
+                ))}
+              </Box>
+            ))}
+          </Box>
+        </Box>
+        <Text size="xs" c="dimmed" mt={4}>
+          {result.total} rows · {result.meta.query_ms}ms
+        </Text>
+      </Box>
+    </ScrollArea>
   );
 }
 
 const RECENT_RUNS_KEY = 'heirloom_console_recent_runs';
 
 function getRecentRuns(): string[] {
-  try { return JSON.parse(localStorage.getItem(RECENT_RUNS_KEY) || '[]'); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_RUNS_KEY) || '[]');
+  } catch {
+    return [];
+  }
 }
 
 function saveRecentRun(query: string) {
-  const runs = [query, ...getRecentRuns().filter(r => r !== query)].slice(0, 5);
+  const runs = [query, ...getRecentRuns().filter((r) => r !== query)].slice(0, 5);
   localStorage.setItem(RECENT_RUNS_KEY, JSON.stringify(runs));
 }
 
@@ -52,6 +87,8 @@ export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: Q
   const [result, setResult] = useState<QueryResult | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<{ getValue: () => string; setValue: (v: string) => void } | null>(null);
+  const computedColorScheme = useComputedColorScheme('light');
+  const monacoTheme = computedColorScheme === 'dark' ? 'vs-dark' : 'vs';
 
   // Drag-to-resize
   const onMouseDown = useCallback(() => setDragging(true), []);
@@ -102,24 +139,44 @@ export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: Q
     : '';
 
   return (
-    <div ref={containerRef} className="border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ height: `${height}%` }}>
+    <Paper
+      ref={containerRef}
+      withBorder
+      radius={0}
+      style={{ height: `${height}%`, display: 'flex', flexDirection: 'column' }}
+    >
       {/* Resize handle */}
-      <div
-        className="h-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-indigo-400 cursor-row-resize transition-colors"
+      <Box
         onMouseDown={onMouseDown}
-      />
-      <div className="flex items-center justify-between px-4 py-1 border-b border-gray-100 dark:border-gray-700">
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">◆ Query Console</span>
-        <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-sm">&times;</button>
-      </div>
-      <div className="flex h-[calc(100%-3.5rem)]">
-        {/* Editor pane */}
-        <div className="flex-1 border-r border-gray-100 dark:border-gray-700">
+        style={{
+          height: 6,
+          cursor: 'row-resize',
+          backgroundColor: 'var(--mantine-color-gray-2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <IconGripVertical size={12} color="var(--mantine-color-dimmed)" />
+      </Box>
+
+      {/* Header */}
+      <Group justify="space-between" px="md" py={6} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Text size="xs" fw={500}>◆ Query Console</Text>
+        <ActionIcon onClick={onClose} variant="subtle" size="sm" aria-label="Close console">
+          <IconX size={14} />
+        </ActionIcon>
+      </Group>
+
+      {/* Body: editor | results */}
+      <Box style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <Box style={{ flex: 1, borderRight: '1px solid var(--mantine-color-default-border)' }}>
           <Editor
             height="100%"
             defaultLanguage="json"
             defaultValue={defaultCode}
-            onMount={editor => { editorRef.current = editor; }}
+            theme={monacoTheme}
+            onMount={(editor) => { editorRef.current = editor; }}
             options={{
               minimap: { enabled: false },
               fontSize: 13,
@@ -128,29 +185,57 @@ export function QueryConsole({ height, onHeightChange, onClose, defaultFrom }: Q
               tabSize: 2,
             }}
           />
-        </div>
-        {/* Results pane */}
-        <div className="flex-1 overflow-auto">
+        </Box>
+        <Box style={{ flex: 1, overflow: 'auto' }}>
           {result ? (
             <MiniResults result={result} />
           ) : (
-            <p className="text-xs text-gray-400 dark:text-gray-500 p-4">Run query (Ctrl+Enter) to see results</p>
+            <Text size="xs" c="dimmed" p="sm">
+              Run query (Ctrl+Enter) to see results
+            </Text>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
+
       {/* Recent Runs bar */}
-      <div className="flex items-center gap-1 px-3 py-1 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs text-gray-400 dark:text-gray-500 overflow-x-auto h-7">
-        <span className="shrink-0">Recent:</span>
+      <Group
+        gap={6}
+        px="sm"
+        py={4}
+        style={{
+          borderTop: '1px solid var(--mantine-color-default-border)',
+          backgroundColor: 'var(--mantine-color-gray-0)',
+          fontSize: 11,
+          color: 'var(--mantine-color-dimmed)',
+          overflowX: 'auto',
+          minHeight: 28,
+        }}
+      >
+        <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>Recent:</Text>
         {getRecentRuns().map((q, i) => (
           <button
             key={i}
+            type="button"
             onClick={() => editorRef.current?.setValue(q)}
-            className="shrink-0 px-1.5 py-0.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-mono truncate max-w-[200px]"
+            style={{
+              flexShrink: 0,
+              padding: '2px 6px',
+              background: 'var(--mantine-color-body)',
+              border: '1px solid var(--mantine-color-default-border)',
+              borderRadius: 4,
+              fontFamily: 'monospace',
+              fontSize: 11,
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+            }}
           >
-            {q.length > 60 ? q.slice(0, 60) + '...' : q}
+            {q.length > 60 ? `${q.slice(0, 60)}...` : q}
           </button>
         ))}
-      </div>
-    </div>
+      </Group>
+    </Paper>
   );
 }

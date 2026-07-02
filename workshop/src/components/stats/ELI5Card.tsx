@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Paper, Group, Title, Text, Select } from '@mantine/core';
 
 type Level = 'Simple' | 'Technical' | 'Expert';
 
@@ -15,20 +16,26 @@ export function ELI5Card() {
   const [level, setLevel] = useState<Level>('Simple');
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4 mb-2">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">What is this?</h2>
-        <select
+    <Paper withBorder shadow="sm" radius="md" p="md">
+      <Group justify="space-between" align="flex-start" mb="xs">
+        <Title order={3} size="h4">What is this?</Title>
+        <Select
+          size="xs"
           value={level}
-          onChange={e => setLevel(e.target.value as Level)}
-          className="px-2 py-1 text-xs border rounded-md bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200"
-        >
-          {(['Simple', 'Technical', 'Expert'] as Level[]).map(l => (
-            <option key={l} value={l}>{l} (ELI5)</option>
-          ))}
-        </select>
-      </div>
-      <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{explanations[level]}</p>
-    </div>
+          onChange={(v) => v && setLevel(v as Level)}
+          data={[
+            { value: 'Simple', label: 'Simple (ELI5)' },
+            { value: 'Technical', label: 'Technical' },
+            { value: 'Expert', label: 'Expert' },
+          ]}
+          allowDeselect={false}
+          comboboxProps={{ withinPortal: true }}
+          w={150}
+        />
+      </Group>
+      <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
+        {explanations[level]}
+      </Text>
+    </Paper>
   );
 }

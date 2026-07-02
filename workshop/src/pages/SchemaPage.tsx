@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Box } from '@mantine/core';
 import { TypeList } from '@/components/schema/TypeList';
 import { TypeEditor } from '@/components/schema/TypeEditor';
 import { useSchemaRegistry } from '@/hooks/useSchemaRegistry';
@@ -15,7 +16,7 @@ export function SchemaPage() {
   const { setActiveType } = useConsoleContext();
 
   const types = typesQuery.data || [];
-  const selectedType = types.find(t => t.name === selectedName) || null;
+  const selectedType = types.find((t) => t.name === selectedName) || null;
 
   // Keep ConsoleContext in sync for QueryConsole defaultFrom
   useEffect(() => {
@@ -51,24 +52,24 @@ export function SchemaPage() {
   };
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-gray-950">
-      <div className="w-[260px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-auto shrink-0">
+    <Box style={{ display: 'flex', height: '100%' }}>
+      <Box w={260} style={{ borderRight: '1px solid var(--mantine-color-default-border)', overflow: 'auto', flexShrink: 0 }}>
         <TypeList
           types={types}
           selected={selectedName}
           onSelect={handleSelect}
           onNew={handleNew}
         />
-      </div>
-      <div className="flex-1 overflow-auto bg-white dark:bg-gray-900">
+      </Box>
+      <Box style={{ flex: 1, overflow: 'auto' }}>
         <TypeEditor
-          key={isNew ? '__new__' : selectedName ?? '__none__'}
+          key={isNew ? '__new__' : (selectedName ?? '__none__')}
           type={isNew ? newTypeTemplate : selectedType}
           allTypes={types}
           onSave={handleSave}
           isNew={isNew}
         />
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }

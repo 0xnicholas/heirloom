@@ -11,6 +11,7 @@ import {
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Box, Paper, Text } from '@mantine/core';
 import type { StateTransition } from '@/lib/types';
 
 interface StateMachineEditorProps {
@@ -30,13 +31,13 @@ function transitionsToFlow(transitions: StateTransition[]): { nodes: Node[]; edg
     data: { label: state },
     position: { x: 150 + (i % 3) * 200, y: 50 + Math.floor(i / 3) * 120 },
     style: {
-      background: '#eef2ff',
-      border: '1px solid #818cf8',
+      background: 'var(--mantine-color-indigo-0)',
+      border: '1px solid var(--mantine-color-indigo-4)',
       borderRadius: '8px',
       padding: '8px 20px',
       fontSize: '13px',
       fontWeight: 600,
-      color: '#4338ca',
+      color: 'var(--mantine-color-indigo-7)',
     },
   }));
 
@@ -46,16 +47,16 @@ function transitionsToFlow(transitions: StateTransition[]): { nodes: Node[]; edg
     target: t.to,
     label: t.label || '',
     animated: true,
-    style: { stroke: '#a5b4fc' },
-    labelStyle: { fontSize: '10px', fill: '#6366f1' },
-    labelBgStyle: { fill: '#fff', fillOpacity: 0.9 },
+    style: { stroke: 'var(--mantine-color-indigo-3)' },
+    labelStyle: { fontSize: '10px', fill: 'var(--mantine-color-indigo-6)' },
+    labelBgStyle: { fill: 'var(--mantine-color-body)', fillOpacity: 0.9 },
   }));
 
   return { nodes, edges };
 }
 
 function flowToTransitions(_nodes: Node[], edges: Edge[]): StateTransition[] {
-  return edges.map(e => ({
+  return edges.map((e) => ({
     from: e.source,
     to: e.target,
     label: (e.label as string) || undefined,
@@ -84,9 +85,9 @@ export function StateMachineEditor({ transitions, onChange }: StateMachineEditor
   );
 
   return (
-    <div>
-      <h4 className="text-sm font-semibold text-gray-700 mb-2">State Machine</h4>
-      <div className="h-48 border rounded bg-gray-50">
+    <Box>
+      <Text size="sm" fw={600} mb="xs">State Machine</Text>
+      <Paper withBorder radius="md" style={{ height: 192, overflow: 'hidden' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -99,7 +100,7 @@ export function StateMachineEditor({ transitions, onChange }: StateMachineEditor
           <Controls />
           <Background />
         </ReactFlow>
-      </div>
-    </div>
+      </Paper>
+    </Box>
   );
 }

@@ -1,3 +1,4 @@
+import { Checkbox, SimpleGrid, Stack, Text, Card } from '@mantine/core';
 import type { Ability } from '@/lib/types';
 import { ABILITIES } from '@/lib/constants';
 
@@ -7,44 +8,41 @@ interface AbilitiesMatrixProps {
 }
 
 export function AbilitiesMatrix({ selected, onChange }: AbilitiesMatrixProps) {
-  const toggle = (ability: Ability) => {
-    if (selected.includes(ability)) {
-      onChange(selected.filter(a => a !== ability));
-    } else {
-      onChange([...selected, ability]);
-    }
-  };
-
   return (
-    <div>
-      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Abilities</h4>
-      <div className="grid grid-cols-2 gap-1.5">
-        {ABILITIES.map(ability => {
-          const checked = selected.includes(ability);
+    <Stack gap="xs">
+      <Text size="sm" fw={600}>Abilities</Text>
+      <SimpleGrid cols={2} spacing="xs">
+        {ABILITIES.map((ability) => {
+          const isChecked = selected.includes(ability);
           return (
-            <label
+            <Card
               key={ability}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer transition-colors ${
-                checked
-                  ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
-                  : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+              p="xs"
+              withBorder
+              style={{
+                cursor: 'pointer',
+                backgroundColor: isChecked ? 'var(--mantine-color-indigo-0)' : undefined,
+                borderColor: isChecked ? 'var(--mantine-color-indigo-4)' : undefined,
+              }}
+              onClick={() => {
+                onChange(
+                  isChecked
+                    ? selected.filter((a) => a !== ability)
+                    : [...selected, ability],
+                );
+              }}
             >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(ability)}
-                className="sr-only"
-                aria-label={ability}
+              <Checkbox
+                checked={isChecked}
+                onChange={() => {}}
+                label={ability}
+                size="sm"
+                styles={{ label: { fontFamily: 'monospace', fontSize: 12 } }}
               />
-              <span className={`text-xs font-mono ${checked ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                {checked ? '✓' : '○'}
-              </span>
-              <span>{ability}</span>
-            </label>
+            </Card>
           );
         })}
-      </div>
-    </div>
+      </SimpleGrid>
+    </Stack>
   );
 }

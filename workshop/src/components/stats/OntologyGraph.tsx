@@ -10,7 +10,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useTheme } from '@/hooks/useTheme';
+import { useComputedColorScheme, Paper, Group, Title, Button } from '@mantine/core';
 import type { RelationshipSemantics, ResourceType } from '@/lib/types';
 
 interface OntologyGraphProps {
@@ -25,7 +25,7 @@ const SEMANTICS_STYLES: Record<RelationshipSemantics, { stroke: string; strokeDa
 
 function buildGraph(types: ResourceType[], isDark: boolean) {
   const nodeBg = isDark ? '#312e81' : '#eef2ff';
-  const nodeBorder = isDark ? '#818cf8' : '#818cf8';
+  const nodeBorder = '#818cf8';
   const nodeText = isDark ? '#e0e7ff' : '#4338ca';
   const labelBg = isDark ? '#1f2937' : '#fff';
 
@@ -47,7 +47,7 @@ function buildGraph(types: ResourceType[], isDark: boolean) {
   }));
 
   const edges: Edge[] = [];
-  types.forEach(source => {
+  types.forEach((source) => {
     source.relationships.forEach((rel, i) => {
       const style = SEMANTICS_STYLES[rel.semantics];
       edges.push({
@@ -68,8 +68,8 @@ function buildGraph(types: ResourceType[], isDark: boolean) {
 }
 
 export function OntologyGraph({ types }: OntologyGraphProps) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const computedColorScheme = useComputedColorScheme('light');
+  const isDark = computedColorScheme === 'dark';
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(types, isDark), [types, isDark]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -78,7 +78,7 @@ export function OntologyGraph({ types }: OntologyGraphProps) {
   useEffect(() => {
     const { nodes: nextNodes, edges: nextEdges } = buildGraph(types, isDark);
     const factor = spacious ? 1.5 : 1;
-    setNodes(nextNodes.map(n => ({
+    setNodes(nextNodes.map((n) => ({
       ...n,
       position: { x: n.position.x * factor, y: n.position.y * factor },
     })));
@@ -88,7 +88,7 @@ export function OntologyGraph({ types }: OntologyGraphProps) {
   const onLayout = useCallback(() => {
     const factor = spacious ? 1.5 : 1;
     const sampleStyle = buildGraph(types, isDark).nodes[0]?.style;
-    setNodes(prev => prev.map((n, i) => ({
+    setNodes((prev) => prev.map((n, i) => ({
       ...n,
       position: { x: (120 + (i % 3) * 220) * factor, y: (80 + Math.floor(i / 3) * 160) * factor },
       style: sampleStyle,
@@ -96,25 +96,27 @@ export function OntologyGraph({ types }: OntologyGraphProps) {
   }, [spacious, setNodes, types, isDark]);
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm h-full min-h-[400px] flex flex-col">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Ontology Graph</h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSpacious(s => !s)}
-            className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
+    <Paper withBorder shadow="sm" radius="md" style={{ display: 'flex', flexDirection: 'column', minHeight: 400 }}>
+      <Group justify="space-between" px="md" py="sm" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Title order={3} size="h4">Ontology Graph</Title>
+        <Group gap="xs">
+          <Button
+            onClick={() => setSpacious((s) => !s)}
+            size="xs"
+            variant="default"
           >
             {spacious ? 'Compact' : 'Spacious'}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onLayout}
-            className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
+            size="xs"
+            variant="default"
           >
             Reset Layout
-          </button>
-        </div>
-      </div>
-      <div className="flex-1 min-h-0">
+          </Button>
+        </Group>
+      </Group>
+      <div style={{ flex: 1, minHeight: 0 }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -127,6 +129,6 @@ export function OntologyGraph({ types }: OntologyGraphProps) {
           <Background gap={16} size={1} />
         </ReactFlow>
       </div>
-    </div>
+    </Paper>
   );
 }

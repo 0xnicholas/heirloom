@@ -1,4 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useForm } from '@mantine/form';
+import {
+  ActionIcon, Box, Button, Center, Checkbox, Group, Paper, ScrollArea, Select, SimpleGrid, Stack, Table, Text, Textarea, TextInput,
+} from '@mantine/core';
+import { IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { Action, Ability, ResourceType, FieldType, Diagnostic } from '@/lib/types';
 import { FIELD_TYPES } from '@/lib/constants';
 import { ValidationBar } from '@/components/shared/ValidationBar';
@@ -13,287 +18,286 @@ interface ActionEditorProps {
 }
 
 export function ActionEditor({ action, allTypes, onSave }: ActionEditorProps) {
-  const [draft, setDraft] = useState<Action | null>(action);
-  const [dirty, setDirty] = useState(false);
+  const form = useForm<Action>({
+    mode: 'controlled',
+    initialValues: action ?? {
+      name: '',
+      targetType: allTypes[0]?.name || '',
+      requires: 'query',
+      parameters: [],
+      validateRules: [],
+      executeTemplate: '',
+    },
+    validate: {
+      name: (value) => (value.trim() ? null : 'Name is required'),
+    },
+  });
+
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Reset draft when the edited entity changes (form reset pattern)
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    setDraft(action);
-    setDirty(false);
+    if (action) {
+      form.setValues(action);
+      form.resetDirty();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Debounced live validation (300ms)
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      if (!draft) {
+      if (!action) {
         setDiagnostics([]);
         return;
       }
       const snapshot = createSnapshot(allTypes, [], []);
-      setDiagnostics(validateAction(draft, snapshot));
+      setDiagnostics(validateAction(action, snapshot));
     }, 300);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [draft, allTypes]);
+  }, [action, allTypes]);
 
-  if (!draft) {
+  if (!action) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-        Select an action or create one
-      </div>
+      <Center h="100%">
+        <Text c="dimmed">Select an action or create one</Text>
+      </Center>
     );
   }
 
   // Derive available options based on currently selected target type
-  const targetType = allTypes.find(t => t.name === draft.targetType);
+  const targetType = allTypes.find((t) => t.name === action.targetType);
   const declaredAbilities = targetType?.abilities || [];
   const stateMachineStates = new Set(
-    targetType?.stateMachine.flatMap(t => [t.from, t.to]) || [],
+    targetType?.stateMachine.flatMap((t) => [t.from, t.to]) || [],
   );
 
-  const update = (patch: Partial<Action>) => {
-    setDraft(prev => prev ? { ...prev, ...patch } : prev);
-    setDirty(true);
-  };
-
   const handleSave = () => {
-    onSave(draft);
-    setDirty(false);
+    if (form.validate().hasErrors) return;
+    onSave(form.values);
+    form.resetDirty();
   };
 
   const addParam = () => {
-    update({
-      parameters: [...draft.parameters, { name: '', type: 'string', required: false }],
-    });
+    form.setFieldValue('parameters', [
+      ...form.values.parameters,
+      { name: '', type: 'string', required: false },
+    ]);
   };
 
   const updateParam = (
     i: number,
     patch: Partial<{ name: string; type: FieldType; required: boolean }>,
   ) => {
-    const params = draft.parameters.map((p, idx) => (idx === i ? { ...p, ...patch } : p));
-    update({ parameters: params });
+    form.setFieldValue(
+      'parameters',
+      form.values.parameters.map((p, idx) => (idx === i ? { ...p, ...patch } : p)),
+    );
   };
 
   const removeParam = (i: number) => {
-    update({ parameters: draft.parameters.filter((_, idx) => idx !== i) });
+    form.setFieldValue('parameters', form.values.parameters.filter((_, idx) => idx !== i));
   };
 
-  const hasErrors = diagnostics.some(d => d.severity === 'error');
-
-  const inputClass =
-    'w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
-  const selectClass =
-    'w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
-  const tableInputClass =
-    'w-full px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500';
-  const tableSelectClass =
-    'px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
+  const hasErrors = diagnostics.some((d) => d.severity === 'error');
+  const isDirty = form.isDirty();
 
   return (
-    <div className="flex flex-col h-full overflow-auto bg-white dark:bg-gray-900">
+    <Stack h="100%" gap={0}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
-        <input
-          type="text"
-          value={draft.name}
-          onChange={e => update({ name: e.target.value })}
-          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-          placeholder="Action name"
-        />
-        <div className="flex items-center gap-2">
-          <ValidationBar diagnostics={diagnostics} />
-          <button
-            onClick={handleSave}
-            disabled={hasErrors}
-            className="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {dirty ? 'Save *' : 'Save'}
-          </button>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="p-6 space-y-6">
-        {/* Target Type / Requires / Gate */}
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-              Target Type
-            </label>
-            <select
-              value={draft.targetType}
-              onChange={e =>
-                update({
-                  targetType: e.target.value,
-                  // Reset requires if it's no longer valid for the new target type
-                  requires: 'query',
-                })
-              }
-              className={selectClass}
-            >
-              {allTypes.map(t => (
-                <option key={t.name} value={t.name}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-              Requires
-            </label>
-            <select
-              value={draft.requires}
-              onChange={e => update({ requires: e.target.value as Ability })}
-              className={selectClass}
-            >
-              {declaredAbilities.map(a => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-              {declaredAbilities.length === 0 && (
-                <option value="query">
-                  {draft.requires} (not on target type)
-                </option>
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-              Gate (state)
-            </label>
-            <input
-              type="text"
-              value={draft.gate?.state || ''}
-              onChange={e =>
-                update({
-                  gate: e.target.value ? { state: e.target.value } : undefined,
-                })
-              }
-              className={inputClass}
-              placeholder="e.g. Active"
-              list="gate-states-list"
-            />
-            <datalist id="gate-states-list">
-              {[...stateMachineStates].map(s => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
-          </div>
-        </div>
-
-        {/* Parameters */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Parameters</h4>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
-                <th className="pb-1 font-medium">Name</th>
-                <th className="pb-1 font-medium">Type</th>
-                <th className="pb-1 font-medium text-center">Required</th>
-                <th className="pb-1 w-8"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {draft.parameters.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-2 text-xs text-gray-400 dark:text-gray-500">
-                    No parameters defined
-                  </td>
-                </tr>
-              )}
-              {draft.parameters.map((p, i) => (
-                <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
-                  <td className="py-1.5">
-                    <input
-                      type="text"
-                      value={p.name}
-                      onChange={e => updateParam(i, { name: e.target.value })}
-                      className={tableInputClass}
-                      placeholder="param_name"
-                    />
-                  </td>
-                  <td className="py-1.5">
-                    <select
-                      value={p.type}
-                      onChange={e => updateParam(i, { type: e.target.value as FieldType })}
-                      className={tableSelectClass}
-                    >
-                      {FIELD_TYPES.map(ft => (
-                        <option key={ft} value={ft}>
-                          {ft}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-1.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={p.required}
-                      onChange={e => updateParam(i, { required: e.target.checked })}
-                      className="rounded"
-                      aria-label={`${p.name} required`}
-                    />
-                  </td>
-                  <td className="py-1.5">
-                    <button
-                      onClick={() => removeParam(i)}
-                      className="text-red-400 hover:text-red-600 text-xs"
-                      aria-label={`Remove parameter ${p.name}`}
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            onClick={addParam}
-            className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
-          >
-            + Add Parameter
-          </button>
-        </div>
-
-        {/* Validate Rules */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Validate Rules</h4>
-          <textarea
-            value={draft.validateRules.join('\n')}
-            onChange={e =>
-              update({
-                validateRules: e.target.value
-                  .split('\n')
-                  .filter(line => line.trim() !== ''),
-              })
-            }
-            className="w-full h-20 px-3 py-2 text-sm font-mono border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-            placeholder="risk_score(inventory) > 0.3"
+      <Paper
+        p="md"
+        radius={0}
+        style={{ borderBottom: '1px solid var(--mantine-color-default-border)', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--mantine-color-body)' }}
+      >
+        <Group justify="space-between" align="center">
+          <TextInput
+            size="md"
+            variant="unstyled"
+            {...form.getInputProps('name')}
+            placeholder="Action name"
+            styles={{ input: { fontWeight: 600, fontSize: 18 } }}
+            style={{ flex: 1 }}
           />
-        </div>
+          <Group gap="sm">
+            <ValidationBar diagnostics={diagnostics} />
+            <Button
+              onClick={handleSave}
+              disabled={hasErrors}
+              leftSection={<IconDeviceFloppy size={16} />}
+            >
+              {isDirty ? 'Save *' : 'Save'}
+            </Button>
+          </Group>
+        </Group>
+      </Paper>
 
-        {/* Execute */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Execute</h4>
-          <textarea
-            value={draft.executeTemplate}
-            onChange={e => update({ executeTemplate: e.target.value })}
-            className="w-full h-20 px-3 py-2 text-sm font-mono border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-300 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-            placeholder="(Action execution DSL — format TBD in Phase 2 implementation)"
-          />
-        </div>
-      </div>
-    </div>
+      <ScrollArea style={{ flex: 1 }}>
+        <Box p="md">
+          <Stack gap="lg">
+            {/* Target Type / Requires / Gate */}
+            <SimpleGrid cols={3} spacing="md">
+              <Box>
+                <Text size="sm" fw={600} mb="xs">Target Type</Text>
+                <Select
+                  size="sm"
+                  value={form.values.targetType}
+                  onChange={(value) => {
+                    form.setFieldValue('targetType', value || '');
+                    form.setFieldValue('requires', 'query');
+                  }}
+                  data={allTypes.map((t) => ({ value: t.name, label: t.name }))}
+                  allowDeselect={false}
+                  comboboxProps={{ withinPortal: true }}
+                />
+              </Box>
+
+              <Box>
+                <Text size="sm" fw={600} mb="xs">Requires</Text>
+                <Select
+                  size="sm"
+                  value={form.values.requires}
+                  onChange={(value) => value && form.setFieldValue('requires', value as Ability)}
+                  data={
+                    declaredAbilities.length > 0
+                      ? declaredAbilities.map((a) => ({ value: a, label: a }))
+                      : [{ value: form.values.requires, label: `${form.values.requires} (not on target type)` }]
+                  }
+                  allowDeselect={false}
+                  comboboxProps={{ withinPortal: true }}
+                />
+              </Box>
+
+              <Box>
+                <Text size="sm" fw={600} mb="xs">Gate (state)</Text>
+                <TextInput
+                  size="sm"
+                  value={form.values.gate?.state || ''}
+                  onChange={(e) =>
+                    form.setFieldValue('gate', e.currentTarget.value ? { state: e.currentTarget.value } : undefined)
+                  }
+                  placeholder="e.g. Active"
+                  list="gate-states-list"
+                />
+                <datalist id="gate-states-list">
+                  {[...stateMachineStates].map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              </Box>
+            </SimpleGrid>
+
+            {/* Parameters */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Parameters</Text>
+              {form.values.parameters.length > 0 && (
+                <Table withTableBorder verticalSpacing="xs" horizontalSpacing="sm">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Name</Table.Th>
+                      <Table.Th>Type</Table.Th>
+                      <Table.Th ta="center" w={100}>Required</Table.Th>
+                      <Table.Th w={40}></Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {form.values.parameters.map((p, i) => (
+                      <Table.Tr key={i}>
+                        <Table.Td>
+                          <TextInput
+                            size="xs"
+                            value={p.name}
+                            onChange={(e) => updateParam(i, { name: e.currentTarget.value })}
+                            placeholder="param_name"
+                            aria-label="Parameter name"
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <Select
+                            size="xs"
+                            value={p.type}
+                            onChange={(value) => value && updateParam(i, { type: value as FieldType })}
+                            data={FIELD_TYPES.map((ft) => ({ value: ft, label: ft }))}
+                            allowDeselect={false}
+                            comboboxProps={{ withinPortal: true }}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <Group justify="center">
+                            <Checkbox
+                              checked={p.required}
+                              onChange={(e) => updateParam(i, { required: e.currentTarget.checked })}
+                              aria-label={`${p.name} required`}
+                            />
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <ActionIcon
+                            onClick={() => removeParam(i)}
+                            color="red"
+                            variant="subtle"
+                            size="sm"
+                            aria-label={`Remove parameter ${p.name}`}
+                          >
+                            <IconTrash size={14} />
+                          </ActionIcon>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+              {form.values.parameters.length === 0 && (
+                <Text size="xs" c="dimmed" my="xs">No parameters defined</Text>
+              )}
+              <Group mt="xs">
+                <Button
+                  onClick={addParam}
+                  variant="subtle"
+                  size="xs"
+                  leftSection={<IconPlus size={14} />}
+                >
+                  Add Parameter
+                </Button>
+              </Group>
+            </Box>
+
+            {/* Validate Rules */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Validate Rules</Text>
+              <Textarea
+                size="sm"
+                rows={3}
+                value={form.values.validateRules.join('\n')}
+                onChange={(e) =>
+                  form.setFieldValue(
+                    'validateRules',
+                    e.currentTarget.value.split('\n').filter((line) => line.trim() !== ''),
+                  )
+                }
+                styles={{ input: { fontFamily: 'monospace' } }}
+                placeholder="risk_score(inventory) > 0.3"
+              />
+            </Box>
+
+            {/* Execute */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Execute</Text>
+              <Textarea
+                size="sm"
+                rows={3}
+                value={form.values.executeTemplate}
+                onChange={(e) => form.setFieldValue('executeTemplate', e.currentTarget.value)}
+                styles={{ input: { fontFamily: 'monospace' } }}
+                placeholder="(Action execution DSL — format TBD in Phase 2 implementation)"
+              />
+            </Box>
+          </Stack>
+        </Box>
+      </ScrollArea>
+    </Stack>
   );
 }

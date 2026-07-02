@@ -1,10 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MantineProvider } from '@mantine/core';
 import { TypeList } from './TypeList';
 import { AbilitiesMatrix } from './AbilitiesMatrix';
 import { FieldTable } from './FieldTable';
 import type { ResourceType, Field } from '@/lib/types';
 import { ABILITIES } from '@/lib/constants';
+import { theme } from '@/lib/theme';
+
+function renderWithMantine(ui: React.ReactNode) {
+  return render(
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      {ui}
+    </MantineProvider>,
+  );
+}
 
 const mockTypes: ResourceType[] = [
   {
@@ -27,20 +37,20 @@ const mockTypes: ResourceType[] = [
 
 describe('TypeList', () => {
   it('renders all types', () => {
-    render(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={vi.fn()} />);
+    renderWithMantine(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={vi.fn()} />);
     expect(screen.getByText('Customer')).toBeInTheDocument();
     expect(screen.getByText('Order')).toBeInTheDocument();
   });
 
   it('calls onSelect when type clicked', () => {
     const onSelect = vi.fn();
-    render(<TypeList types={mockTypes} selected={null} onSelect={onSelect} onNew={vi.fn()} />);
+    renderWithMantine(<TypeList types={mockTypes} selected={null} onSelect={onSelect} onNew={vi.fn()} />);
     fireEvent.click(screen.getByText('Customer'));
     expect(onSelect).toHaveBeenCalledWith('Customer');
   });
 
   it('filters types by search', () => {
-    render(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={vi.fn()} />);
+    renderWithMantine(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={vi.fn()} />);
     const input = screen.getByPlaceholderText('Search types...');
     fireEvent.change(input, { target: { value: 'Ord' } });
     expect(screen.getByText('Order')).toBeInTheDocument();
@@ -48,54 +58,55 @@ describe('TypeList', () => {
   });
 
   it('shows no types found when filter matches nothing', () => {
-    render(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={vi.fn()} />);
+    renderWithMantine(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={vi.fn()} />);
     const input = screen.getByPlaceholderText('Search types...');
     fireEvent.change(input, { target: { value: 'zzz' } });
     expect(screen.getByText('No types found')).toBeInTheDocument();
   });
 
-  it('calls onNew when + New Type clicked', () => {
+  it('calls onNew when New Type button clicked', () => {
     const onNew = vi.fn();
-    render(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={onNew} />);
-    fireEvent.click(screen.getByText('+ New Type'));
+    renderWithMantine(<TypeList types={mockTypes} selected={null} onSelect={vi.fn()} onNew={onNew} />);
+    fireEvent.click(screen.getByRole('button', { name: /New Type/i }));
     expect(onNew).toHaveBeenCalledOnce();
   });
 
-  it('highlights selected type', () => {
-    render(<TypeList types={mockTypes} selected="Customer" onSelect={vi.fn()} onNew={vi.fn()} />);
+  it('marks selected type via data attribute', () => {
+    renderWithMantine(<TypeList types={mockTypes} selected="Customer" onSelect={vi.fn()} onNew={vi.fn()} />);
     const customerBtn = screen.getByText('Customer').closest('button');
-    expect(customerBtn?.className).toContain('bg-indigo-50');
+    expect(customerBtn).toHaveAttribute('data-selected');
   });
 });
 
 describe('AbilitiesMatrix', () => {
-  it('renders all 8 ability checkboxes', () => {
+  it('renders all 8 ability labels', () => {
     const onChange = vi.fn();
-    render(<AbilitiesMatrix selected={['key', 'query']} onChange={onChange} />);
-    ABILITIES.forEach(a => {
+    renderWithMantine(<AbilitiesMatrix selected={['key', 'query']} onChange={onChange} />);
+    ABILITIES.forEach((a) => {
       expect(screen.getByText(a)).toBeInTheDocument();
     });
   });
 
-  it('checked abilities have ✓ marker', () => {
+  it('checks selected abilities via checkbox', () => {
     const onChange = vi.fn();
-    render(<AbilitiesMatrix selected={['key']} onChange={onChange} />);
-    // key should have ✓
-    const keyLabel = screen.getByText('key').closest('label');
-    expect(keyLabel?.querySelector('span')?.textContent).toBe('✓');
+    renderWithMantine(<AbilitiesMatrix selected={['key']} onChange={onChange} />);
+    const keyCheckbox = screen.getByRole('checkbox', { name: 'key' });
+    expect(keyCheckbox).toBeChecked();
+    const queryCheckbox = screen.getByRole('checkbox', { name: 'query' });
+    expect(queryCheckbox).not.toBeChecked();
   });
 
-  it('calls onChange when checkbox toggled', () => {
+  it('calls onChange when ability card toggled (add)', () => {
     const onChange = vi.fn();
-    render(<AbilitiesMatrix selected={['key']} onChange={onChange} />);
-    fireEvent.click(screen.getByLabelText('query'));
+    renderWithMantine(<AbilitiesMatrix selected={['key']} onChange={onChange} />);
+    fireEvent.click(screen.getByText('query').closest('[role],label,div,button')?.parentElement ?? screen.getByText('query'));
     expect(onChange).toHaveBeenCalledWith(['key', 'query']);
   });
 
-  it('removes ability when already selected', () => {
+  it('calls onChange when ability card toggled (remove)', () => {
     const onChange = vi.fn();
-    render(<AbilitiesMatrix selected={['key', 'query']} onChange={onChange} />);
-    fireEvent.click(screen.getByLabelText('key'));
+    renderWithMantine(<AbilitiesMatrix selected={['key', 'query']} onChange={onChange} />);
+    fireEvent.click(screen.getByText('key').closest('[role],label,div,button')?.parentElement ?? screen.getByText('key'));
     expect(onChange).toHaveBeenCalledWith(['query']);
   });
 });
@@ -106,16 +117,16 @@ describe('FieldTable', () => {
     { name: 'tier', type: 'enum', required: false },
   ];
 
-  it('renders field rows', () => {
-    render(<FieldTable fields={fields} onChange={vi.fn()} />);
+  it('renders field rows with current values', () => {
+    renderWithMantine(<FieldTable fields={fields} onChange={vi.fn()} />);
     expect(screen.getByDisplayValue('name')).toBeInTheDocument();
     expect(screen.getByDisplayValue('tier')).toBeInTheDocument();
   });
 
   it('adds a new field row', () => {
     const onChange = vi.fn();
-    render(<FieldTable fields={fields} onChange={onChange} />);
-    fireEvent.click(screen.getByText('+ Add Field'));
+    renderWithMantine(<FieldTable fields={fields} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: /Add Field/i }));
     expect(onChange).toHaveBeenCalledWith([
       ...fields,
       { name: '', type: 'string', required: false },
@@ -124,15 +135,15 @@ describe('FieldTable', () => {
 
   it('removes a field row', () => {
     const onChange = vi.fn();
-    render(<FieldTable fields={fields} onChange={onChange} />);
-    const removeButtons = screen.getAllByText('✕');
+    renderWithMantine(<FieldTable fields={fields} onChange={onChange} />);
+    const removeButtons = screen.getAllByRole('button', { name: /Remove/ });
     fireEvent.click(removeButtons[0]);
     expect(onChange).toHaveBeenCalledWith([fields[1]]);
   });
 
   it('updates field name on input change', () => {
     const onChange = vi.fn();
-    render(<FieldTable fields={fields} onChange={onChange} />);
+    renderWithMantine(<FieldTable fields={fields} onChange={onChange} />);
     const nameInput = screen.getByDisplayValue('name');
     fireEvent.change(nameInput, { target: { value: 'fullName' } });
     expect(onChange).toHaveBeenCalledWith([

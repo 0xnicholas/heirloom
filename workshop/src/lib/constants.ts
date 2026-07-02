@@ -6,6 +6,11 @@ export const FIELD_TYPES: FieldType[] = ['string', 'number', 'boolean', 'enum', 
 
 export const RELATIONSHIP_SEMANTICS: RelationshipSemantics[] = ['Ownership', 'Reference', 'Association'];
 
+// Workspace config (migrated from src/lib/config.ts in Phase 0)
+export const DEFAULT_ONTOLOGY = 'demo-hr';
+export const ONTOLOGIES = ['demo-hr'] as const;
+export const API_DOCS_URL = 'https://github.com/heirloom/README.md';
+
 export const AGGREGATE_FNS = ['$count', '$sum', '$avg', '$max', '$min'] as const;
 
 export const QUERY_TEMPLATES = {

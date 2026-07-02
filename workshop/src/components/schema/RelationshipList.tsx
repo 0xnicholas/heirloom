@@ -1,3 +1,5 @@
+import { ActionIcon, Button, Group, Select, Table, Text, TextInput, Stack } from '@mantine/core';
+import { IconPlus, IconTrash } from '@tabler/icons-react';
 import type { Relationship, RelationshipSemantics } from '@/lib/types';
 import { RELATIONSHIP_SEMANTICS } from '@/lib/constants';
 
@@ -19,51 +21,90 @@ export function RelationshipList({ relationships, typeName, allTypes, onChange }
   };
 
   const addRel = () => {
-    onChange([...relationships, { label: '', targetType: allTypes[0] || '', semantics: 'Association' }]);
+    onChange([
+      ...relationships,
+      { label: '', targetType: allTypes[0] || '', semantics: 'Association' },
+    ]);
   };
 
   return (
-    <div>
-      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Relationships</h4>
+    <Stack gap="xs">
+      <Text size="sm" fw={600}>Relationships</Text>
       {relationships.length === 0 && (
-        <p className="text-sm text-gray-400 dark:text-gray-500 mb-2">No relationships defined</p>
+        <Text size="sm" c="dimmed">No relationships defined</Text>
       )}
-      {relationships.map((rel, i) => (
-        <div key={i} className="flex items-center gap-2 mb-1.5 text-sm">
-          <span className="text-gray-500 dark:text-gray-400 font-mono">{typeName}</span>
-          <span className="text-gray-400 dark:text-gray-500">─[</span>
-          <input
-            type="text"
-            value={rel.label}
-            onChange={e => updateRel(i, { label: e.target.value })}
-            className="w-20 px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 font-mono bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-            placeholder="label"
-          />
-          <span className="text-gray-400 dark:text-gray-500">]─▶</span>
-          <select
-            value={rel.targetType}
-            onChange={e => updateRel(i, { targetType: e.target.value })}
-            className="px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100"
-          >
-            {allTypes.map(t => (
-              <option key={t} value={t}>{t}</option>
+      {relationships.length > 0 && (
+        <Table withTableBorder withColumnBorders verticalSpacing="xs" horizontalSpacing="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>From</Table.Th>
+              <Table.Th>Label</Table.Th>
+              <Table.Th>To</Table.Th>
+              <Table.Th>Semantics</Table.Th>
+              <Table.Th w={40}></Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {relationships.map((rel, i) => (
+              <Table.Tr key={i}>
+                <Table.Td>
+                  <Text size="xs" ff="monospace" c="dimmed">{typeName}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    size="xs"
+                    value={rel.label}
+                    onChange={(e) => updateRel(i, { label: e.currentTarget.value })}
+                    placeholder="label"
+                    aria-label="Relationship label"
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <Select
+                    size="xs"
+                    value={rel.targetType}
+                    onChange={(value) => value && updateRel(i, { targetType: value })}
+                    data={allTypes.map((t) => ({ value: t, label: t }))}
+                    allowDeselect={false}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <Select
+                    size="xs"
+                    value={rel.semantics}
+                    onChange={(value) => value && updateRel(i, { semantics: value as RelationshipSemantics })}
+                    data={RELATIONSHIP_SEMANTICS.map((s) => ({ value: s, label: s }))}
+                    allowDeselect={false}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <ActionIcon
+                    onClick={() => removeRel(i)}
+                    color="red"
+                    variant="subtle"
+                    aria-label="Remove relationship"
+                    size="sm"
+                  >
+                    <IconTrash size={14} />
+                  </ActionIcon>
+                </Table.Td>
+              </Table.Tr>
             ))}
-          </select>
-          <select
-            value={rel.semantics}
-            onChange={e => updateRel(i, { semantics: e.target.value as RelationshipSemantics })}
-            className="px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100"
-          >
-            {RELATIONSHIP_SEMANTICS.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <button onClick={() => removeRel(i)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
-        </div>
-      ))}
-      <button onClick={addRel} className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium mt-1">
-        + Add Relationship
-      </button>
-    </div>
+          </Table.Tbody>
+        </Table>
+      )}
+      <Group>
+        <Button
+          onClick={addRel}
+          variant="subtle"
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+        >
+          Add Relationship
+        </Button>
+      </Group>
+    </Stack>
   );
 }

@@ -1,3 +1,5 @@
+import { Alert, Group, Stack, Text, Badge } from '@mantine/core';
+import { IconAlertCircle, IconAlertTriangle, IconCheck } from '@tabler/icons-react';
 import type { Diagnostic } from '@/lib/types';
 
 interface ValidationBarProps {
@@ -7,42 +9,48 @@ interface ValidationBarProps {
 export function ValidationBar({ diagnostics }: ValidationBarProps) {
   if (diagnostics.length === 0) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-        <span className="text-green-500">✓</span>
-        <span>All validations pass</span>
-      </div>
+      <Alert color="green" variant="light" icon={<IconCheck size={16} />}>
+        All validations pass
+      </Alert>
     );
   }
 
-  const errors = diagnostics.filter(d => d.severity === 'error');
-  const warnings = diagnostics.filter(d => d.severity === 'warning');
+  const errors = diagnostics.filter((d) => d.severity === 'error');
+  const warnings = diagnostics.filter((d) => d.severity === 'warning');
+  const hasErrors = errors.length > 0;
 
   return (
-    <div className="flex flex-col gap-1">
-      <div
-        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm ${
-          errors.length > 0
-            ? 'bg-red-50 border border-red-200 text-red-700'
-            : 'bg-yellow-50 border border-yellow-200 text-yellow-700'
-        }`}
+    <Stack gap="xs">
+      <Alert
+        color={hasErrors ? 'red' : 'yellow'}
+        variant="light"
+        icon={hasErrors ? <IconAlertCircle size={16} /> : <IconAlertTriangle size={16} />}
       >
-        <span>{errors.length > 0 ? '✗' : '⚠'}</span>
-        <span>
-          {errors.length > 0 ? `${errors.length} error${errors.length > 1 ? 's' : ''}` : ''}
-          {errors.length > 0 && warnings.length > 0 ? ', ' : ''}
-          {warnings.length > 0 ? `${warnings.length} warning${warnings.length > 1 ? 's' : ''}` : ''}
-        </span>
-      </div>
-      {diagnostics.map((d, i) => (
-        <div
-          key={i}
-          className={`text-xs px-3 ${
-            d.severity === 'error' ? 'text-red-600' : d.severity === 'warning' ? 'text-yellow-600' : 'text-blue-600'
-          }`}
-        >
-          {d.message}
-        </div>
-      ))}
-    </div>
+        <Group gap="xs">
+          {errors.length > 0 && (
+            <Badge color="red" variant="filled" size="sm">
+              {errors.length} error{errors.length > 1 ? 's' : ''}
+            </Badge>
+          )}
+          {warnings.length > 0 && (
+            <Badge color="yellow" variant="filled" size="sm">
+              {warnings.length} warning{warnings.length > 1 ? 's' : ''}
+            </Badge>
+          )}
+        </Group>
+      </Alert>
+      <Stack gap={2}>
+        {diagnostics.map((d, i) => (
+          <Text
+            key={i}
+            size="xs"
+            c={d.severity === 'error' ? 'red' : d.severity === 'warning' ? 'yellow.7' : 'blue'}
+            pl="sm"
+          >
+            {d.message}
+          </Text>
+        ))}
+      </Stack>
+    </Stack>
   );
 }

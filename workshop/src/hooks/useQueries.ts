@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { executeQuery } from '@/api/query';
 import type { SavedQuery } from '@/lib/types';
+import { notifyError, notifySuccess } from '@/lib/notifications';
 
 async function fetchQueries(): Promise<SavedQuery[]> {
   const res = await fetch('/api/queries');
@@ -31,16 +32,25 @@ export function useQueries() {
 
   const executeMutation = useMutation({
     mutationFn: executeQuery,
+    onError: (err) => notifyError('Query execution failed', err),
   });
 
   const saveMutation = useMutation({
     mutationFn: saveQuery,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['queries'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['queries'] });
+      notifySuccess('Query saved');
+    },
+    onError: (err) => notifyError('Failed to save query', err),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteQuery,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['queries'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['queries'] });
+      notifySuccess('Query deleted');
+    },
+    onError: (err) => notifyError('Failed to delete query', err),
   });
 
   return { queriesQuery, executeMutation, saveMutation, deleteMutation };

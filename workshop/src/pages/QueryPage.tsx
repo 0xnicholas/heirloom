@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Box, Button, Group, Text } from '@mantine/core';
+import { IconPlayerPlay, IconDeviceFloppy } from '@tabler/icons-react';
 import { QueryHistory } from '@/components/query/QueryHistory';
 import { QueryEditor } from '@/components/query/QueryEditor';
 import { QueryResults } from '@/components/query/QueryResults';
@@ -40,7 +42,7 @@ export function QueryPage() {
 
   const handleSaveQuery = async () => {
     const id = crypto.randomUUID();
-    const name = prompt('Query name:') || `Query ${new Date().toLocaleTimeString()}`;
+    const name = window.prompt('Query name:') || `Query ${new Date().toLocaleTimeString()}`;
     const query: QueryDSL = JSON.parse(editorValue);
     await saveMutation.mutateAsync({
       id,
@@ -74,67 +76,74 @@ export function QueryPage() {
   }, []);
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-gray-950">
-      <div className="w-[260px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-auto shrink-0">
+    <Box style={{ display: 'flex', height: '100%' }}>
+      <Box w={260} style={{ borderRight: '1px solid var(--mantine-color-default-border)', overflow: 'auto', flexShrink: 0 }}>
         <QueryHistory
           queries={queriesQuery.data || []}
           onSelect={handleSelectQuery}
-          onDelete={id => deleteMutation.mutate(id)}
+          onDelete={(id) => deleteMutation.mutate(id)}
           onToggleFavorite={() => {
             // TODO: optimistic update on favorited flag
           }}
         />
-      </div>
-      <div ref={containerRef} className="flex-1 flex flex-col">
+      </Box>
+      <Box ref={containerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
-          <button
-            onClick={handleRun}
-            className="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700"
-          >
+        <Group gap="xs" px="md" py={6} style={{ borderBottom: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }}>
+          <Button onClick={handleRun} size="xs" leftSection={<IconPlayerPlay size={14} />}>
             Run
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSaveQuery}
-            className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+            size="xs"
+            variant="default"
+            leftSection={<IconDeviceFloppy size={14} />}
           >
             Save
-          </button>
-          <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Snippets:</span>
-          {(['basic', 'traverse', 'aggregate', 'search'] as const).map(k => (
-            <button
+          </Button>
+          <Text size="xs" c="dimmed" ml="sm">Snippets:</Text>
+          {(['basic', 'traverse', 'aggregate', 'search'] as const).map((k) => (
+            <Button
               key={k}
               onClick={() => setEditorValue(QUERY_TEMPLATES[k])}
-              className="px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+              size="compact-xs"
+              variant="default"
             >
               {k}
-            </button>
+            </Button>
           ))}
           {diagnostics.length > 0 && (
-            <span className="ml-auto text-xs text-red-500">
-              {diagnostics.filter(d => d.severity === 'error').length} errors
-            </span>
+            <Text size="xs" c="red" ml="auto">
+              {diagnostics.filter((d) => d.severity === 'error').length} errors
+            </Text>
           )}
-        </div>
+        </Group>
         {/* Editor (top, percentage-based height) */}
-        <div style={{ height: `${splitPercent}%` }}>
+        <Box style={{ height: `${splitPercent}%` }}>
           <QueryEditor
             value={editorValue}
             onChange={setEditorValue}
             snapshot={snapshot}
             onDiagnostics={setDiagnostics}
+            onRun={handleRun}
+            onSave={handleSaveQuery}
           />
-        </div>
+        </Box>
         {/* Draggable divider */}
-        <div
-          className="h-1 bg-gray-200 dark:bg-gray-700 hover:bg-indigo-400 cursor-row-resize transition-colors shrink-0"
+        <Box
           onMouseDown={onMouseDown}
+          style={{
+            height: 4,
+            backgroundColor: 'var(--mantine-color-gray-2)',
+            cursor: 'row-resize',
+            flexShrink: 0,
+          }}
         />
         {/* Results (bottom) */}
-        <div className="flex-1 overflow-hidden">
+        <Box style={{ flex: 1, overflow: 'hidden' }}>
           <QueryResults result={result} />
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }
