@@ -2,11 +2,13 @@ import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MantineProvider } from '@mantine/core';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { ActionsPage } from './ActionsPage';
 import { RolesPage } from './RolesPage';
 import { mockTypes, mockActions, mockRoles } from '@/api/mock/data';
+import { theme } from '@/lib/theme';
 
 const server = setupServer(
   http.get('/api/types', () => HttpResponse.json(mockTypes)),
@@ -21,13 +23,15 @@ afterAll(() => server.close());
 function renderPage(Page: React.FC, route = '/', path = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[route]}>
-        <Routes>
-          <Route path={path} element={<Page />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[route]}>
+          <Routes>
+            <Route path={path} element={<Page />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </MantineProvider>,
   );
 }
 

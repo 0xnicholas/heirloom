@@ -2,12 +2,14 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MantineProvider } from '@mantine/core';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { SchemaPage } from '@/pages/SchemaPage';
 import { ConsoleContext } from '@/components/layout/ConsoleContext';
 import { mockTypes, mockActions, mockRoles } from '@/api/mock/data';
 import type { ResourceType } from '@/lib/types';
+import { theme } from '@/lib/theme';
 
 // Clone mock data so tests can mutate it without affecting other tests
 let types: ResourceType[] = JSON.parse(JSON.stringify(mockTypes));
@@ -54,13 +56,15 @@ function renderPage(route = '/schema') {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={qc}>
-      <ConsoleContext.Provider value={{ activeType: null, setActiveType: () => {} }}>
-        <MemoryRouter initialEntries={[route]}>
-          <SchemaPage />
-        </MemoryRouter>
-      </ConsoleContext.Provider>
-    </QueryClientProvider>,
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <QueryClientProvider client={qc}>
+        <ConsoleContext.Provider value={{ activeType: null, setActiveType: () => {} }}>
+          <MemoryRouter initialEntries={[route]}>
+            <SchemaPage />
+          </MemoryRouter>
+        </ConsoleContext.Provider>
+      </QueryClientProvider>
+    </MantineProvider>,
   );
 }
 
