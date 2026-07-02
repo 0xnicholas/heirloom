@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Stack, TextInput, ScrollArea, UnstyledButton, Group, Text, Button, Divider } from '@mantine/core';
+import { IconPlus, IconSearch } from '@tabler/icons-react';
 import type { Action } from '@/lib/types';
 
 interface ActionListProps {
@@ -10,49 +12,63 @@ interface ActionListProps {
 
 export function ActionList({ actions, selected, onSelect, onNew }: ActionListProps) {
   const [search, setSearch] = useState('');
-
-  const filtered = actions.filter(a =>
-    a.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = actions.filter((a) =>
+    a.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-        <input
-          type="text"
+    <Stack gap={0} h="100%">
+      <Stack p="sm" gap="xs">
+        <TextInput
           placeholder="Search actions..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          leftSection={<IconSearch size={14} />}
+          size="sm"
         />
-      </div>
-      <div className="flex-1 overflow-auto">
+      </Stack>
+      <Divider />
+      <ScrollArea style={{ flex: 1 }}>
         {filtered.length === 0 && (
-          <p className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">No actions found</p>
+          <Text size="sm" c="dimmed" px="md" py="sm">
+            No actions found
+          </Text>
         )}
-        {filtered.map(action => (
-          <button
+        {filtered.map((action) => (
+          <UnstyledButton
             key={action.name}
             onClick={() => onSelect(action.name)}
-            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
-              selected === action.name
-                ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-medium'
-                : 'text-gray-700 dark:text-gray-300'
-            }`}
+            data-selected={selected === action.name || undefined}
+            style={{
+              width: '100%',
+              padding: '8px 16px',
+              fontSize: 14,
+              backgroundColor: selected === action.name ? 'var(--mantine-color-indigo-0)' : undefined,
+              color: selected === action.name ? 'var(--mantine-color-indigo-7)' : undefined,
+              fontWeight: selected === action.name ? 500 : 400,
+            }}
           >
-            <div>{action.name}</div>
-            <div className="text-xs text-gray-400 dark:text-gray-500">{action.targetType} · requires {action.requires}</div>
-          </button>
+            <Text size="sm">{action.name}</Text>
+            <Group gap={4} mt={2}>
+              <Text size="xs" c="dimmed">{action.targetType}</Text>
+              <Text size="xs" c="dimmed">·</Text>
+              <Text size="xs" c="dimmed">requires {action.requires}</Text>
+            </Group>
+          </UnstyledButton>
         ))}
-      </div>
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-        <button
+      </ScrollArea>
+      <Divider />
+      <Stack p="sm">
+        <Button
           onClick={onNew}
-          className="w-full py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded transition-colors"
+          variant="light"
+          size="sm"
+          leftSection={<IconPlus size={14} />}
+          fullWidth
         >
-          + New Action
-        </button>
-      </div>
-    </div>
+          New Action
+        </Button>
+      </Stack>
+    </Stack>
   );
 }

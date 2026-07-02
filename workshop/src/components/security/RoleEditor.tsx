@@ -1,4 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useForm } from '@mantine/form';
+import {
+  ActionIcon, Box, Button, Center, Group, MultiSelect, Paper, ScrollArea, Select, Stack, Table, Text, TextInput,
+} from '@mantine/core';
+import { IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { Role, RoleScope, Ability, ResourceType } from '@/lib/types';
 import { ABILITIES } from '@/lib/constants';
 
@@ -10,255 +15,274 @@ interface RoleEditorProps {
 }
 
 export function RoleEditor({ role, allTypes, onSave }: RoleEditorProps) {
-  const [draft, setDraft] = useState<Role | null>(role);
-  const [dirty, setDirty] = useState(false);
+  const form = useForm<Role>({
+    mode: 'controlled',
+    initialValues: role ?? {
+      name: '',
+      scope: 'Ontology',
+      targets: [],
+      capabilities: [],
+      actors: [],
+    },
+    validate: {
+      name: (value) => (value.trim() ? null : 'Name is required'),
+    },
+  });
 
-  // Reset draft when the edited entity changes (form reset pattern)
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    setDraft(role);
-    setDirty(false);
+    if (role) {
+      form.setValues(role);
+      form.resetDirty();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (!draft) {
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (form.isDirty()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [form]);
+
+  if (!role) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-        Select a role or create one
-      </div>
+      <Center h="100%">
+        <Text c="dimmed">Select a role or create one</Text>
+      </Center>
     );
   }
 
-  const update = (patch: Partial<Role>) => {
-    setDraft(prev => prev ? { ...prev, ...patch } : prev);
-    setDirty(true);
-  };
-
   const handleSave = () => {
-    onSave(draft);
-    setDirty(false);
+    if (form.validate().hasErrors) return;
+    onSave(form.values);
+    form.resetDirty();
   };
 
   const addCapability = () => {
-    update({
-      capabilities: [
-        ...draft.capabilities,
-        { ability: 'query', targetType: allTypes[0]?.name || '*', scope: draft.scope },
-      ],
-    });
+    form.setFieldValue('capabilities', [
+      ...form.values.capabilities,
+      { ability: 'query', targetType: allTypes[0]?.name || '*', scope: form.values.scope },
+    ]);
   };
 
   const removeCapability = (i: number) => {
-    update({ capabilities: draft.capabilities.filter((_, idx) => idx !== i) });
+    form.setFieldValue('capabilities', form.values.capabilities.filter((_, idx) => idx !== i));
   };
 
   const updateCapability = (
     i: number,
     patch: Partial<{ ability: Ability; targetType: string; scope: RoleScope }>,
   ) => {
-    const caps = draft.capabilities.map((c, idx) => (idx === i ? { ...c, ...patch } : c));
-    update({ capabilities: caps });
+    form.setFieldValue(
+      'capabilities',
+      form.values.capabilities.map((c, idx) => (idx === i ? { ...c, ...patch } : c)),
+    );
   };
 
   const addActor = () => {
-    update({ actors: [...draft.actors, ''] });
+    form.setFieldValue('actors', [...form.values.actors, '']);
   };
 
   const updateActor = (i: number, value: string) => {
-    const actors = draft.actors.map((a, idx) => (idx === i ? value : a));
-    update({ actors });
+    form.setFieldValue('actors', form.values.actors.map((a, idx) => (idx === i ? value : a)));
   };
 
   const removeActor = (i: number) => {
-    update({ actors: draft.actors.filter((_, idx) => idx !== i) });
+    form.setFieldValue('actors', form.values.actors.filter((_, idx) => idx !== i));
   };
 
-  const inputClass =
-    'px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500';
-  const selectClass =
-    'px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100';
+  const isDirty = form.isDirty();
 
   return (
-    <div className="flex flex-col h-full overflow-auto bg-white dark:bg-gray-900">
+    <Stack h="100%" gap={0}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
-        <input
-          type="text"
-          value={draft.name}
-          onChange={e => update({ name: e.target.value })}
-          className="text-lg font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-          placeholder="Role name"
-        />
-        <button
-          onClick={handleSave}
-          disabled={!dirty}
-          className="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {dirty ? 'Save *' : 'Save'}
-        </button>
-      </div>
+      <Paper
+        p="md"
+        radius={0}
+        style={{ borderBottom: '1px solid var(--mantine-color-default-border)', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--mantine-color-body)' }}
+      >
+        <Group justify="space-between" align="center">
+          <TextInput
+            size="md"
+            variant="unstyled"
+            {...form.getInputProps('name')}
+            placeholder="Role name"
+            styles={{ input: { fontWeight: 600, fontSize: 18 } }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            onClick={handleSave}
+            disabled={!isDirty}
+            leftSection={<IconDeviceFloppy size={16} />}
+          >
+            {isDirty ? 'Save *' : 'Save'}
+          </Button>
+        </Group>
+      </Paper>
 
-      {/* Body */}
-      <div className="p-6 space-y-6">
-        {/* Scope + Targets */}
-        <div className="flex gap-6">
-          <div>
-            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">Scope</label>
-            <select
-              value={draft.scope}
-              onChange={e => update({ scope: e.target.value as RoleScope })}
-              className={selectClass}
-            >
-              <option value="Ontology">Ontology</option>
-              <option value="Type">Type</option>
-              <option value="Instance">Instance</option>
-            </select>
-          </div>
+      <ScrollArea style={{ flex: 1 }}>
+        <Box p="md">
+          <Stack gap="lg">
+            {/* Scope + Targets */}
+            <Group align="flex-start" gap="xl">
+              <Box>
+                <Text size="sm" fw={600} mb="xs">Scope</Text>
+                <Select
+                  size="sm"
+                  value={form.values.scope}
+                  onChange={(value) => value && form.setFieldValue('scope', value as RoleScope)}
+                  data={[
+                    { value: 'Ontology', label: 'Ontology' },
+                    { value: 'Type', label: 'Type' },
+                    { value: 'Instance', label: 'Instance' },
+                  ]}
+                  allowDeselect={false}
+                  comboboxProps={{ withinPortal: true }}
+                />
+              </Box>
 
-          {draft.scope !== 'Ontology' && (
-            <div>
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">Targets</label>
-              <div className="flex flex-wrap gap-2">
-                {allTypes.map(t => {
-                  const checked = draft.targets.includes(t.name);
-                  return (
-                    <label
-                      key={t.name}
-                      className="flex items-center gap-1.5 text-sm cursor-pointer text-gray-700 dark:text-gray-300"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={e =>
-                          update({
-                            targets: e.target.checked
-                              ? [...draft.targets, t.name]
-                              : draft.targets.filter(x => x !== t.name),
-                          })
-                        }
-                        className="rounded"
-                      />
-                      {t.name}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Granted Capabilities */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Granted Capabilities</h4>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 text-xs">
-                <th className="pb-1 font-medium">Ability</th>
-                <th className="pb-1 font-medium">Target Type</th>
-                <th className="pb-1 font-medium">Scope</th>
-                <th className="pb-1 w-8"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {draft.capabilities.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-2 text-xs text-gray-400 dark:text-gray-500">
-                    No capabilities granted
-                  </td>
-                </tr>
+              {form.values.scope !== 'Ontology' && (
+                <Box style={{ flex: 1 }}>
+                  <Text size="sm" fw={600} mb="xs">Targets</Text>
+                  <MultiSelect
+                    size="sm"
+                    placeholder="Pick target types"
+                    data={allTypes.map((t) => ({ value: t.name, label: t.name }))}
+                    value={form.values.targets}
+                    onChange={(values) => form.setFieldValue('targets', values)}
+                    comboboxProps={{ withinPortal: true }}
+                    clearable
+                  />
+                </Box>
               )}
-              {draft.capabilities.map((cap, i) => (
-                <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
-                  <td className="py-1.5">
-                    <select
-                      value={cap.ability}
-                      onChange={e => updateCapability(i, { ability: e.target.value as Ability })}
-                      className={selectClass}
-                    >
-                      {ABILITIES.map(a => (
-                        <option key={a} value={a}>
-                          {a}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-1.5">
-                    <select
-                      value={cap.targetType}
-                      onChange={e => updateCapability(i, { targetType: e.target.value })}
-                      className={selectClass}
-                    >
-                      <option value="*">* (Global)</option>
-                      {allTypes.map(t => (
-                        <option key={t.name} value={t.name}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-1.5">
-                    <select
-                      value={cap.scope}
-                      onChange={e => updateCapability(i, { scope: e.target.value as RoleScope })}
-                      className={selectClass}
-                    >
-                      <option value="Ontology">Ontology</option>
-                      <option value="Type">Type</option>
-                      <option value="Instance">Instance</option>
-                    </select>
-                  </td>
-                  <td className="py-1.5">
-                    <button
-                      onClick={() => removeCapability(i)}
-                      className="text-red-400 hover:text-red-600 text-xs"
-                      aria-label={`Remove capability ${i}`}
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            onClick={addCapability}
-            className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
-          >
-            + Grant Capability
-          </button>
-        </div>
+            </Group>
 
-        {/* Assigned Actors */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Assigned Actors</h4>
-          {draft.actors.length === 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">No actors assigned</p>
-          )}
-          {draft.actors.map((actor, i) => (
-            <div key={i} className="flex items-center gap-2 mb-1.5">
-              <input
-                type="text"
-                value={actor}
-                onChange={e => updateActor(i, e.target.value)}
-                className={`flex-1 ${inputClass}`}
-                placeholder="agent.name or user.name"
-              />
-              <button
-                onClick={() => removeActor(i)}
-                className="text-red-400 hover:text-red-600 text-xs"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={addActor}
-            className="mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
-          >
-            + Assign Actor
-          </button>
-        </div>
-      </div>
-    </div>
+            {/* Granted Capabilities */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Granted Capabilities</Text>
+              {form.values.capabilities.length > 0 && (
+                <Table withTableBorder verticalSpacing="xs" horizontalSpacing="sm">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Ability</Table.Th>
+                      <Table.Th>Target Type</Table.Th>
+                      <Table.Th>Scope</Table.Th>
+                      <Table.Th w={40}></Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {form.values.capabilities.map((cap, i) => (
+                      <Table.Tr key={i}>
+                        <Table.Td>
+                          <Select
+                            size="xs"
+                            value={cap.ability}
+                            onChange={(value) => value && updateCapability(i, { ability: value as Ability })}
+                            data={ABILITIES.map((a) => ({ value: a, label: a }))}
+                            allowDeselect={false}
+                            comboboxProps={{ withinPortal: true }}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <Select
+                            size="xs"
+                            value={cap.targetType}
+                            onChange={(value) => value && updateCapability(i, { targetType: value })}
+                            data={[{ value: '*', label: '* (Global)' }, ...allTypes.map((t) => ({ value: t.name, label: t.name }))]}
+                            allowDeselect={false}
+                            comboboxProps={{ withinPortal: true }}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <Select
+                            size="xs"
+                            value={cap.scope}
+                            onChange={(value) => value && updateCapability(i, { scope: value as RoleScope })}
+                            data={[
+                              { value: 'Ontology', label: 'Ontology' },
+                              { value: 'Type', label: 'Type' },
+                              { value: 'Instance', label: 'Instance' },
+                            ]}
+                            allowDeselect={false}
+                            comboboxProps={{ withinPortal: true }}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <ActionIcon
+                            onClick={() => removeCapability(i)}
+                            color="red"
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Remove capability"
+                          >
+                            <IconTrash size={14} />
+                          </ActionIcon>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+              {form.values.capabilities.length === 0 && (
+                <Text size="xs" c="dimmed" my="xs">No capabilities granted</Text>
+              )}
+              <Group mt="xs">
+                <Button
+                  onClick={addCapability}
+                  variant="subtle"
+                  size="xs"
+                  leftSection={<IconPlus size={14} />}
+                >
+                  Grant Capability
+                </Button>
+              </Group>
+            </Box>
+
+            {/* Assigned Actors */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Assigned Actors</Text>
+              {form.values.actors.length === 0 && (
+                <Text size="xs" c="dimmed" my="xs">No actors assigned</Text>
+              )}
+              <Stack gap="xs">
+                {form.values.actors.map((actor, i) => (
+                  <Group key={i} gap="xs">
+                    <TextInput
+                      size="sm"
+                      style={{ flex: 1 }}
+                      value={actor}
+                      onChange={(e) => updateActor(i, e.currentTarget.value)}
+                      placeholder="agent.name or user.name"
+                    />
+                    <ActionIcon
+                      onClick={() => removeActor(i)}
+                      color="red"
+                      variant="subtle"
+                      aria-label="Remove actor"
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Group>
+                ))}
+              </Stack>
+              <Group mt="xs">
+                <Button
+                  onClick={addActor}
+                  variant="subtle"
+                  size="xs"
+                  leftSection={<IconPlus size={14} />}
+                >
+                  Assign Actor
+                </Button>
+              </Group>
+            </Box>
+          </Stack>
+        </Box>
+      </ScrollArea>
+    </Stack>
   );
 }

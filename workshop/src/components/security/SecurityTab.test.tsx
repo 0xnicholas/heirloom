@@ -1,8 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MantineProvider } from '@mantine/core';
 import { RoleList } from './RoleList';
 import { ActionList } from './ActionList';
 import type { Role, Action } from '@/lib/types';
+import { theme } from '@/lib/theme';
+
+function renderWithMantine(ui: React.ReactNode) {
+  return render(
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      {ui}
+    </MantineProvider>,
+  );
+}
 
 describe('RoleList', () => {
   it('renders roles', () => {
@@ -15,7 +25,7 @@ describe('RoleList', () => {
         actors: [],
       },
     ];
-    render(
+    renderWithMantine(
       <RoleList
         roles={roles}
         selected={null}
@@ -27,7 +37,7 @@ describe('RoleList', () => {
   });
 
   it('shows empty state when no roles', () => {
-    render(
+    renderWithMantine(
       <RoleList
         roles={[]}
         selected={null}
@@ -38,7 +48,7 @@ describe('RoleList', () => {
     expect(screen.getByText('No roles found')).toBeInTheDocument();
   });
 
-  it('highlights selected role', () => {
+  it('marks selected role via data attribute', () => {
     const roles: Role[] = [
       {
         name: 'Admin',
@@ -55,7 +65,7 @@ describe('RoleList', () => {
         actors: [],
       },
     ];
-    render(
+    renderWithMantine(
       <RoleList
         roles={roles}
         selected="Sales"
@@ -64,7 +74,7 @@ describe('RoleList', () => {
       />,
     );
     const salesBtn = screen.getByText('Sales').closest('button');
-    expect(salesBtn?.className).toContain('indigo-50');
+    expect(salesBtn).toHaveAttribute('data-selected');
   });
 });
 
@@ -80,7 +90,7 @@ describe('ActionList', () => {
         executeTemplate: '',
       },
     ];
-    render(
+    renderWithMantine(
       <ActionList
         actions={actions}
         selected={null}
@@ -102,7 +112,7 @@ describe('ActionList', () => {
         executeTemplate: '',
       },
     ];
-    render(
+    renderWithMantine(
       <ActionList
         actions={actions}
         selected={null}
@@ -111,13 +121,12 @@ describe('ActionList', () => {
       />,
     );
     expect(screen.getByText('approve_order')).toBeInTheDocument();
-    // The component renders targetType and requires in a sub-line
     expect(screen.getByText(/Order/)).toBeInTheDocument();
     expect(screen.getByText(/mutate/)).toBeInTheDocument();
   });
 
   it('shows empty state when no actions', () => {
-    render(
+    renderWithMantine(
       <ActionList
         actions={[]}
         selected={null}

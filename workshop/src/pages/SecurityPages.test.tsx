@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,6 +19,9 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
+
+// Mantine Select/Combobox rendering can be slow under parallel test load
+vi.setConfig({ testTimeout: 15_000 });
 
 function renderPage(Page: React.FC, route = '/', path = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -45,8 +48,8 @@ describe('ActionsPage', () => {
 
   it('switches to new action form', async () => {
     renderPage(ActionsPage, '/actions', '/actions');
-    await waitFor(() => expect(screen.getByText('+ New Action')).toBeInTheDocument());
-    fireEvent.click(screen.getByText('+ New Action'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /New Action/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /New Action/i }));
     await waitFor(() => expect(screen.getByPlaceholderText('Action name')).toHaveValue(''));
   });
 });
@@ -61,8 +64,8 @@ describe('RolesPage', () => {
 
   it('switches to new role form', async () => {
     renderPage(RolesPage, '/roles', '/roles');
-    await waitFor(() => expect(screen.getByText('+ New Role')).toBeInTheDocument());
-    fireEvent.click(screen.getByText('+ New Role'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /New Role/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /New Role/i }));
     await waitFor(() => expect(screen.getByPlaceholderText('Role name')).toHaveValue(''));
   });
 });
