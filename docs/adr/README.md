@@ -79,6 +79,21 @@ Perspective Engine。
 | 034 | [Knowledge Graph & Lifecycle Governance](./034-knowledge-graph-lifecycle.md) | Proposed |
 | 035 | [Agent SDK & Perspective Engine Integration](./035-agent-sdk-perspective.md) | Proposed |
 
+### 平台扩展架构（新增——语义层模块化 + raw 数据分析，2026-07-08）
+
+| 编号 | 标题 | 状态 |
+|------|------|------|
+| 036 | [Semantic Layer 模块化与 Discovery Connector 扩展机制](./036-semantic-layer-modularization.md) | Proposed |
+| 037 | [DuckDB 作为 raw 数据分析存储层](./037-duckdb-raw-store.md) | Proposed |
+| 038 | [raw 数据到业务本体语义的事件驱动管线](./038-raw-to-ontology-pipeline.md) | Proposed |
+| 039 | [管线事件 Kafka Topic 组织策略](./039-kafka-pipeline-topics.md) | Proposed |
+| 040 | [Query Router — 语义查询与 raw 下钻的统一路由](./040-query-router.md) | Proposed |
+| 041 | [Profiling / Entity Resolution / Alignment 接口契约](./041-profiling-entity-resolution-alignment-contracts.md) | Proposed |
+| 042 | [多租户与部署架构](./042-multi-tenant-deployment.md) | Proposed |
+| 043 | [消费层与 DSL 扩展](./043-consumer-layer-dsl-extension.md) | Proposed |
+| 044 | [数据新鲜度与缓存策略](./044-data-freshness-caching.md) | Proposed |
+| 045 | [实现优先级与 MVP 范围](./045-implementation-priority-mvp.md) | Proposed |
+
 ## 版本历史
 
 | 日期 | 说明 |
@@ -87,3 +102,4 @@ Perspective Engine。
 | 2026-06-21 | 平台架构 ADR（010-023）——基于 OpenMetadata 源码参考 |
 | 2026-06-21 | 子系统深挖 ADR（024-031）——基于 Spec 深挖章节 |
 | 2026-06-22 | 知识层架构 ADR（032-035）——业务知识库模块完整设计 |
+| 2026-07-08 | 平台扩展架构 ADR（036-039）——语义层模块化、DuckDB raw store、事件驱动管线 |
