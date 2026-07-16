@@ -10,6 +10,8 @@ import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;
 import com.heirloom.core.discovery.model.RawTable;
+import com.heirloom.core.profiling.ProfileReport;
+import com.heirloom.core.profiling.ProfilingService;
 import com.heirloom.discovery.runner.DiscoveryRunner;
 import com.heirloom.metadata.domain.LineageEntity;
 import com.heirloom.metadata.domain.TableEntity;
@@ -31,16 +33,18 @@ public class DiscoveryService {
     private final InferencePipeline inference;
 
     private final LineageRepository lineageRepo;
+    private final ProfilingService profilingService;
 
     public DiscoveryService(TypeRepository typeRepo, ProposalRepository proposalRepo,
                            MappingRuleRepository mappingRepo, TableRepository tableRepo,
-                           LineageRepository lineageRepo) {
+                           LineageRepository lineageRepo, ProfilingService profilingService) {
         this.typeRepo = typeRepo;
         this.proposalRepo = proposalRepo;
         this.mappingRepo = mappingRepo;
         this.tableRepo = tableRepo;
         this.lineageRepo = lineageRepo;
         this.inference = new InferencePipeline();
+        this.profilingService = profilingService;
     }
 
     public DiscoveryReport runDiscovery(DiscoverySource source) {
@@ -94,6 +98,17 @@ public class DiscoveryService {
                         lineage.setName(fromFQN + " → " + c.targetTable());
                         lineageRepo.create(lineage);
                     }
+                }
+            }
+
+            // Phase 1d: Profile
+            for (var rawTable : schema.tables()) {
+                try {
+                    String tableFQN = source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + rawTable.tableName();
+                    ProfileReport profile = profilingService.profile(tableFQN);
+                    log.debug("Profiled {}: {} columns, quality={}", tableFQN, profile.columnCount(), profile.overallQualityScore());
+                } catch (Exception e) {
+                    log.warn("Profiling failed for table {}: {}", rawTable.tableName(), e.getMessage());
                 }
             }
 
