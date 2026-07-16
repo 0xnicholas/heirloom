@@ -1,37 +1,21 @@
 package com.heirloom.web;
 
-import com.heirloom.core.query.GeneratedSql;
 import com.heirloom.core.query.QueryParseException;
-import com.heirloom.core.query.SemanticQuery;
-import com.heirloom.query.QueryParser;
-import com.heirloom.query.SqlGenerator;
-import com.heirloom.schema.service.PerspectiveEngine;
+import com.heirloom.query.SemanticExecutor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.sql.DataSource;
-import java.sql.*;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
-/**
- * Semantic query endpoint — now backed by QueryParser + SqlGenerator
- * for type-safe, parameterized SQL generation. API contract unchanged.
- */
 @RestController
 @RequestMapping("/v1/query")
 public class QueryController {
 
-    private final QueryParser queryParser;
-    private final SqlGenerator sqlGenerator;
-    private final DataSource dataSource;
-    private final PerspectiveEngine perspective;
+    private final SemanticExecutor semanticExecutor;
 
-    public QueryController(QueryParser queryParser, SqlGenerator sqlGenerator,
-                           DataSource dataSource, PerspectiveEngine perspective) {
-        this.queryParser = queryParser;
-        this.sqlGenerator = sqlGenerator;
-        this.dataSource = dataSource;
-        this.perspective = perspective;
+    public QueryController(SemanticExecutor semanticExecutor) {
+        this.semanticExecutor = semanticExecutor;
     }
 
     @PostMapping
@@ -42,44 +26,7 @@ public class QueryController {
             @RequestHeader(value = "X-User",       required = false) String user) {
         try {
             String actorId = pickActor(role, agentId, user);
-
-            // Parse and validate (type exists, fields declared, ops legal)
-            SemanticQuery query = queryParser.parse(request);
-
-            // Perspective Engine — strip hidden fields
-            List<String> filteredFields = perspective.filterFields(
-                    query.getType(), actorId, query.getFields());
-
-            // Rebuild query with filtered fields
-            SemanticQuery filtered = new SemanticQuery(
-                    query.getType(), filteredFields, query.getFilter(),
-                    query.getTraverse(), query.getAggregate(),
-                    query.getSortField(), query.getSortDirection(),
-                    query.getLimit(), query.getOffset());
-
-            // Generate parameterized SQL
-            GeneratedSql gen = sqlGenerator.generate(filtered);
-
-            // Execute
-            List<Map<String, Object>> results = new ArrayList<>();
-            try (Connection conn = dataSource.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(gen.sql())) {
-                for (int i = 0; i < gen.params().size(); i++) {
-                    ps.setObject(i + 1, gen.params().get(i));
-                }
-                try (ResultSet rs = ps.executeQuery()) {
-                    var meta = rs.getMetaData();
-                    while (rs.next()) {
-                        Map<String, Object> row = new LinkedHashMap<>();
-                        for (int i = 1; i <= meta.getColumnCount(); i++) {
-                            row.put(meta.getColumnName(i), rs.getObject(i));
-                        }
-                        results.add(row);
-                    }
-                }
-            }
-
-            return ResponseEntity.ok(results);
+            return ResponseEntity.ok(semanticExecutor.execute(request, actorId).rows());
         } catch (QueryParseException e) {
             return ResponseEntity.badRequest()
                     .body(List.of(Map.of("error", e.getMessage())));
