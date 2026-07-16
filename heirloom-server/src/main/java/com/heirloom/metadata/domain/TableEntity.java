@@ -21,6 +21,23 @@ public class TableEntity implements HeirloomEntity {
     @Column(name = "columns", columnDefinition = "jsonb")
     private String columnsJson = "[]";
 
+    @Column(columnDefinition = "jsonb")
+    private String tags = "[]";
+
+    @Column(name = "domain_fqn")
+    private String domainFQN;
+
+    @Column(columnDefinition = "jsonb")
+    private String constraints = "[]";
+
+    @Column(name = "source_hash")
+    private String sourceHash;
+
+    private String lifecycle = "Created";
+
+    @Column(columnDefinition = "jsonb")
+    private String certification;
+
     private String description;
     private String owner;
     @Version private Long version = 1L;
@@ -58,4 +75,16 @@ public class TableEntity implements HeirloomEntity {
     public void setTableType(String t) { this.tableType = t; }
     public String getColumnsJson() { return columnsJson; }
     public void setColumnsJson(String j) { this.columnsJson = j; }
+    public String getTags() { return tags; }
+    public void setTags(String t) { this.tags = t; }
+    public String getDomainFQN() { return domainFQN; }
+    public void setDomainFQN(String d) { this.domainFQN = d; }
+    public String getConstraints() { return constraints; }
+    public void setConstraints(String c) { this.constraints = c; }
+    public String getSourceHash() { return sourceHash; }
+    public void setSourceHash(String s) { this.sourceHash = s; }
+    public String getLifecycle() { return lifecycle; }
+    public void setLifecycle(String l) { this.lifecycle = l; }
+    public String getCertification() { return certification; }
+    public void setCertification(String c) { this.certification = c; }
 }
