@@ -91,7 +91,7 @@ class QueryControllerIntegrationTest {
                 "rawSql", "SELECT * FROM {table}"
             );
             ResponseEntity<Map> resp = postJson("/v1/query", body, Map.class);
-            assertThat(resp.getStatusCode().value()).isEqualTo(500);
+            assertThat(resp.getStatusCode().value()).isEqualTo(403);
         } finally {
             deleteByFQN(fqn);
         }

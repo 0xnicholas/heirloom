@@ -1,5 +1,6 @@
 package com.heirloom.web;
 
+import com.heirloom.auth.UnauthorizedException;
 import com.heirloom.core.query.*;
 import com.heirloom.query.QueryRouter;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,8 @@ public class QueryController {
                 return ResponseEntity.ok(result.rows());
             }
             return ResponseEntity.ok(result);
+        } catch (UnauthorizedException e) {
+            throw e;
         } catch (QueryParseException | IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
