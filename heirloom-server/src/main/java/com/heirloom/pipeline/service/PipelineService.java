@@ -45,7 +45,6 @@ public class PipelineService {
         run.setCorrelationId(correlationId);
         run.setTriggerType(triggerType);
         run.setTableFqns(String.join(",", tableFqns));
-        run.setCreatedAt(Instant.now());
         run.setUpdatedAt(Instant.now());
 
         try {
