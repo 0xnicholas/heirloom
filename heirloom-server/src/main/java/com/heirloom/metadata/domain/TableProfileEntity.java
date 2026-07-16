@@ -13,6 +13,11 @@ public class TableProfileEntity implements HeirloomEntity {
     private Long sizeInBytes;
     private Instant freshness;
     @Column(columnDefinition = "jsonb") private String columnProfiles = "[]";
+    @Column(name = "profiled_at") private Instant profiledAt;
+    @Column(name = "profiling_duration_ms") private Long profilingDurationMs;
+    @Column(name = "null_count") private Long nullCount;
+    @Column(name = "distinct_count") private Long distinctCount;
+    @Column(name = "duplicate_row_count") private Long duplicateRowCount;
     private Instant createdAt = Instant.now();
 
     public Long getId() { return id; }
@@ -32,4 +37,9 @@ public class TableProfileEntity implements HeirloomEntity {
     public Long getSizeInBytes() { return sizeInBytes; } public void setSizeInBytes(Long s) { this.sizeInBytes = s; }
     public Instant getFreshness() { return freshness; } public void setFreshness(Instant f) { this.freshness = f; }
     public String getColumnProfiles() { return columnProfiles; } public void setColumnProfiles(String c) { this.columnProfiles = c; }
+    public Instant getProfiledAt() { return profiledAt; } public void setProfiledAt(Instant p) { this.profiledAt = p; }
+    public Long getProfilingDurationMs() { return profilingDurationMs; } public void setProfilingDurationMs(Long d) { this.profilingDurationMs = d; }
+    public Long getNullCount() { return nullCount; } public void setNullCount(Long n) { this.nullCount = n; }
+    public Long getDistinctCount() { return distinctCount; } public void setDistinctCount(Long d) { this.distinctCount = d; }
+    public Long getDuplicateRowCount() { return duplicateRowCount; } public void setDuplicateRowCount(Long r) { this.duplicateRowCount = r; }
 }

@@ -29,11 +29,14 @@ public class ProfilingServiceImpl implements ProfilingService {
 
     private final DataSource dataSource;
     private final ColumnProfileRepository columnProfileRepo;
+    private final ColumnProfileCleanupService cleanupService;
     private final PostgresSamplingStrategy samplingStrategy;
 
-    public ProfilingServiceImpl(DataSource dataSource, ColumnProfileRepository columnProfileRepo) {
+    public ProfilingServiceImpl(DataSource dataSource, ColumnProfileRepository columnProfileRepo,
+                                ColumnProfileCleanupService cleanupService) {
         this.dataSource = dataSource;
         this.columnProfileRepo = columnProfileRepo;
+        this.cleanupService = cleanupService;
         this.samplingStrategy = new PostgresSamplingStrategy(SAMPLE_RATE);
     }
 
@@ -53,6 +56,7 @@ public class ProfilingServiceImpl implements ProfilingService {
                 ColumnProfileResult cpr = profileColumn(tableFQN, colName);
                 results.add(cpr);
                 persist(tableFQN, colName, cpr);
+                cleanupService.cleanup(tableFQN, colName);
             } catch (Exception e) {
                 log.warn("Failed to profile column {}.{}: {}", tableFQN, colName, e.getMessage());
             }

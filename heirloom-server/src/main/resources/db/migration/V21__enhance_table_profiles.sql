@@ -1,0 +1,6 @@
+ALTER TABLE table_profiles
+  ADD COLUMN IF NOT EXISTS profiled_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS profiling_duration_ms BIGINT,
+  ADD COLUMN IF NOT EXISTS null_count BIGINT,
+  ADD COLUMN IF NOT EXISTS distinct_count BIGINT,
+  ADD COLUMN IF NOT EXISTS duplicate_row_count BIGINT;
