@@ -80,6 +80,13 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- DuckDB for raw metadata caching -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <version>1.2.0</version>
+        </dependency>
+
         <!-- JSONB support for JPA -->
         <dependency>
             <groupId>io.hypersistence</groupId>
