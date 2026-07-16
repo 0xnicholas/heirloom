@@ -2,6 +2,7 @@
 .worktrees/
 .superpowers/
 _references/
+target/
 workshop/node_modules/
 workshop/dist/
 workshop-dev/node_modules/

@@ -1,5 +1,8 @@
 package com.heirloom.query;
 
+import com.heirloom.core.query.GeneratedSql;
+import com.heirloom.core.query.QueryParseException;
+import com.heirloom.core.query.SemanticQuery;
 import com.heirloom.repository.MappingRuleRepository;
 import com.heirloom.repository.TypeRepository;
 import com.heirloom.schema.domain.Field;
@@ -14,7 +17,7 @@ import java.util.*;
  * raw request strings. Table names come from MappingRule.
  */
 @Component
-public class SqlGenerator {
+public class SqlGenerator implements com.heirloom.core.query.SqlGenerator {
 
     private final TypeRepository typeRepo;
     private final MappingRuleRepository mappingRepo;
@@ -25,6 +28,7 @@ public class SqlGenerator {
     }
 
     @SuppressWarnings("unchecked")
+    @Override
     public GeneratedSql generate(SemanticQuery query) {
         ResourceType type = typeRepo.findByName(query.getType())
                 .orElseThrow(() -> new QueryParseException("Type '" + query.getType() + "' not found"));

@@ -1,5 +1,5 @@
 package com.heirloom.knowledge.domain;
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import org.junit.jupiter.api.*;
 import static org.assertj.core.api.Assertions.assertThat;
 class KnowledgeSourceTest {

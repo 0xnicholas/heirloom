@@ -1,6 +1,6 @@
 package com.heirloom.service;
 
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import java.util.Map;
 import java.util.Set;
 

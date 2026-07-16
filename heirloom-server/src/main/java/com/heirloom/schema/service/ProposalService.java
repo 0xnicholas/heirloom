@@ -1,7 +1,7 @@
 package com.heirloom.schema.service;
 
-import com.heirloom.entity.EntityRegistry;
-import com.heirloom.repository.EntityRepository;
+import com.heirloom.core.entity.EntityRegistry;
+import com.heirloom.core.repository.EntityRepository;
 import com.heirloom.repository.ProposalRepository;
 import com.heirloom.schema.domain.Proposal;
 import org.slf4j.Logger;

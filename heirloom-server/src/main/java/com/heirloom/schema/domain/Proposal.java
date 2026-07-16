@@ -1,6 +1,6 @@
 package com.heirloom.schema.domain;
 
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.Map;

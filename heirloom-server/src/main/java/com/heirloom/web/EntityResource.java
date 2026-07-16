@@ -1,9 +1,9 @@
 package com.heirloom.web;
 
 import com.heirloom.auth.Authorizer;
-import com.heirloom.entity.EntityRegistry;
-import com.heirloom.entity.HeirloomEntity;
-import com.heirloom.repository.EntityRepository;
+import com.heirloom.core.entity.EntityRegistry;
+import com.heirloom.core.entity.HeirloomEntity;
+import com.heirloom.core.repository.EntityRepository;
 import com.heirloom.service.EntityService;
 
 /**

@@ -1,6 +1,6 @@
 package com.heirloom.repository;
 
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.schema.domain.ResourceType;
 import com.heirloom.schema.service.PerspectiveEngine;
 import com.heirloom.schema.service.TypeValidationException;

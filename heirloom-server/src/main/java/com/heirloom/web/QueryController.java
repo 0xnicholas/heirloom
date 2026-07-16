@@ -1,88 +1,103 @@
 package com.heirloom.web;
 
-import com.heirloom.query.*;
-import com.heirloom.schema.service.PerspectiveEngine;
+import com.heirloom.core.query.*;
+import com.heirloom.query.QueryRouter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.sql.DataSource;
-import java.sql.*;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
-/**
- * Semantic query endpoint — now backed by QueryParser + SqlGenerator
- * for type-safe, parameterized SQL generation. API contract unchanged.
- */
 @RestController
 @RequestMapping("/v1/query")
 public class QueryController {
 
-    private final QueryParser queryParser;
-    private final SqlGenerator sqlGenerator;
-    private final DataSource dataSource;
-    private final PerspectiveEngine perspective;
+    private final QueryRouter queryRouter;
 
-    public QueryController(QueryParser queryParser, SqlGenerator sqlGenerator,
-                           DataSource dataSource, PerspectiveEngine perspective) {
-        this.queryParser = queryParser;
-        this.sqlGenerator = sqlGenerator;
-        this.dataSource = dataSource;
-        this.perspective = perspective;
+    public QueryController(QueryRouter queryRouter) {
+        this.queryRouter = queryRouter;
     }
 
     @PostMapping
-    public ResponseEntity<List<Map<String, Object>>> query(
+    public ResponseEntity<?> query(
             @RequestBody Map<String, Object> request,
             @RequestHeader(value = "X-Agent-Role", required = false) String role,
             @RequestHeader(value = "X-Agent-Id",   required = false) String agentId,
             @RequestHeader(value = "X-User",       required = false) String user) {
         try {
             String actorId = pickActor(role, agentId, user);
-
-            // Parse and validate (type exists, fields declared, ops legal)
-            SemanticQuery query = queryParser.parse(request);
-
-            // Perspective Engine — strip hidden fields
-            List<String> filteredFields = perspective.filterFields(
-                    query.getType(), actorId, query.getFields());
-
-            // Rebuild query with filtered fields
-            SemanticQuery filtered = new SemanticQuery(
-                    query.getType(), filteredFields, query.getFilter(),
-                    query.getTraverse(), query.getAggregate(),
-                    query.getSortField(), query.getSortDirection(),
-                    query.getLimit(), query.getOffset());
-
-            // Generate parameterized SQL
-            GeneratedSql gen = sqlGenerator.generate(filtered);
-
-            // Execute
-            List<Map<String, Object>> results = new ArrayList<>();
-            try (Connection conn = dataSource.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(gen.sql())) {
-                for (int i = 0; i < gen.params().size(); i++) {
-                    ps.setObject(i + 1, gen.params().get(i));
-                }
-                try (ResultSet rs = ps.executeQuery()) {
-                    var meta = rs.getMetaData();
-                    while (rs.next()) {
-                        Map<String, Object> row = new LinkedHashMap<>();
-                        for (int i = 1; i <= meta.getColumnCount(); i++) {
-                            row.put(meta.getColumnName(i), rs.getObject(i));
-                        }
-                        results.add(row);
-                    }
-                }
+            QueryRequest qr = toQueryRequest(request);
+            QueryResult result = queryRouter.execute(qr);
+            if (isLegacyShape(request)) {
+                return ResponseEntity.ok(result.rows());
             }
-
-            return ResponseEntity.ok(results);
-        } catch (QueryParseException e) {
+            return ResponseEntity.ok(result);
+        } catch (QueryParseException | IllegalArgumentException e) {
             return ResponseEntity.badRequest()
-                    .body(List.of(Map.of("error", e.getMessage())));
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
-                    .body(List.of(Map.of("error", e.getMessage())));
+                    .body(Map.of("error", e.getMessage()));
         }
+    }
+
+    private boolean isLegacyShape(Map<String, Object> request) {
+        return !request.containsKey("mode")
+            && (request.containsKey("type") || request.containsKey("filter"))
+            && !request.containsKey("rawTable")
+            && !request.containsKey("rawSql")
+            && !request.containsKey("resource")
+            && !request.containsKey("drillDown")
+            && !request.containsKey("payload");
+    }
+
+    private QueryRequest toQueryRequest(Map<String, Object> request) {
+        if (isLegacyShape(request)) {
+            String type = (String) request.get("type");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> filter = (Map<String, Object>) request.get("filter");
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) request.get("fields");
+            QueryPayload payload = new QueryPayload(type, filter, fields);
+            return new QueryRequest(QueryMode.SEMANTIC, payload, null, null, null, null);
+        }
+
+        QueryMode mode = request.get("mode") != null
+            ? QueryMode.valueOf(request.get("mode").toString())
+            : QueryMode.AUTO;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payloadMap = (Map<String, Object>) request.get("payload");
+        QueryPayload payload = null;
+        if (payloadMap != null) {
+            String type = (String) payloadMap.get("type");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> filter = (Map<String, Object>) payloadMap.get("filter");
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) payloadMap.get("fields");
+            payload = new QueryPayload(type, filter, fields);
+        }
+        String rawTable = (String) request.get("rawTable");
+        String rawSql = (String) request.get("rawSql");
+
+        ResourceRef resource = null;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resMap = (Map<String, Object>) request.get("resource");
+        if (resMap != null) {
+            resource = new ResourceRef(
+                (String) resMap.get("type"),
+                (String) resMap.get("rid"),
+                (List<String>) resMap.get("fields")
+            );
+        }
+
+        DrillDown drillDown = null;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ddMap = (Map<String, Object>) request.get("drillDown");
+        if (ddMap != null) {
+            drillDown = new DrillDown((String) ddMap.get("rawTable"), (String) ddMap.get("rawSql"));
+        }
+
+        return new QueryRequest(mode, payload, rawTable, rawSql, resource, drillDown);
     }
 
     private static String pickActor(String role, String agentId, String user) {

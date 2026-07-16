@@ -1,5 +1,6 @@
 package com.heirloom.query;
 
+import com.heirloom.core.query.AggregationQuery;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;

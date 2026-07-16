@@ -1,15 +1,19 @@
 package com.heirloom.discovery.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.heirloom.core.alignment.AlignmentService;
 import com.heirloom.discovery.domain.DiscoveryReport;
 import com.heirloom.discovery.domain.DiscoverySource;
-import com.heirloom.discovery.extractor.DiscoveryConfig;
-import com.heirloom.discovery.extractor.SchemaExtractor;
-import com.heirloom.discovery.extractor.postgres.PostgresSchemaExtractor;
+import com.heirloom.core.discovery.DiscoveryConfig;
+import com.heirloom.core.discovery.SchemaExtractor;
+import com.heirloom.connector.postgres.PostgresSchemaExtractor;
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawSchema;
-import com.heirloom.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
+import com.heirloom.core.profiling.ProfileReport;
+import com.heirloom.core.profiling.ProfilingService;
 import com.heirloom.discovery.runner.DiscoveryRunner;
 import com.heirloom.metadata.domain.LineageEntity;
 import com.heirloom.metadata.domain.TableEntity;
@@ -31,16 +35,19 @@ public class DiscoveryService {
     private final InferencePipeline inference;
 
     private final LineageRepository lineageRepo;
+    private final ProfilingService profilingService;
 
     public DiscoveryService(TypeRepository typeRepo, ProposalRepository proposalRepo,
                            MappingRuleRepository mappingRepo, TableRepository tableRepo,
-                           LineageRepository lineageRepo) {
+                           LineageRepository lineageRepo, ProfilingService profilingService,
+                           AlignmentService alignmentService) {
         this.typeRepo = typeRepo;
         this.proposalRepo = proposalRepo;
         this.mappingRepo = mappingRepo;
         this.tableRepo = tableRepo;
         this.lineageRepo = lineageRepo;
-        this.inference = new InferencePipeline();
+        this.inference = new InferencePipeline(alignmentService);
+        this.profilingService = profilingService;
     }
 
     public DiscoveryReport runDiscovery(DiscoverySource source) {
@@ -85,7 +92,7 @@ public class DiscoveryService {
             for (var rawTable : schema.tables()) {
                 String fromFQN = source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + rawTable.tableName();
                 for (var c : rawTable.constraints()) {
-                    if (c.type() == com.heirloom.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY) {
+                    if (c.type() == com.heirloom.core.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY) {
                         LineageEntity lineage = new LineageEntity();
                         lineage.setFromEntityFQN(fromFQN);
                         lineage.setToEntityFQN(source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + c.targetTable());
@@ -97,8 +104,20 @@ public class DiscoveryService {
                 }
             }
 
+            // Phase 1d: Profile
+            for (var rawTable : schema.tables()) {
+                try {
+                    String tableFQN = source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + rawTable.tableName();
+                    ProfileReport profile = profilingService.profile(tableFQN);
+                    log.debug("Profiled {}: {} columns, quality={}", tableFQN, profile.columnCount(), profile.overallQualityScore());
+                } catch (Exception e) {
+                    log.warn("Profiling failed for table {}: {}", rawTable.tableName(), e.getMessage());
+                }
+            }
+
             // Phase 2: Infer
-            List<ResourceTypeProposal> proposals = inference.infer(schema);
+            InferenceContext ctx = new InferenceContext(schema, null, null, List.of(), source.getFullyQualifiedName());
+            List<ResourceTypeProposal> proposals = inference.infer(ctx);
             report.setProposalsGenerated(proposals.size());
             report.setMetadataCreated(metadataCreated);
 

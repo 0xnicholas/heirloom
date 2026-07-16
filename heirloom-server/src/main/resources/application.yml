@@ -28,6 +28,17 @@ springdoc:
   swagger-ui:
     path: /docs
 
+heirloom:
+  duckdb:
+    url: jdbc:duckdb:data/heirloom_raw.db
+    freshness:
+      ttl-minutes: 5
+    sync:
+      batch-size: 10000
+      max-rows: 5000000
+      sample-threshold: 1000000
+      sample-rate: 0.1
+
 logging:
   level:
     com.heirloom: DEBUG

@@ -1,7 +1,7 @@
 package com.heirloom.knowledge.service;
 
 import com.heirloom.domain.ChangeEvent;
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.domain.KnowledgeStatus;
 import com.heirloom.knowledge.repository.KnowledgeArticleRepository;

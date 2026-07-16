@@ -1,6 +1,6 @@
 package com.heirloom.repository;
 
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.security.domain.Action;
 import com.heirloom.security.validation.ActionValidator;
 import jakarta.annotation.PostConstruct;

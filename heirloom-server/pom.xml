@@ -25,6 +25,25 @@
     </properties>
 
     <dependencies>
+        <!-- Heirloom Core (shared interfaces, no Spring) -->
+        <dependency>
+            <groupId>com.heirloom</groupId>
+            <artifactId>heirloom-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Heirloom Connectors -->
+        <dependency>
+            <groupId>com.heirloom</groupId>
+            <artifactId>heirloom-connector-postgres</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.heirloom</groupId>
+            <artifactId>heirloom-connector-mysql</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Web + API -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -59,6 +78,13 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- DuckDB for raw metadata caching -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <version>1.2.0</version>
         </dependency>
 
         <!-- JSONB support for JPA -->

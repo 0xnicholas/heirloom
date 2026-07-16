@@ -1,5 +1,5 @@
 package com.heirloom.knowledge.repository;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeSource;
 import com.heirloom.repository.EntityRepository;
 import jakarta.annotation.PostConstruct;

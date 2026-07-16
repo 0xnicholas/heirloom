@@ -2,7 +2,7 @@ package com.heirloom.knowledge.web;
 
 import com.heirloom.auth.Authorizer;
 import com.heirloom.domain.ChangeEvent;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.repository.KnowledgeArticleJpaRepository;
 import com.heirloom.knowledge.repository.KnowledgeArticleRepository;

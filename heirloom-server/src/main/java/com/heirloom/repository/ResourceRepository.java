@@ -1,7 +1,7 @@
 package com.heirloom.repository;
 
 import com.heirloom.domain.Resource;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

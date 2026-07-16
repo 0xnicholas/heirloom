@@ -1,7 +1,7 @@
 package com.heirloom.web;
 
 import com.heirloom.auth.Authorizer;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.repository.TypeRepository;
 import com.heirloom.schema.domain.ResourceType;
 import com.heirloom.schema.dto.CreateTypeRequest;

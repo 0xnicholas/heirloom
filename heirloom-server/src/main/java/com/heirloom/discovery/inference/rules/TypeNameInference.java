@@ -1,9 +1,10 @@
 package com.heirloom.discovery.inference.rules;
 
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawSchema;
-import com.heirloom.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -11,7 +12,8 @@ public class TypeNameInference implements InferenceRule {
     @Override public Confidence confidence() { return Confidence.HIGH; }
 
     @Override
-    public List<ResourceTypeProposal> infer(RawSchema schema) {
+    public List<ResourceTypeProposal> infer(InferenceContext ctx) {
+        RawSchema schema = ctx.rawSchema();
         return schema.tables().stream()
             .map(t -> new ResourceTypeProposal(toPascalCase(t.tableName()), t.schemaName() + "." + t.tableName(),
                 List.of(), List.of(), List.of(), List.of(), t.comment(),

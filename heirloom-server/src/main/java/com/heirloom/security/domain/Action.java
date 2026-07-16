@@ -2,7 +2,7 @@ package com.heirloom.security.domain;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import com.heirloom.schema.domain.Ability;
 import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;

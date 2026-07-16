@@ -1,10 +1,11 @@
 package com.heirloom.discovery.inference.rules;
 
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawConstraint;
-import com.heirloom.discovery.model.RawSchema;
-import com.heirloom.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawConstraint;
+import com.heirloom.core.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
 import com.heirloom.schema.domain.StateTransition;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,7 +14,9 @@ public class StateMachineInference implements InferenceRule {
     @Override public Confidence confidence() { return Confidence.LOW; }
 
     @Override
-    public List<ResourceTypeProposal> infer(RawSchema schema) {
+    public List<ResourceTypeProposal> infer(InferenceContext ctx) {
+        RawSchema schema = ctx.rawSchema();
+        // Profiling enhancement (Phase 3.2): use ctx.profile() topValues to enumerate states
         return schema.tables().stream()
             .filter(t -> hasStatusColumn(t))
             .map(t -> {

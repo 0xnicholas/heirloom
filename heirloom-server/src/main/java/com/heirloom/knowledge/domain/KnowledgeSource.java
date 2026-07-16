@@ -1,6 +1,6 @@
 package com.heirloom.knowledge.domain;
 
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Type;

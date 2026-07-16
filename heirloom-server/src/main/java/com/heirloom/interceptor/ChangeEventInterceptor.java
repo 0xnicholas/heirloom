@@ -1,7 +1,7 @@
 package com.heirloom.interceptor;
 
 import com.heirloom.domain.ChangeEvent;
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 import com.heirloom.knowledge.service.AgentExperienceCapture;
 import com.heirloom.repository.EventLogRepository;
 import org.slf4j.Logger;
