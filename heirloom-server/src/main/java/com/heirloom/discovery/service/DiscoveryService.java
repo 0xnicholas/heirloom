@@ -6,6 +6,7 @@ import com.heirloom.discovery.domain.DiscoverySource;
 import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.core.discovery.SchemaExtractor;
 import com.heirloom.connector.postgres.PostgresSchemaExtractor;
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;
@@ -113,7 +114,8 @@ public class DiscoveryService {
             }
 
             // Phase 2: Infer
-            List<ResourceTypeProposal> proposals = inference.infer(schema);
+            InferenceContext ctx = new InferenceContext(schema, null, null, List.of(), source.getFullyQualifiedName());
+            List<ResourceTypeProposal> proposals = inference.infer(ctx);
             report.setProposalsGenerated(proposals.size());
             report.setMetadataCreated(metadataCreated);
 

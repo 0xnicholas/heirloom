@@ -1,5 +1,6 @@
 package com.heirloom.discovery.inference.rules;
 
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;
@@ -16,7 +17,8 @@ public class DescriptionInference implements InferenceRule {
     @Override public Confidence confidence() { return Confidence.LOW; }
 
     @Override
-    public List<ResourceTypeProposal> infer(RawSchema schema) {
+    public List<ResourceTypeProposal> infer(InferenceContext ctx) {
+        RawSchema schema = ctx.rawSchema();
         return schema.tables().stream().map(t -> {
             String desc = generateDescription(t);
             return new ResourceTypeProposal(

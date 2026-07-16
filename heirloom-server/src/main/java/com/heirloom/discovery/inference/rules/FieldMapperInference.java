@@ -1,5 +1,6 @@
 package com.heirloom.discovery.inference.rules;
 
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;
@@ -13,7 +14,9 @@ public class FieldMapperInference implements InferenceRule {
     @Override public Confidence confidence() { return Confidence.HIGH; }
 
     @Override
-    public List<ResourceTypeProposal> infer(RawSchema schema) {
+    public List<ResourceTypeProposal> infer(InferenceContext ctx) {
+        RawSchema schema = ctx.rawSchema();
+        // Profiling enhancement (Phase 3.2): use ctx.profile() for DataClass → FieldType hints
         return schema.tables().stream().map(t -> {
             List<Field> fields = t.columns().stream()
                 .map(c -> new Field(toCamelCase(c.columnName()), mapType(c.rawType()), !c.nullable()))

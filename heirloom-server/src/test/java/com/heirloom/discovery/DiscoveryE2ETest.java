@@ -2,6 +2,7 @@ package com.heirloom.discovery;
 
 import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.connector.postgres.PostgresSchemaExtractor;
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;
@@ -116,7 +117,8 @@ class DiscoveryE2ETest {
     void shouldInferResourceTypes() {
         RawSchema schema = extractor.extract(config);
         InferencePipeline pipeline = new InferencePipeline();
-        List<ResourceTypeProposal> proposals = pipeline.infer(schema);
+        InferenceContext ctx = new InferenceContext(schema, null, null, List.of(), "test");
+        List<ResourceTypeProposal> proposals = pipeline.infer(ctx);
 
         assertThat(proposals).hasSize(2);
 
@@ -145,7 +147,8 @@ class DiscoveryE2ETest {
     void shouldInferRelationships() {
         RawSchema schema = extractor.extract(config);
         InferencePipeline pipeline = new InferencePipeline();
-        List<ResourceTypeProposal> proposals = pipeline.infer(schema);
+        InferenceContext ctx = new InferenceContext(schema, null, null, List.of(), "test");
+        List<ResourceTypeProposal> proposals = pipeline.infer(ctx);
 
         var orders = proposals.stream()
             .filter(p -> p.proposedTypeName().equals("Orders"))

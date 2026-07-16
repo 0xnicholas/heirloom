@@ -1,5 +1,6 @@
 package com.heirloom.discovery.inference.rules;
 
+import com.heirloom.discovery.inference.InferenceContext;
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawConstraint;
@@ -15,7 +16,8 @@ public class RelationshipInference implements InferenceRule {
     @Override public Confidence confidence() { return Confidence.MEDIUM; }
 
     @Override
-    public List<ResourceTypeProposal> infer(RawSchema schema) {
+    public List<ResourceTypeProposal> infer(InferenceContext ctx) {
+        RawSchema schema = ctx.rawSchema();
         // Build type name mapping: sourceTable → proposedTypeName
         Map<String, String> typeNames = new HashMap<>();
         for (RawTable t : schema.tables()) {
