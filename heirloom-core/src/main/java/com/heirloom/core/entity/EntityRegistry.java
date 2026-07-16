@@ -1,6 +1,5 @@
-package com.heirloom.entity;
+package com.heirloom.core.entity;
 
-import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -9,10 +8,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * All Heirloom entity types (both metadata and semantic) are registered here
  * with their Java class, Repository, Service, FQN template, and API path.
- * Registration is decentralized: each {@code @Repository} bean calls
+ * Registration is decentralized: each Repository bean calls
  * {@link #register} in its {@code @PostConstruct}.
+ * <p>
+ * Pure static utility — no Spring dependency. The server layer provides
+ * a thin {@code @Component} wrapper to trigger classloading at startup.
  */
-@Component
 public class EntityRegistry {
 
     // === Entity type constants ===
@@ -95,5 +96,10 @@ public class EntityRegistry {
     /** For testing — clears the registry between tests. */
     public static void clear() {
         registry.clear();
+    }
+
+    /** Returns a defensive copy of the registry snapshot (for introspection/debugging). */
+    public static Map<String, EntityRegistration> getRegistry() {
+        return new HashMap<>(registry);
     }
 }

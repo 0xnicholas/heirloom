@@ -1,7 +1,7 @@
 package com.heirloom.repository;
 
 import com.heirloom.discovery.domain.DiscoveryReport;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Repository;
 import java.util.List;

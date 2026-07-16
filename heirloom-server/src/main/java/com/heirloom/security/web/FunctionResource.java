@@ -1,7 +1,7 @@
 package com.heirloom.security.web;
 
 import com.heirloom.auth.Authorizer;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.repository.FunctionRepository;
 import com.heirloom.security.domain.Function;
 import com.heirloom.security.dto.InvokeFunctionRequest;

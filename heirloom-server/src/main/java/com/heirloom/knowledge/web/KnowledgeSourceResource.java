@@ -1,7 +1,7 @@
 package com.heirloom.knowledge.web;
 
 import com.heirloom.auth.Authorizer;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeSource;
 import com.heirloom.knowledge.repository.KnowledgeSourceJpaRepository;
 import com.heirloom.knowledge.service.KnowledgeSyncService;

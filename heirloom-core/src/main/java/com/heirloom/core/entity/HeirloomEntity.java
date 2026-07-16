@@ -1,4 +1,4 @@
-package com.heirloom.entity;
+package com.heirloom.core.entity;
 
 import java.time.Instant;
 

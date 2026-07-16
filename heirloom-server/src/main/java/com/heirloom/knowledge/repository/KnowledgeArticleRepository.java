@@ -1,5 +1,5 @@
 package com.heirloom.knowledge.repository;
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.knowledge.domain.KnowledgeArticle;
 import com.heirloom.knowledge.domain.KnowledgeArticleVersion;
 import com.heirloom.repository.EntityRepository;

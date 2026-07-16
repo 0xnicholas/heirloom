@@ -1,6 +1,6 @@
 package com.heirloom.repository;
 
-import com.heirloom.entity.EntityRegistry;
+import com.heirloom.core.entity.EntityRegistry;
 import com.heirloom.metadata.domain.TableEntity;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Repository;

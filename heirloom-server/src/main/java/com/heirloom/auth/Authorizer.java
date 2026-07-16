@@ -1,6 +1,6 @@
 package com.heirloom.auth;
 
-import com.heirloom.entity.HeirloomEntity;
+import com.heirloom.core.entity.HeirloomEntity;
 
 /**
  * Pluggable authorization interface.

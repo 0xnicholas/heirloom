@@ -25,6 +25,13 @@
     </properties>
 
     <dependencies>
+        <!-- Heirloom Core (shared interfaces, no Spring) -->
+        <dependency>
+            <groupId>com.heirloom</groupId>
+            <artifactId>heirloom-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Web + API -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

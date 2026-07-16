@@ -1,4 +1,4 @@
-package com.heirloom.entity;
+package com.heirloom.core.entity;
 
 /**
  * A single entry in the EntityRegistry — binds an entity type string
