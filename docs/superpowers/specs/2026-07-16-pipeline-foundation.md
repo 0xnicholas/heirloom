@@ -3,33 +3,33 @@
 **日期**: 2026-07-16
 **状态**: Draft
 **参考**: ADR-038、ADR-039、ADR-046
-**范围**: Phase 7a（前 4 阶段骨架）
+**范围**: Phase 7a（前 4 阶段骨架 + 事务性 outbox）
 
 ---
 
 ## 1. 背景
 
-Phase 5 引入 DuckDB raw store + Query Router，Phase 6 补齐 metadata catalog（classifications / tags / domain / column profiles / alignment）。但当前架构存在明显断层：
+Phase 5 引入 DuckDB raw store + Query Router，Phase 6 补齐 metadata catalog。但 raw table 到 ontology 实体的映射完全手动。ADR-038 提出 8 阶段事件驱动管线，但全量实施成本过高且依赖 Kafka。
 
-- **raw 数据** 在 DuckDB 里
-- **metadata catalog** 已有能力（Table / Column / Classification / Tag）
-- **ontology** 仍为空
+Phase 7a 在不引入 Kafka 的前提下，建立可插拔管线骨架并实施前 4 阶段。核心创新：**采用 Transactional Outbox 模式**保证进程崩溃不丢消息，**后台 OutboxProcessor** 异步派发事件，实现真正的 202 异步语义。
 
-raw table 如何映射到 ontology 实体？目前完全手动。ADR-038 提出 8 阶段事件驱动管线（Ingestion → Discovery → Profiling → Alignment → Entity Resolution → Ontology Proposal → Governance → Mapping & Publish），但全量实施成本过高、依赖 Kafka 基础设施。
+### 1.1 与 ADR-038 的差异
 
-Phase 7a 在 **不引入 Kafka** 的前提下，建立**可插拔管线骨架**并实施前 4 阶段，将 Phase 5/6 已有能力（Discovery / Profiling / Alignment）接入管线，验证端到端自动化闭环。后续阶段（5-8）与 Kafka adapter 留 Phase 7b/8。
+| 主题 | ADR-038 | Phase 7a |
+|---|---|---|
+| 事件总线 | Kafka | PipelineEventBus 接口 + InProcessBus（DB outbox 后端） |
+| 派发模型 | 消费者拉取 | OutboxProcessor 定时拉取 |
+| 持久化 | Kafka topic | pipeline_outbox 表 |
+| 事务性 | 消费者幂等 | outbox + run 单事务原子写入 |
+| 崩溃恢复 | Kafka offset 提交 | `SELECT FOR UPDATE SKIP LOCKED` + 重放未完成 outbox 记录 |
 
-### 1.1 与 ADR-038 的关系
+接口 `PipelineEventBus` 抽象这一切，未来 Kafka adapter 可实现同一接口，零业务代码改动。
 
-ADR-038 已确定管线架构（事件驱动、Kafka 主题、DLQ）。Phase 7a 在以下方面与 ADR 一致：
+### 1.2 与 ADR-038 一致的部分
+
 - 8 阶段顺序与事件命名
-- DLQ 失败隔离策略
-- Event Log 与管线事件的职责分工
-
-差异：
-- **不引入 Kafka**：用 `PipelineEventBus` 接口 + in-process 实现（同步派发 + 事务边界）
-- **只实施前 4 阶段**：Ingestion / Discovery / Profiling / Alignment
-- **接口预留 `tenantId`**：默认 `"default"`，待 ADR-042 多租户隔离时填字段
+- DLQ 失败隔离策略（pipeline_dead_letter 表）
+- Event Log 与管线事件职责分工
 
 ---
 
@@ -37,78 +37,83 @@ ADR-038 已确定管线架构（事件驱动、Kafka 主题、DLQ）。Phase 7a 
 
 ### 2.1 Phase 7a 必达
 
-- 4 阶段管线骨架：Ingestion → Discovery → Profiling → Alignment
-- 可插拔 `PipelineEventBus` 接口（heirloom-core）+ in-process 实现
-- DB-backed 重试 + DLQ（进程重启不丢消息）
-- 现有 `DiscoveryResource.trigger()` 改为触发管线，外部 API 语义变更（同步报告 → 异步 run）
-- 完整 REST API：`/api/v1/pipeline/runs`、`/dead-letter`
-- 单元 + Testcontainers 集成测试覆盖
+- 4 阶段管线：Ingestion → Discovery → Profiling → Alignment
+- `PipelineEventBus` 接口（heirloom-core）+ InProcessBus 实现（heirloom-server）
+- Transactional Outbox：run + outbox event 单事务原子写入
+- OutboxProcessor：@Scheduled 拉取未派发事件，`SELECT FOR UPDATE SKIP LOCKED` 防多实例冲突
+- per-stage 状态追踪（pipeline_run_stages 表）
+- per-stage 重试计数（避免 attempts 全局累积）
+- DB-backed DLQ + 重放列表 API
+- 现有 `DiscoveryResource` 改为触发管线，REST 202 Accepted
+- Stage 结果持久化（pipeline_run_results 表）— 后续阶段可消费
+- 完整 REST API：`/v1/pipeline/runs`、`/v1/pipeline/dead-letter`
+- 单元 + Testcontainers 集成测试
 
-### 2.2 非目标（Phase 7a 不做）
+### 2.2 非目标
 
 - 阶段 5-8（Entity Resolution / Ontology Proposal / Governance / Mapping & Publish）
 - Kafka adapter（接口已就位，实现留 Phase 7b 或 8）
-- 调度器触发（@Scheduled 拉数据源）
-- CDC 事件触发
+- 调度器触发、CDC 事件触发
 - DLQ 重放 UI
-- 多租户隔离（字段已预留）
+- 多租户隔离（字段已预留，默认 `"default"`）
 - 取消 RUNNING run
 
 ---
 
 ## 3. 架构与模块布局
 
-### 3.1 接口模块（heirloom-core）
-
-零 Spring 依赖，与 Phase 6 模式一致。
+### 3.1 接口模块（heirloom-core，零 Spring 依赖）
 
 ```
 heirloom-core/src/main/java/com/heirloom/core/pipeline/
-├── PipelineEventBus.java          # publish / subscribe / recoverPending
+├── PipelineEventBus.java          # 仅接口：publish() / subscribe() / start()
 ├── PipelineEvent.java             # sealed interface
-├── PipelineEventType.java         # enum
-├── PipelineStage.java             # @FunctionalInterface（输入事件 → 输出事件）
-├── PipelineStageRegistry.java     # 注册表（按 eventType 索引）
-├── PipelineRun.java               # entity interface
-├── PipelineStatus.java            # enum (PENDING | RUNNING | COMPLETED | FAILED | RETRYING | DEAD_LETTER)
+├── PipelineEventType.java         # enum（含 5 个事件类型 + STAGE_FAILED）
+├── PipelineStage.java             # @FunctionalInterface
+├── PipelineStageRegistry.java     # 注册表（PipelineStageRegistry SPI）
+├── PipelineRun.java               # entity interface（运行级状态）
+├── PipelineStageStatus.java       # entity interface（阶段级状态）
+├── PipelineStatus.java            # enum (PENDING | RUNNING | COMPLETED | RETRYING | DEAD_LETTER)
 ├── PipelineTriggerType.java       # enum (MANUAL | DISCOVERY_AUTO)
-├── PipelineContext.java           # record（tenantId/sourceId/correlationId/...）
-└── PipelineFailure.java           # sealed (RecoverableFailure | FatalFailure)
+├── PipelineContext.java           # record
+└── PipelineFailure.java           # sealed abstract class extends RuntimeException
+    ├── RecoverableFailure.java    # final 子类
+    └── FatalFailure.java          # final 子类
 ```
 
-### 3.2 实现模块（heirloom-server）
+**Core 边界约束：**
+- `PipelineEvent.payload` 是 `String`（原始 JSON），不依赖 Jackson
+- 不含任何持久化 / 调度 / JPA 概念
+- 持久化与 outbox 在 heirloom-server 的 InProcessBus 实现中
 
-Spring 装配、JPA 持久化、REST 端点。
+### 3.2 实现模块（heirloom-server，Spring + JPA）
 
 ```
 heirloom-server/src/main/java/com/heirloom/pipeline/
 ├── bus/
-│   ├── InProcessEventBus.java          # 同步派发 + 事务边界 + 异常分类
-│   └── PipelineEventPublisher.java     # 外部触发入口（包装 publish）
+│   ├── InProcessBus.java                     # PipelineEventBus 实现（outbox 持久化）
+│   └── PipelineEventPublisher.java           # 外部触发入口
 ├── stages/
-│   ├── IngestionStage.java             # 包装 DuckDbSyncService
-│   ├── DiscoveryStage.java             # 包装 DiscoveryService
-│   ├── ProfilingStage.java             # 包装 ProfilingService
-│   └── AlignmentStage.java             # 包装 AlignmentService
+│   ├── IngestionStage.java                   # 包装 DuckDbSyncService（per table）
+│   ├── DiscoveryStage.java                   # 包装 DiscoveryService
+│   ├── ProfilingStage.java                   # 包装 ProfilingService
+│   └── AlignmentStage.java                   # 包装 AlignmentService
 ├── orchestrator/
-│   └── PipelineOrchestrator.java       # @PostConstruct 装配 4 阶段订阅
+│   └── PipelineOrchestrator.java             # @PostConstruct 装配订阅
+├── processor/
+│   └── OutboxProcessor.java                  # @Scheduled 拉取 outbox 派发
 ├── persistence/
-│   ├── PipelineRunEntity.java          # JPA
-│   ├── PipelineRunJpaRepository.java
-│   ├── PipelineRunRepository.java
-│   ├── DeadLetterEntity.java           # JPA
-│   └── DeadLetterJpaRepository.java
-├── retry/
-│   └── RetryScheduler.java             # @Scheduled 扫描 RETRYING 重入队
+│   ├── PipelineRunEntity.java                # 运行级 JPA
+│   ├── PipelineStageStatusEntity.java        # 阶段级 JPA
+│   ├── PipelineResultEntity.java             # 阶段结果持久化
+│   ├── PipelineOutboxEntity.java             # outbox 表
+│   ├── DeadLetterEntity.java                 # 死信
+│   └── (各 JpaRepository + Repository)
 ├── service/
-│   └── PipelineService.java            # start / get / list
+│   └── PipelineService.java                  # start / get / list
 └── web/
-    ├── PipelineResource.java           # REST: runs + dead-letter
-    └── dto/
-        ├── TriggerPipelineRequest.java
-        ├── PipelineRunResponse.java
-        ├── PipelineStageStatusDto.java
-        └── DeadLetterResponse.java
+    ├── PipelineResource.java                 # REST (Spring MVC)
+    └── dto/                                  # 请求/响应 DTO
 ```
 
 ### 3.3 Flyway 迁移
@@ -116,25 +121,31 @@ heirloom-server/src/main/java/com/heirloom/pipeline/
 ```
 heirloom-server/src/main/resources/db/migration/
 ├── V22__create_pipeline_runs.sql
-└── V23__create_pipeline_dead_letter.sql
+├── V23__create_pipeline_run_stages.sql
+├── V24__create_pipeline_run_results.sql
+├── V25__create_pipeline_outbox.sql
+└── V26__create_pipeline_dead_letter.sql
 ```
 
 ---
 
-## 4. 核心接口契约
+## 4. 核心接口契约（heirloom-core）
 
 ### 4.1 PipelineEventBus
 
 ```java
 public interface PipelineEventBus {
-    /** 同步发布事件，调用所有 subscribers；任一抛异常则整体失败（事务回滚） */
+    /**
+     * 将事件加入 outbox（同步事务）。调用方的事务边界决定可见性。
+     * 不直接派发 — 由 OutboxProcessor 异步拉取。
+     */
     void publish(PipelineEvent event);
 
-    /** 注册订阅者（按 event type 路由） */
+    /** 注册订阅者（按 PipelineEventType 路由） */
     void subscribe(PipelineEventType type, PipelineStage subscriber);
 
-    /** 启动时从 DB 加载 RETRYING 的 run 重新入队 */
-    void recoverPending();
+    /** 启动时由 Spring 触发：OutboxProcessor 开始 @Scheduled 拉取 */
+    void start();
 }
 ```
 
@@ -145,98 +156,148 @@ public sealed interface PipelineEvent
     permits IngestionRequested, RawDataIngested, SchemaDiscovered,
             DataProfiled, SemanticAligned {
 
+    UUID eventId();           // ADR-038 要求
     UUID runUuid();
     String tenantId();
-    String sourceId();
+    String sourceFqn();       // 统一 sourceFqn（不是 sourceId）
     String correlationId();
     PipelineEventType type();
     Instant occurredAt();
-    int attempts();
+    int payloadVersion();     // ADR-039 schema 版本
+    String payload();         // 原始 JSON 字符串（不依赖 Jackson in core）
 }
 ```
 
-每个事件是 record：
+每个事件是 record（实现统一 envelope）：
 
 ```java
 public record IngestionRequested(
-    String sourceFqn, String connectorType, JsonNode config,
-    boolean profile, boolean align,
-    UUID runUuid, String tenantId, String sourceId,
-    String correlationId, Instant occurredAt, int attempts
+    List<String> tableFqns,            // 已知 table 列表（用户/REST 提供）
+    UUID eventId, UUID runUuid, String tenantId, String sourceFqn,
+    String correlationId, Instant occurredAt, int payloadVersion, String payload
 ) implements PipelineEvent { ... }
 
 public record RawDataIngested(
     List<String> ingestedTableFqns, Instant syncedAt,
-    UUID runUuid, String tenantId, String sourceId,
-    String correlationId, Instant occurredAt, int attempts
+    UUID eventId, UUID runUuid, String tenantId, String sourceFqn,
+    String correlationId, Instant occurredAt, int payloadVersion, String payload
 ) implements PipelineEvent { ... }
 
 public record SchemaDiscovered(
     List<String> discoveredTableFqns, int tableCount,
-    UUID runUuid, String tenantId, String sourceId,
-    String correlationId, Instant occurredAt, int attempts
+    UUID eventId, UUID runUuid, String tenantId, String sourceFqn,
+    String correlationId, Instant occurredAt, int payloadVersion, String payload
 ) implements PipelineEvent { ... }
 
 public record DataProfiled(
     List<String> profiledTableFqns, int profiledCount, double avgQualityScore,
-    UUID runUuid, String tenantId, String sourceId,
-    String correlationId, Instant occurredAt, int attempts
+    UUID eventId, UUID runUuid, String tenantId, String sourceFqn,
+    String correlationId, Instant occurredAt, int payloadVersion, String payload
 ) implements PipelineEvent { ... }
 
 public record SemanticAligned(
-    List<String> alignedResourceFqns, int alignedCount, int newSuggestions,
-    UUID runUuid, String tenantId, String sourceId,
-    String correlationId, Instant occurredAt, int attempts
+    UUID eventId, UUID runUuid, String tenantId, String sourceFqn,
+    String correlationId, Instant occurredAt, int payloadVersion, String payload
 ) implements PipelineEvent { ... }
 ```
+
+注：`SemanticAligned` 不带具体结果 — AlignmentMap 持久化到 `pipeline_run_results` 表，事件只通知下游"对齐已完成"。
 
 ### 4.3 PipelineStage
 
 ```java
 @FunctionalInterface
 public interface PipelineStage {
-    /** 处理输入事件，返回输出的下一个事件（可能为 null 表示终止） */
+    /** 处理输入事件，返回输出的下一个事件（null 表示终止） */
     PipelineEvent apply(PipelineEvent input, PipelineContext context)
         throws PipelineFailure;
 }
 ```
 
-### 4.4 PipelineFailure
+### 4.4 PipelineFailure（sealed abstract class）
 
 ```java
-public sealed interface PipelineFailure extends RuntimeException
+public sealed abstract class PipelineFailure extends RuntimeException
     permits RecoverableFailure, FatalFailure {
 
-    String message();  // sealed interface 要求兼容 Exception
+    protected PipelineFailure(String message) { super(message); }
+    protected PipelineFailure(String message, Throwable cause) { super(message, cause); }
+}
 
-    record RecoverableFailure(String message, Throwable cause)
-        implements PipelineFailure {}
+public final class RecoverableFailure extends PipelineFailure {
+    public RecoverableFailure(String message) { super(message); }
+    public RecoverableFailure(String message, Throwable cause) { super(message, cause); }
+}
 
-    record FatalFailure(String message, Throwable cause)
-        implements PipelineFailure {}
+public final class FatalFailure extends PipelineFailure {
+    public FatalFailure(String message) { super(message); }
+    public FatalFailure(String message, Throwable cause) { super(message, cause); }
 }
 ```
 
-注：若 sealed interface 与 Exception 兼容性受 Java 21 限制，改为 abstract class。
+### 4.5 PipelineContext
 
-### 4.5 PipelineRun（entity interface）
+```java
+public record PipelineContext(
+    UUID runUuid,
+    String tenantId,
+    String sourceFqn,
+    String correlationId,
+    String stageName,           // 当前 stage
+    int stageAttempt,           // 当前 stage 已尝试次数（从 1 开始）
+    Instant stageStartedAt,
+    Clock clock                 // 测试时可注入
+) {}
+```
+
+### 4.6 PipelineStageRegistry
+
+```java
+public interface PipelineStageRegistry {
+    /** 注册 stage（按 eventType 索引，每个 type 唯一 stage） */
+    void register(PipelineEventType type, PipelineStage stage);
+
+    /** 查找 stage */
+    Optional<PipelineStage> find(PipelineEventType type);
+
+    /** 启动时由 orchestrator 调用 */
+    void start();
+}
+```
+
+约束：**一个 event type 只能注册一个 stage**（不允许多订阅 fan-out，避免不确定性）。新增阶段时只需注册新的 event type → stage 映射。
+
+### 4.7 PipelineRun（entity interface）
 
 ```java
 public interface PipelineRun {
     UUID getRunUuid();
     String getTenantId();
-    String getSourceId();
-    String getCurrentStage();
+    String getSourceFqn();
     PipelineStatus getStatus();
     String getCorrelationId();
     PipelineTriggerType getTriggerType();
-    int getAttempts();
-    int getMaxAttempts();
-    String getLastError();
-    Instant getNextRetryAt();
     Instant getCreatedAt();
     Instant getUpdatedAt();
     Instant getCompletedAt();
+}
+```
+
+注：**运行级无 attempts 字段**。attempts 在阶段级（pipeline_run_stages）。
+
+### 4.8 PipelineStageStatus（entity interface）
+
+```java
+public interface PipelineStageStatus {
+    UUID getRunUuid();
+    String getStageName();
+    PipelineStatus getStatus();
+    int getAttempts();
+    int getMaxAttempts();
+    Instant getStartedAt();
+    Instant getCompletedAt();
+    Instant getNextRetryAt();
+    String getLastError();
 }
 ```
 
@@ -244,46 +305,124 @@ public interface PipelineRun {
 
 ## 5. 数据模型
 
-### 5.1 Flyway V22 — pipeline_runs
+### 5.1 V22 — pipeline_runs（运行级）
 
 ```sql
 CREATE TABLE pipeline_runs (
   id BIGSERIAL PRIMARY KEY,
   run_uuid UUID NOT NULL UNIQUE,
   tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
-  source_id VARCHAR(255) NOT NULL,
-  current_stage VARCHAR(64) NOT NULL,
+  source_fqn VARCHAR(512) NOT NULL,        -- sourceId 统一改为 sourceFqn
   status VARCHAR(32) NOT NULL,
   correlation_id UUID NOT NULL,
   trigger_type VARCHAR(32) NOT NULL,
-  attempts INT NOT NULL DEFAULT 0,
-  max_attempts INT NOT NULL DEFAULT 3,
-  last_error TEXT,
-  payload JSONB,
-  result JSONB,
+  table_fqns TEXT,                          -- 触发时的 tableFQN 列表（逗号分隔）
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  next_retry_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_pipeline_runs_status_retry
-  ON pipeline_runs (status, next_retry_at)
-  WHERE status = 'RETRYING';
+-- 并发唯一：同 sourceFqn 同一时刻只能有一个 active run
+CREATE UNIQUE INDEX uq_pipeline_runs_active
+  ON pipeline_runs (source_fqn)
+  WHERE status IN ('PENDING','RUNNING','RETRYING');
 
-CREATE INDEX idx_pipeline_runs_source
-  ON pipeline_runs (tenant_id, source_id);
+CREATE INDEX idx_pipeline_runs_status ON pipeline_runs (status);
 ```
 
-### 5.2 Flyway V23 — pipeline_dead_letter
+### 5.2 V23 — pipeline_run_stages（阶段级）
+
+```sql
+CREATE TABLE pipeline_run_stages (
+  id BIGSERIAL PRIMARY KEY,
+  run_uuid UUID NOT NULL REFERENCES pipeline_runs(run_uuid) ON DELETE CASCADE,
+  stage_name VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  attempts INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 3,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  next_retry_at TIMESTAMPTZ,
+  last_error TEXT,
+  UNIQUE (run_uuid, stage_name)
+);
+
+CREATE INDEX idx_stages_retry
+  ON pipeline_run_stages (status, next_retry_at)
+  WHERE status = 'RETRYING';
+```
+
+**per-stage attempts**：避免全局累积。`max_attempts` 默认 3，可配置。
+
+### 5.3 V24 — pipeline_run_results（阶段结果持久化）
+
+```sql
+CREATE TABLE pipeline_run_results (
+  id BIGSERIAL PRIMARY KEY,
+  run_uuid UUID NOT NULL REFERENCES pipeline_runs(run_uuid) ON DELETE CASCADE,
+  stage_name VARCHAR(64) NOT NULL,
+  result_type VARCHAR(64) NOT NULL,        -- 'table_entity_list', 'alignment_map', ...
+  result JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (run_uuid, stage_name)
+);
+```
+
+每个阶段写自己的结果。下游阶段从该表读取上游结果。例如 Alignment 阶段读 pipeline_run_results 里 Discovery 的 TableEntity 列表，结合 Profiling 的 column_profile，产出 AlignmentMap 持久化回此表。
+
+### 5.4 V25 — pipeline_outbox（事务性 outbox）
+
+```sql
+CREATE TABLE pipeline_outbox (
+  id BIGSERIAL PRIMARY KEY,
+  event_id UUID NOT NULL UNIQUE,
+  run_uuid UUID NOT NULL,
+  event_type VARCHAR(64) NOT NULL,
+  payload JSONB NOT NULL,                  -- 完整 PipelineEvent 序列化
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',  -- PENDING | CLAIMED | DISPATCHED | FAILED
+  claimed_at TIMESTAMPTZ,
+  claimed_by VARCHAR(128),                 -- 实例标识（hostname + UUID）
+  claimed_until TIMESTAMPTZ,                -- lease 超时
+  dispatched_at TIMESTAMPTZ,
+  attempts INT NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_outbox_pending
+  ON pipeline_outbox (status, claimed_until, created_at)
+  WHERE status = 'PENDING';
+```
+
+**OutboxProcessor 工作流：**
+```sql
+-- 1. 原子声明一批事件（避免多实例重复处理）
+SELECT id, payload FROM pipeline_outbox
+WHERE status = 'PENDING'
+  AND (claimed_until IS NULL OR claimed_until < now())
+ORDER BY created_at
+LIMIT 50
+FOR UPDATE SKIP LOCKED;
+
+-- 2. 标记为 CLAIMED + 续约 lease
+UPDATE pipeline_outbox SET status='CLAIMED', claimed_at=now(),
+  claimed_by=?, claimed_until=now() + interval '60 seconds'
+WHERE id IN (?);
+
+-- 3. 派发：调用 stage，处理后写 DISPATCHED / FAILED
+```
+
+崩溃恢复：若实例崩溃，`claimed_until` 超时后事件被重新声明。
+
+### 5.5 V26 — pipeline_dead_letter
 
 ```sql
 CREATE TABLE pipeline_dead_letter (
   id BIGSERIAL PRIMARY KEY,
   run_uuid UUID NOT NULL,
   tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
-  source_id VARCHAR(255) NOT NULL,
-  stage VARCHAR(64) NOT NULL,
+  source_fqn VARCHAR(512) NOT NULL,
+  stage_name VARCHAR(64) NOT NULL,
   event_type VARCHAR(64) NOT NULL,
   attempts INT NOT NULL,
   last_error TEXT,
@@ -298,15 +437,15 @@ CREATE INDEX idx_dlq_unreplayed
   WHERE replayed_at IS NULL;
 ```
 
-### 5.3 状态机
+### 5.6 状态机（运行级）
 
 ```
-              trigger
+              POST /runs
                 │
                 ▼
             ┌────────┐
             │ PENDING │ ◄──┐
-            └────┬───┘    │ retry (attempts < max)
+            └────┬───┘    │ retry（stage attempts < max）
                  │        │
                  ▼        │
             ┌────────┐    │
@@ -317,73 +456,117 @@ CREATE INDEX idx_dlq_unreplayed
        ┌──────────┐  ┌────────┐
        │COMPLETED │  │RETRYING│──┘
        └──────────┘  └───┬────┘
-                         │ attempts ≥ max_attempts
+                         │ all stages exhausted
                          ▼
                   ┌─────────────┐
                   │ DEAD_LETTER │
                   └─────────────┘
 ```
 
+`FAILED` 状态移除。终态仅 `COMPLETED` 和 `DEAD_LETTER`。
+
+### 5.7 状态机（阶段级）
+
+每个阶段独立状态：PENDING → RUNNING → (COMPLETED | RETRYING | DEAD_LETTER)。
+
 ---
 
-## 6. 事件总线实现（InProcessEventBus）
+## 6. 事件总线实现（InProcessBus）
 
 ### 6.1 publish 行为
 
 ```
-publish(event):
-  1. 在当前事务边界内执行：
-     a. 查找 PipelineRun by runUuid
-     b. 校验 status ∈ {PENDING, RUNNING, RETRYING}
-     c. 更新 status = RUNNING, currentStage = event.type(), attempts++
-  2. 调用所有 subscribers（按注册顺序）：
-     - 每个 subscriber 在同一事务内执行
-     - 收集返回的 nextEvent（第一个非 null 的）
-  3. 若 nextEvent != null：
-     - 递归 publish(nextEvent)
-  4. 若所有 stage 链完成且无 nextEvent：
-     - status = COMPLETED, completedAt = now()
-  5. 任一 subscriber 抛 PipelineFailure：
-     a. 分类（RecoverableFailure vs FatalFailure）
-     b. attempts < max_attempts 且可恢复：
-        → status = RETRYING
-        → nextRetryAt = now() + min(2^attempts * 10s, 5min)
-        → lastError = failure.message()
-     c. 否则：
-        → 写入 pipeline_dead_letter
-        → status = DEAD_LETTER
-     d. 抛 PipelineStageFailedException 给 caller（REST 返回 500）
+publish(event) (在调用方事务内执行):
+  1. 校验 run 存在且 status ∈ {PENDING, RUNNING, RETRYING}
+  2. INSERT INTO pipeline_outbox (event_id, run_uuid, event_type, payload, status='PENDING')
+  3. UPDATE pipeline_runs SET status='RUNNING', updated_at=now()
+  4. 提交事务
+  5. 返回（OutboxProcessor 异步派发）
 ```
 
-### 6.2 recoverPending 行为
+**关键：调用方事务回滚则 outbox 事件也回滚**（保证原子性）。
+
+### 6.2 OutboxProcessor 行为
 
 ```
-recoverPending():
-  1. 查找 status = RETRYING 且 nextRetryAt <= now() 的所有 run
-  2. 对每个 run：从 run.payload 反序列化原始 IngestionRequested 事件
-  3. 重新 publish（attempts 已递增）
+@Scheduled(fixedDelayString = "${heirloom.pipeline.outbox-poll-seconds:5s}")
+dispatchPending():
+  1. 开启事务
+  2. SELECT id, payload FROM pipeline_outbox
+       WHERE status='PENDING'
+         AND (claimed_until IS NULL OR claimed_until < now())
+       ORDER BY created_at LIMIT 50
+       FOR UPDATE SKIP LOCKED
+  3. 对每条记录：
+     a. UPDATE status='CLAIMED', claimed_by=instanceId, claimed_until=now() + 60s
+     b. 反序列化 payload → PipelineEvent
+     c. 查 PipelineStageRegistry.find(event.type())
+     d. 若 stage 不存在：UPDATE status='FAILED', last_error='no stage registered'
+     e. 调用 stage.apply(event, context)
+     f. 成功：
+        - 写 pipeline_run_stages 该 stage 的 status='COMPLETED', completed_at=now()
+        - 写 pipeline_run_results 该 stage 的 result（如有）
+        - 若 stage 返回的 nextEvent != null：publish(nextEvent) 递归
+        - 若所有 stage 都 COMPLETED 且无 nextEvent：UPDATE pipeline_runs SET status='COMPLETED', completed_at=now()
+        - UPDATE outbox status='DISPATCHED'
+     g. 失败（PipelineFailure）：
+        - RecoverableFailure 且 stage.attempts < max_attempts：
+          · UPDATE pipeline_run_stages SET status='RETRYING', attempts=attempts+1,
+            next_retry_at=now() + min(2^attempts * 10s, 5min),
+            last_error=?
+          · UPDATE pipeline_runs SET status='RETRYING'
+          · UPDATE outbox status='DISPATCHED'（事件已处理；stage 状态决定是否重试）
+        - FatalFailure 或 attempts ≥ max_attempts：
+          · INSERT INTO pipeline_dead_letter
+          · UPDATE pipeline_run_stages SET status='DEAD_LETTER'
+          · UPDATE pipeline_runs SET status='DEAD_LETTER'
+          · UPDATE outbox status='FAILED'
 ```
-
-由 `RetryScheduler` 定时调用（`@Scheduled(fixedDelayString = "${heirloom.pipeline.retry-poll-seconds:30}")`）。
 
 ### 6.3 异常分类
 
-| 异常类型 | 重试策略 |
+| 异常类型 | 行为 |
 |---|---|
-| `RecoverableFailure` | 重试，最多 `max_attempts` 次 |
-| `FatalFailure` | 直接 DLQ，不重试 |
-| 其他 `RuntimeException` | 默认视为 fatal，写入 DLQ |
+| `RecoverableFailure` | 重试（per-stage attempts < max_attempts） |
+| `FatalFailure` | 直接 DLQ，无重试 |
+| 其他 `RuntimeException` | 包装为 FatalFailure，写入 DLQ |
+| `Error`（OOM 等） | 不捕获，进程崩溃；outbox 由下次启动的 recover() 重派 |
 
-### 6.4 幂等性要求
+### 6.4 阶段适配器（Stage Adapters）
 
-每个 stage 必须**幂等**（同 payload 多次执行结果一致）：
+现有服务（`DiscoveryService`、`ProfilingServiceImpl`、`AlignmentServiceImpl`）返回报告对象，不抛异常。Stage 适配器负责：
+
+- 调用现有服务
+- 将报告结果写入 `pipeline_run_results`
+- 根据报告状态（部分失败 / 全失败）决定抛 `RecoverableFailure` / `FatalFailure` / 成功
+
+```java
+@Component
+public class DiscoveryStage implements PipelineStage {
+    @Override
+    public PipelineEvent apply(PipelineEvent input, PipelineContext ctx) {
+        var report = discoveryService.run(ctx.sourceFqn(), input.tableFqns());
+        // 持久化 report
+        pipelineResultRepo.save(new PipelineResultEntity(
+            ctx.runUuid(), "discovery", "discovery_report", report));
+        if (report.hasFatalErrors()) {
+            throw new FatalFailure("Discovery failed fatally: " + report.errors());
+        }
+        return new SchemaDiscovered(...);
+    }
+}
+```
+
+### 6.5 幂等性要求
+
+每个 stage 必须幂等。**幂等键**：`(runUuid, stageName, stageAttempt)`。
 
 | Stage | 幂等机制 |
 |---|---|
-| IngestionStage | DuckDB `CREATE TABLE IF NOT EXISTS` + 原子 rename（Phase 5 已实现） |
-| DiscoveryStage | `tableFQN` upsert TableEntity（已存在则更新） |
-| ProfilingStage | 检查 `tableProfile.profiledAt` 是否新鲜（TTL 内跳过） |
-| AlignmentStage | 用 `proposedResource` 的 hash 去重 |
+| IngestionStage | 检查 `pipeline_run_stages(stage='ingestion', status IN ('COMPLETED','RUNNING'))` |
+| DiscoveryStage | `TableEntity` upsert by FQN |
+| ProfilingStage | 写之前检查 `profiling_attempts` 表，避免重复大查询 |
+| AlignmentStage | `AlignmentMap` 写之前 delete by (runUuid, stageName) |
 
 ---
 
@@ -391,21 +574,20 @@ recoverPending():
 
 ### 7.1 PipelineOrchestrator
 
-不直接调用 stages，而是**订阅事件并发布下一个事件**：
-
 ```java
 @Component
 public class PipelineOrchestrator {
-    @PostConstruct void wire() {
-        bus.subscribe(IngestionRequested, ingestionStage);
-        bus.subscribe(RawDataIngested, discoveryStage);
-        bus.subscribe(SchemaDiscovered, profilingStage);
-        bus.subscribe(DataProfiled, alignmentStage);
+    @PostConstruct void wire(StageRegistry registry, IngestionStage ingestion, ...) {
+        registry.register(PipelineEventType.INGESTION_REQUESTED, ingestion);
+        registry.register(PipelineEventType.RAW_DATA_INGESTED, discovery);
+        registry.register(PipelineEventType.SCHEMA_DISCOVERED, profiling);
+        registry.register(PipelineEventType.DATA_PROFILED, alignment);
+        // Alignment 阶段输出 null → 终止 → run COMPLETED
     }
 }
 ```
 
-### 7.2 事件链（Phase 7a）
+### 7.2 事件链
 
 ```
 IngestionRequested  ──▶  [IngestionStage]  ──▶  RawDataIngested
@@ -426,48 +608,49 @@ IngestionRequested  ──▶  [IngestionStage]  ──▶  RawDataIngested
                                           [AlignmentStage]
                                                   │
                                                   ▼
-                                          SemanticAligned   ← Phase 7a 终点
+                                          (null) → run COMPLETED
 ```
-
-阶段 5-8（Entity Resolution / Ontology Proposal / Governance / Mapping & Publish）通过新增 stage + 新事件类型接入，不修改现有 stage。
 
 ### 7.3 阶段输入输出
 
-| Stage | 输入事件 | 输出事件 | 复用服务 |
-|---|---|---|---|
-| IngestionStage | IngestionRequested | RawDataIngested | DuckDbSyncService |
-| DiscoveryStage | RawDataIngested | SchemaDiscovered | DiscoveryService |
-| ProfilingStage | SchemaDiscovered | DataProfiled | ProfilingService |
-| AlignmentStage | DataProfiled | SemanticAligned | AlignmentService |
+| Stage | 输入 event | 输出 event | 复用服务 | 写入 result_type |
+|---|---|---|---|---|
+| IngestionStage | IngestionRequested | RawDataIngested | DuckDbSyncService（per table） | raw_sync_report |
+| DiscoveryStage | RawDataIngested | SchemaDiscovered | DiscoveryService | discovery_report |
+| ProfilingStage | SchemaDiscovered | DataProfiled | ProfilingService | profile_report |
+| AlignmentStage | DataProfiled | null（终止） | AlignmentService | alignment_map |
+
+阶段 5-8 通过新增 event type + 注册新 stage 接入。
 
 ---
 
-## 8. REST API
+## 8. REST API（Spring MVC）
 
-### 8.1 端点清单
+### 8.1 端点
 
 | Method | Path | 用途 | Phase 7a |
 |---|---|---|---|
-| POST | `/api/v1/pipeline/runs` | 手动触发管线 | ✅ |
-| GET | `/api/v1/pipeline/runs/{runUuid}` | 查询 run 状态 | ✅ |
-| GET | `/api/v1/pipeline/runs` | 列出 runs | ✅ |
-| GET | `/api/v1/pipeline/dead-letter` | 列出死信 | ✅ |
-| POST | `/api/v1/pipeline/dead-letter/{id}/replay` | 重放死信 | ❌ 后续 |
-| POST | `/api/v1/pipeline/runs/{runUuid}/cancel` | 取消 run | ❌ 后续 |
+| POST | `/v1/pipeline/runs` | 触发管线 | ✅ |
+| GET | `/v1/pipeline/runs/{runUuid}` | 查询 run + 阶段状态 | ✅ |
+| GET | `/v1/pipeline/runs` | 列出 runs | ✅ |
+| GET | `/v1/pipeline/dead-letter` | 列出死信 | ✅ |
+| POST | `/v1/pipeline/dead-letter/{id}/replay` | 重放死信 | ❌ |
+| POST | `/v1/pipeline/runs/{runUuid}/cancel` | 取消 run | ❌ |
 
-### 8.2 POST /api/v1/pipeline/runs
+### 8.2 POST /v1/pipeline/runs
 
 请求：
 ```json
 {
-  "sourceId": "prod.pg.customers_db",
-  "connectorType": "postgres",
-  "config": { "host": "pg.internal", "port": 5432, "database": "customers", ... },
-  "stages": ["ingestion", "discovery", "profiling", "alignment"]
+  "sourceFqn": "prod.pg.customers_db",
+  "tableFqns": ["prod.pg.customers_db.public.customers", "prod.pg.customers_db.public.orders"],
+  "triggerType": "MANUAL"
 }
 ```
 
-响应（202 Accepted）：
+注：**不包含 connector config**（避免 credentials 进 payload）。连接配置通过 sourceFqn 在 `SourceRegistry` 中查找（Phase 6 已有 source 概念）。
+
+响应（202 Accepted，header `Location: /v1/pipeline/runs/{runUuid}`）：
 ```json
 {
   "runUuid": "5d4e2c1a-...",
@@ -480,45 +663,40 @@ IngestionRequested  ──▶  [IngestionStage]  ──▶  RawDataIngested
 
 错误：
 - 400：参数缺失
-- 409：同 source 已有 RUNNING run
-- 500：触发失败（pipeline 内错误）
+- 409：同 sourceFqn 已有 active run
+- 500：内部错误
 
-### 8.3 GET /api/v1/pipeline/runs/{runUuid}
+### 8.3 GET /v1/pipeline/runs/{runUuid}
 
 ```json
 {
-  "runUuid": "5d4e2c1a-...",
+  "runUuid": "...",
   "tenantId": "default",
-  "sourceId": "prod.pg.customers_db",
+  "sourceFqn": "prod.pg.customers_db",
   "status": "RUNNING",
-  "currentStage": "profiling",
-  "attempts": 1,
+  "triggerType": "MANUAL",
+  "correlationId": "...",
   "stages": [
-    { "name": "ingestion", "status": "COMPLETED", "completedAt": "..." },
-    { "name": "discovery", "status": "COMPLETED", "completedAt": "..." },
-    { "name": "profiling", "status": "RUNNING", "startedAt": "..." },
-    { "name": "alignment", "status": "PENDING" }
+    { "stageName": "ingestion", "status": "COMPLETED", "attempts": 1,
+      "startedAt": "...", "completedAt": "..." },
+    { "stageName": "discovery", "status": "COMPLETED", "attempts": 1,
+      "startedAt": "...", "completedAt": "..." },
+    { "stageName": "profiling", "status": "RUNNING", "attempts": 1,
+      "startedAt": "..." },
+    { "stageName": "alignment", "status": "PENDING", "attempts": 0 }
   ],
-  "lastError": null,
   "createdAt": "...",
   "completedAt": null
 }
 ```
 
-### 8.4 GET /api/v1/pipeline/runs
+### 8.4 GET /v1/pipeline/runs
 
-查询参数：
-- `sourceId`（可选）
-- `status`（可选，逗号分隔）
-- `limit`（默认 50）
-- `offset`（默认 0）
+查询参数：`sourceFqn`、`status`、`limit`（默认 50，最大 500）、`offset`（默认 0）。
 
-### 8.5 GET /api/v1/pipeline/dead-letter
+### 8.5 GET /v1/pipeline/dead-letter
 
-查询参数：
-- `replayed`（可选：true / false / 不传=全部）
-- `limit`（默认 50）
-- `offset`（默认 0）
+查询参数：`sourceFqn`、`replayed`（true/false/不传）、`limit`、`offset`。
 
 ---
 
@@ -526,39 +704,36 @@ IngestionRequested  ──▶  [IngestionStage]  ──▶  RawDataIngested
 
 ### 9.1 DiscoveryResource 变更
 
-**修改前：**
+**修改前**（Spring MVC）：
 ```java
-@POST @Path("/sources/{sourceId}/discover")
-public DiscoveryReport triggerDiscovery(
-    @PathParam String sourceId,
-    @QueryParam("profile") boolean profile
-) {
-    return discoveryService.run(sourceId, profile);  // 同步阻塞
+@PostMapping("/v1/discovery/sources/{sourceFQN}/run")
+public DiscoveryReport trigger(@PathVariable String sourceFQN,
+                                @RequestParam(defaultValue = "true") boolean profile) {
+    return discoveryService.run(sourceFQN, profile);
 }
 ```
 
 **修改后：**
 ```java
-@POST @Path("/sources/{sourceId}/discover")
-public PipelineRunResponse triggerDiscovery(
-    @PathParam String sourceId,
-    @QueryParam("profile") boolean profile
-) {
-    var run = pipelineService.startForSource(sourceId, "DISCOVERY_AUTO");
-    return run;  // 立即返回 PENDING
+@PostMapping("/v1/discovery/sources/{sourceFQN}/run")
+public ResponseEntity<PipelineRunResponse> trigger(@PathVariable String sourceFQN,
+                                                     @RequestParam(defaultValue = "true") boolean profile) {
+    // 提取该 source 已知 tableFQN 列表（通过 SourceRegistry 或上一次 discovery）
+    List<String> tableFqns = sourceRegistry.listTables(sourceFQN);
+    var run = pipelineService.start(sourceFQN, tableFqns, PipelineTriggerType.DISCOVERY_AUTO);
+    return ResponseEntity
+        .status(HttpStatus.ACCEPTED)
+        .header("Location", "/v1/pipeline/runs/" + run.runUuid())
+        .body(run);
 }
 ```
 
 ### 9.2 兼容性策略
 
-- API 路径不变（`/api/v1/discovery/sources/{id}/discover`）
-- 响应类型从 `DiscoveryReport` → `PipelineRunResponse`（破坏性变更）
-- 现有客户端需要：拿 `runUuid` → 轮询 `GET /api/v1/pipeline/runs/{runUuid}`
-- 旧同步路径**保留为 deprecated 别名**（返回 301 + Location 头指向新端点），v2 移除
-
-### 9.3 DiscoveryService 不变
-
-`DiscoveryService` 仍存在，但现在只被 `DiscoveryStage` 调用。其他直接调用方需改为触发管线。
+- API 路径**不变**：`/v1/discovery/sources/{sourceFQN}/run`
+- 响应类型 `DiscoveryReport` → `PipelineRunResponse`（破坏性变更）
+- 现有客户端：拿 `runUuid` → 轮询 `GET /v1/pipeline/runs/{runUuid}`
+- **保留旧的同步行为为可选 alias**：`@PostMapping("/v1/discovery/sources/{sourceFQN}/run-sync")` 返回同步 report，标记 deprecated。后续 v2 移除。
 
 ---
 
@@ -566,42 +741,55 @@ public PipelineRunResponse triggerDiscovery(
 
 | 层 | 测试类型 | 范围 |
 |---|---|---|
-| Unit | JUnit 5 + Mockito | InProcessEventBus publish/subscribe/recover、状态机转换、RetryScheduler、异常分类 |
-| Unit | JUnit 5 | 每个 Stage 的输入输出映射（mock 复用服务） |
-| Integration | `@SpringBootTest` + Testcontainers | 端到端：POST → PENDING → RUNNING → COMPLETED |
-| Integration | Testcontainers | DB-backed 重试：模拟 RecoverableFailure → RETRYING → 重入队 → COMPLETED |
-| Integration | Testcontainers | DLQ：模拟 FatalFailure → DEAD_LETTER 记录 |
-| Integration | Testcontainers | DiscoveryResource 自动触发管线 |
-| Integration | Testcontainers | 并发：同 source 多个 run |
+| Unit | JUnit 5 + Mockito | InProcessBus.publish 事务行为、OutboxProcessor 派发逻辑、StageRegistry |
+| Unit | JUnit 5 | 每个 Stage 适配器（mock 复用服务 + 验证 result 写入） |
+| Unit | JUnit 5 | PipelineFailure 分类（Recoverable / Fatal） |
+| Integration | Testcontainers | 端到端：POST → 202 → outbox 派发 → 阶段流转 → COMPLETED |
+| Integration | Testcontainers | per-stage 重试：模拟 RecoverableFailure → RETRYING → 重派发 → COMPLETED |
+| Integration | Testcontainers | DLQ：模拟 FatalFailure → DEAD_LETTER |
+| Integration | Testcontainers | 崩溃恢复：注入 CLAIMED 记录 + claimed_until 超时 → 重声明 |
+| Integration | Testcontainers | 并发：多线程 POST 同 source → 一个 202 一个 409 |
+| Integration | Testcontainers | DiscoveryResource 自动触发管线（DISCOVERY_AUTO） |
+| Integration | Testcontainers | 旧 run-sync alias 仍返回同步 report |
 
 ---
 
-## 11. 任务清单（写到 plan 时细化）
+## 11. 任务清单
 
 ```
 Phase 7a — Pipeline 骨架 + 前 4 阶段
-├── 7a.0  heirloom-core 定义 Pipeline 接口（EventBus / Event / Stage / Run / Status / Context / Failure）
-├── 7a.1  PipelineRunEntity + DeadLetterEntity + JPA Repository + Flyway V22/V23
-├── 7a.2  InProcessEventBus 实现（同步派发 + 事务边界 + 异常分类）
-├── 7a.3  RetryScheduler（@Scheduled 扫描 RETRYING 重入队）
-├── 7a.4  IngestionStage（包装 DuckDbSyncService）
-├── 7a.5  DiscoveryStage（包装 DiscoveryService）
-├── 7a.6  ProfilingStage（包装 ProfilingService）
-├── 7a.7  AlignmentStage（包装 AlignmentService）
-├── 7a.8  PipelineOrchestrator（@PostConstruct 装配 4 阶段订阅）
-├── 7a.9  PipelineService（start / get / list）
-├── 7a.10 PipelineResource REST endpoints（runs + dead-letter 列表）
-├── 7a.11 DiscoveryResource 改为触发管线（保留旧路径 deprecated alias）
-├── 7a.12 单元测试（bus / scheduler / 每个 stage / orchestrator）
-├── 7a.13 集成测试（Testcontainers 端到端、重试、DLQ、自动触发、并发）
-└── 7a.14 验证 + 文档
+├── 7a.0  heirloom-core 接口（EventBus / Event / Stage / Run / StageStatus / Status / Context / Failure / Registry）
+├── 7a.1  PipelineRunEntity + PipelineStageStatusEntity + PipelineResultEntity + PipelineOutboxEntity + DeadLetterEntity + JPA Repositories
+├── 7a.2  Flyway V22-V26
+├── 7a.3  InProcessBus 实现（publish → outbox 写入）
+├── 7a.4  OutboxProcessor（@Scheduled 拉取 + SELECT FOR UPDATE SKIP LOCKED）
+├── 7a.5  PipelineStageRegistry 实现
+├── 7a.6  PipelineOrchestrator（@PostConstruct 注册 4 阶段）
+├── 7a.7  IngestionStage（per-table DuckDbSyncService + 幂等检查）
+├── 7a.8  DiscoveryStage（包装 DiscoveryService + result 写入）
+├── 7a.9  ProfilingStage（包装 ProfilingService + result 写入）
+├── 7a.10 AlignmentStage（包装 AlignmentService + result 写入）
+├── 7a.11 PipelineService（start / get / list）
+├── 7a.12 PipelineResource REST endpoints（runs + dead-letter 列表）
+├── 7a.13 DiscoveryResource 改为触发管线（保留 /run-sync deprecated alias）
+├── 7a.14 单元测试（bus / processor / registry / 每个 stage / orchestrator）
+├── 7a.15 集成测试（Testcontainers：端到端、重试、DLQ、崩溃恢复、并发、自动触发）
+└── 7a.16 验证 + 文档
 ```
 
 ---
 
-## 12. 相关 ADR
+## 12. 安全说明
 
-- [ADR-038](./../adr/038-raw-to-ontology-pipeline.md) — raw → ontology 管线（架构来源）
-- [ADR-039](./../adr/039-kafka-pipeline-topics.md) — Kafka topic 组织（Phase 7b+）
-- [ADR-042](./../adr/042-multi-tenant-deployment.md) — 多租户（字段已预留）
-- [ADR-046](./../adr/046-metadata-first-mvp.md) — 元数据优先 MVP（Phase 6 完成，本 Phase 衔接）
+- **Credentials 不进 payload**：连接配置通过 `sourceFqn` 在 `SourceRegistry` 查找，run payload 只存 `tableFqns` 与 run 元数据
+- **API 响应不返回 secret**：所有 endpoint DTO 不含连接配置
+- **日志不打印 payload**：structured log 只打印 eventId / runUuid / stage / status
+
+---
+
+## 13. 相关 ADR
+
+- [ADR-038](../../adr/038-raw-to-ontology-pipeline.md) — raw → ontology 管线（架构来源）
+- [ADR-039](../../adr/039-kafka-pipeline-topics.md) — Kafka topic 组织（Phase 7b+）
+- [ADR-042](../../adr/042-multi-tenant-deployment.md) — 多租户（字段已预留）
+- [ADR-046](../../adr/046-metadata-first-mvp.md) — 元数据优先 MVP（Phase 6 完成）
