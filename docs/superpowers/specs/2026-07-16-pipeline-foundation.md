@@ -484,7 +484,7 @@ CREATE TABLE pipeline_stage_executions (
 
 `FAILED` 状态移除。终态仅 `COMPLETED` 和 `DEAD_LETTER`。
 
-### 5.7 状态机（阶段级）
+### 5.8 状态机（阶段级）
 
 每个阶段独立状态：PENDING → RUNNING → (COMPLETED | RETRYING | DEAD_LETTER)。
 
@@ -557,10 +557,8 @@ dispatchPending():
         - UPDATE pipeline_run_stages 该 stage 的 status='COMPLETED', completed_at=now()
         - 写 pipeline_run_results（如有）
         - 若 stage 返回 nextEvent != null：
-          · 若 nextEvent 是终止事件（无 subscriber 的 terminal stage）：标记该 stage COMPLETED，
-            若所有 stage 都 COMPLETED：UPDATE pipeline_runs SET status='COMPLETED', completed_at=now()
-          · 否则：INSERT INTO pipeline_outbox (event_id=nextEvent.eventId(), ..., not_before=NULL)
-            → 下次 poll 派发
+          · INSERT INTO pipeline_outbox (event_id=nextEvent.eventId(), ..., not_before=NULL)
+            → 下次 poll 派发（terminal stage 会消费此事件并返回 null）
         - 若 stage 返回 null 且所有 stage 都 COMPLETED：
           UPDATE pipeline_runs SET status='COMPLETED', completed_at=now()
         - UPDATE outbox status='DISPATCHED'
@@ -840,7 +838,7 @@ public ResponseEntity<PipelineRunResponse> trigger(@PathVariable String sourceFQ
 Phase 7a — Pipeline 骨架 + 前 4 阶段
 ├── 7a.0  heirloom-core 接口（EventBus / Event / Stage / Run / StageStatus / Status / Context / Failure / Registry）
 ├── 7a.1  PipelineRunEntity + PipelineStageStatusEntity + PipelineResultEntity + PipelineOutboxEntity + DeadLetterEntity + JPA Repositories
-├── 7a.2  Flyway V22-V26
+├── 7a.2  Flyway V22-V27
 ├── 7a.3  InProcessBus 实现（publish → outbox 写入）
 ├── 7a.4  OutboxProcessor（@Scheduled 拉取 + SELECT FOR UPDATE SKIP LOCKED）
 ├── 7a.5  PipelineStageRegistry 实现
@@ -849,6 +847,7 @@ Phase 7a — Pipeline 骨架 + 前 4 阶段
 ├── 7a.8  PipelineDiscoveryStage（包装 DiscoveryService + SourceRegistry 查询 + result 写入）
 ├── 7a.9  PipelineProfilingStage（per-table 迭代 + partial-failure 处理 + result 写入）
 ├── 7a.10 PipelineAlignmentStage（包装 AlignmentService + result 写入）
+├── 7a.10b PipelineOrchestrator 装配 4 阶段 + SemanticAligned 终止 stage
 ├── 7a.11 PipelineService（start / get / list）
 ├── 7a.12 PipelineResource REST endpoints（runs + dead-letter 列表）
 ├── 7a.13 DiscoveryResource 改为触发管线（保留 /run-sync deprecated alias）
