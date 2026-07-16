@@ -1,6 +1,6 @@
 # Heirloom 元数据层基础建设 — 实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 构建 Heirloom「第一层」——元数据目录基础能力：模块化拆分 → 实体补齐（Classification/Tag/Domain/Column）→ Profiling 引擎 → InferencePipeline 升级
 
@@ -150,7 +150,7 @@ src/main/resources/db/migration/
 **Files:**
 - Create: `pom.xml` (heirloom 根目录)
 
-- [ ] **Step 1: 在根目录创建聚合 POM**
+- [x] **Step 1: 在根目录创建聚合 POM**
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -175,7 +175,7 @@ Run: `mvn validate` from root. Expected: BUILD SUCCESS.
 
 > **注**: 根 POM 初始只列 `heirloom-server` 一个已有模块。后续每创建一个新模块（heirloom-core, heirloom-connector）再逐步添加，保证增量构建每一步都可验证。
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add pom.xml
@@ -190,7 +190,7 @@ git commit -m "chore: add Maven reactor POM for multi-module build"
 - Create: `heirloom-core/pom.xml`
 - Create: `heirloom-core/src/main/java/com/heirloom/core/.gitkeep` (temporary)
 
-- [ ] **Step 1: 创建 heirloom-core/pom.xml**
+- [x] **Step 1: 创建 heirloom-core/pom.xml**
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -243,14 +243,14 @@ git commit -m "chore: add Maven reactor POM for multi-module build"
 </project>
 ```
 
-- [ ] **Step 2: 创建 .gitkeep 防止空源码目录报错**
+- [x] **Step 2: 创建 .gitkeep 防止空源码目录报错**
 
 ```bash
 mkdir -p heirloom-core/src/main/java/com/heirloom/core
 mkdir -p heirloom-core/src/test/java/com/heirloom/core
 ```
 
-- [ ] **Step 3: 更新根 pom.xml 添加 heirloom-core 模块**
+- [x] **Step 3: 更新根 pom.xml 添加 heirloom-core 模块**
 
 ```xml
     <modules>
@@ -260,7 +260,7 @@ mkdir -p heirloom-core/src/test/java/com/heirloom/core
 
 Run: `mvn compile` from root. Expected: BUILD SUCCESS.
 
-- [ ] **Step 4: 验证 ArchUnit 测试**
+- [x] **Step 4: 验证 ArchUnit 测试**
 
 ```bash
 # heirloom-core 不应依赖 spring-boot、spring-web、jakarta.persistence
@@ -268,7 +268,7 @@ Run: `mvn compile` from root. Expected: BUILD SUCCESS.
 
 > 注：ArchUnit 测试在 heirloom-server 当前位置暂不执行——等模块迁移完成后统一加。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add heirloom-core/ pom.xml
@@ -289,7 +289,7 @@ git commit -m "feat: create heirloom-core module (zero external deps)"
 - Modify: `heirloom-server/.../entity/EntityRegistration.java` → 删除（import from core）
 - Modify: `heirloom-server/.../repository/EntityRepository.java` → 改为继承 core 版本
 
-- [ ] **Step 1: 复制 HeirloomEntity.java 到 heirloom-core**
+- [x] **Step 1: 复制 HeirloomEntity.java 到 heirloom-core**
 
 ```bash
 cp heirloom-server/src/main/java/com/heirloom/entity/HeirloomEntity.java \
@@ -298,7 +298,7 @@ cp heirloom-server/src/main/java/com/heirloom/entity/HeirloomEntity.java \
 
 然后修改 package: `package com.heirloom.entity;` → `package com.heirloom.core.entity;`
 
-- [ ] **Step 2: 复制 EntityRegistry.java 到 heirloom-core**
+- [x] **Step 2: 复制 EntityRegistry.java 到 heirloom-core**
 
 ```bash
 cp heirloom-server/src/main/java/com/heirloom/entity/EntityRegistry.java \
@@ -309,7 +309,7 @@ cp heirloom-server/src/main/java/com/heirloom/entity/EntityRegistry.java \
 
 EntityRegistry 的核心逻辑是 `ConcurrentHashMap<String, EntityRegistration>` + `register()` + `getRepository()` 等静态方法。去掉 `@Component` 和 `@PostConstruct` 引用，只保留静态注册逻辑。Spring 组件注册方式移到 `heirloom-server` 侧的 wrapper。
 
-- [ ] **Step 3: 复制 EntityRegistration.java 到 heirloom-core**
+- [x] **Step 3: 复制 EntityRegistration.java 到 heirloom-core**
 
 ```bash
 cp heirloom-server/src/main/java/com/heirloom/entity/EntityRegistration.java \
@@ -318,7 +318,7 @@ cp heirloom-server/src/main/java/com/heirloom/entity/EntityRegistration.java \
 
 修改 package。
 
-- [ ] **Step 4: 复制 EntityRepository.java 到 heirloom-core**
+- [x] **Step 4: 复制 EntityRepository.java 到 heirloom-core**
 
 ```bash
 cp heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java \
@@ -329,7 +329,7 @@ cp heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java \
 
 `heirloom-server` 的现有 `EntityRepository.java` 改为 `extends com.heirloom.core.repository.EntityRepository<EntityType>`，重新加回 Spring 注解。
 
-- [ ] **Step 5: heirloom-server 改为 import from core**
+- [x] **Step 5: heirloom-server 改为 import from core**
 
 在 heirloom-server 中，三个原文件替换为：
 
@@ -340,7 +340,7 @@ cp heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java \
 
 实际策略：删除 heirloom-server 中的原始文件，所有引用处改为 `import com.heirloom.core.entity.HeirloomEntity;`。
 
-- [ ] **Step 6: heirloom-server 添加 heirloom-core 依赖**
+- [x] **Step 6: heirloom-server 添加 heirloom-core 依赖**
 
 修改 `heirloom-server/pom.xml`，添加 dependency:
 
@@ -352,7 +352,7 @@ cp heirloom-server/src/main/java/com/heirloom/repository/EntityRepository.java \
 </dependency>
 ```
 
-- [ ] **Step 7: 编译验证**
+- [x] **Step 7: 编译验证**
 
 ```bash
 mvn compile
@@ -360,7 +360,7 @@ mvn compile
 
 预期：BUILD SUCCESS。所有 import 路径更新完成。
 
-- [ ] **Step 8: Run tests**
+- [x] **Step 8: Run tests**
 
 ```bash
 mvn test
@@ -368,7 +368,7 @@ mvn test
 
 预期：192 tests PASS。
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -391,7 +391,7 @@ git commit -m "refactor: migrate HeirloomEntity/EntityRegistry/EntityRegistratio
 - Delete: `heirloom-server/.../discovery/extractor/SchemaExtractor.java` (迁移后删除)
 - Delete: `heirloom-server/.../discovery/model/RawSchema.java` 等 5 个文件
 
-- [ ] **Step 1: 复制 5 个 Raw* model 文件到 heirloom-core**
+- [x] **Step 1: 复制 5 个 Raw* model 文件到 heirloom-core**
 
 ```bash
 for f in RawSchema RawTable RawColumn RawConstraint RawRelationship; do
@@ -402,7 +402,7 @@ done
 
 全部修改 package: `com.heirloom.discovery.model` → `com.heirloom.core.discovery.model`
 
-- [ ] **Step 2: 复制 DiscoveryConfig + SchemaExtractor 到 heirloom-core**
+- [x] **Step 2: 复制 DiscoveryConfig + SchemaExtractor 到 heirloom-core**
 
 ```bash
 cp heirloom-server/src/main/java/com/heirloom/discovery/extractor/DiscoveryConfig.java \
@@ -414,7 +414,7 @@ cp heirloom-server/src/main/java/com/heirloom/discovery/extractor/SchemaExtracto
 
 修改 package。
 
-- [ ] **Step 3: 创建 SchemaExtractorRegistry.java**
+- [x] **Step 3: 创建 SchemaExtractorRegistry.java**
 
 ```java
 package com.heirloom.core.discovery;
@@ -439,11 +439,11 @@ public class SchemaExtractorRegistry {
 }
 ```
 
-- [ ] **Step 4: 更新 heirloom-server import 路径**
+- [x] **Step 4: 更新 heirloom-server import 路径**
 
 全部引用处改为 `import com.heirloom.core.discovery.model.*;` 等。
 
-- [ ] **Step 5: 编译 + 测试**
+- [x] **Step 5: 编译 + 测试**
 
 ```bash
 mvn compile && mvn test
@@ -451,7 +451,7 @@ mvn compile && mvn test
 
 预期：BUILD SUCCESS, 192 PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -466,7 +466,7 @@ git commit -m "refactor: migrate Discovery models and SchemaExtractor SPI to hei
 - Move: `SemanticQuery.java`, `QueryParser.java`, `AggregationQuery.java`, `GeneratedSql.java`, `QueryParseException.java` → `heirloom-core/.../query/`
 - Keep in server: `SqlGenerator.java` (依赖 JPA/JDBC，留在 server 实现接口)
 
-- [ ] **Step 1: 复制 5 个文件到 heirloom-core**
+- [x] **Step 1: 复制 5 个文件到 heirloom-core**
 
 ```bash
 for f in SemanticQuery QueryParser AggregationQuery GeneratedSql QueryParseException; do
@@ -477,7 +477,7 @@ done
 
 全部修改 package。
 
-- [ ] **Step 2: SqlGenerator 提取接口**
+- [x] **Step 2: SqlGenerator 提取接口**
 
 在 `heirloom-core` 创建接口：
 
@@ -492,13 +492,13 @@ public interface SqlGenerator {
 
 heirloom-server 的现有 `SqlGenerator.java` 改为 `implements com.heirloom.core.query.SqlGenerator`。
 
-- [ ] **Step 3: 编译 + 测试**
+- [x] **Step 3: 编译 + 测试**
 
 ```bash
 mvn compile && mvn test
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -517,7 +517,7 @@ git commit -m "refactor: migrate query model classes to heirloom-core, extract S
 - Create: `heirloom-connector/heirloom-connector-mysql/src/main/java/.../MySqlSchemaExtractor.java`
 - Modify: `heirloom-server` pom.xml — 添加两个 connector 依赖
 
-- [ ] **Step 1: 创建 heirloom-connector/pom.xml**
+- [x] **Step 1: 创建 heirloom-connector/pom.xml**
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -544,7 +544,7 @@ git commit -m "refactor: migrate query model classes to heirloom-core, extract S
 </project>
 ```
 
-- [ ] **Step 2: 创建 heirloom-connector-postgres/pom.xml**
+- [x] **Step 2: 创建 heirloom-connector-postgres/pom.xml**
 
 ```xml
 <project>
@@ -560,7 +560,7 @@ git commit -m "refactor: migrate query model classes to heirloom-core, extract S
 </project>
 ```
 
-- [ ] **Step 3: 迁移 PostgresSchemaExtractor**
+- [x] **Step 3: 迁移 PostgresSchemaExtractor**
 
 ```bash
 cp heirloom-server/src/main/java/com/heirloom/discovery/extractor/postgres/PostgresSchemaExtractor.java \
@@ -569,13 +569,13 @@ cp heirloom-server/src/main/java/com/heirloom/discovery/extractor/postgres/Postg
 
 修改 package 为 `com.heirloom.connector.postgres`，实现 `import com.heirloom.core.discovery.SchemaExtractor;`。
 
-- [ ] **Step 4: 更新根 pom.xml 加 connector 模块**
+- [x] **Step 4: 更新根 pom.xml 加 connector 模块**
 
 ```xml
         <module>heirloom-connector</module>
 ```
 
-- [ ] **Step 5: heirloom-server 添加 connector 依赖**
+- [x] **Step 5: heirloom-server 添加 connector 依赖**
 
 ```xml
 <dependency>
@@ -585,7 +585,7 @@ cp heirloom-server/src/main/java/com/heirloom/discovery/extractor/postgres/Postg
 </dependency>
 ```
 
-- [ ] **Step 6: Spring Boot 自动配置注册**
+- [x] **Step 6: Spring Boot 自动配置注册**
 
 在 `heirloom-server` 中创建 `ConnectorAutoConfiguration.java`：
 
@@ -601,11 +601,11 @@ public class ConnectorAutoConfiguration {
 }
 ```
 
-- [ ] **Step 7: 重复 Step 2-6 对 MySQL connector**
+- [x] **Step 7: 重复 Step 2-6 对 MySQL connector**
 
 包名 `com.heirloom.connector.mysql`。
 
-- [ ] **Step 8: 编译 + 测试**
+- [x] **Step 8: 编译 + 测试**
 
 ```bash
 mvn compile && mvn test
@@ -613,7 +613,7 @@ mvn compile && mvn test
 
 预期：192 tests PASS。所有模块编译通过。
 
-- [ ] **Step 9: ArchUnit 验证**
+- [x] **Step 9: ArchUnit 验证**
 
 在 `heirloom-core` 的 test 中添加：
 
@@ -631,7 +631,7 @@ void coreModule_shouldNotDependOnSpringBoot() {
 
 添加 `com.tngtech.archunit:archunit-junit5:1.4.0` test 依赖到 heirloom-core pom.xml。
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add -A
@@ -642,7 +642,7 @@ git commit -m "feat: create heirloom-connector modules (postgres, mysql) with Sc
 
 ### Task 0.6: 最终清理 + 验证
 
-- [ ] **Step 1: 删除 heirloom-server 中已迁移的类**
+- [x] **Step 1: 删除 heirloom-server 中已迁移的类**
 
 ```bash
 # 删除已迁移到 heirloom-core 的原始位置
@@ -659,7 +659,7 @@ rm heirloom-server/src/main/java/com/heirloom/query/GeneratedSql.java
 rm heirloom-server/src/main/java/com/heirloom/query/QueryParseException.java
 ```
 
-- [ ] **Step 2: 处理 EntityRegistry 的 Spring 集成**
+- [x] **Step 2: 处理 EntityRegistry 的 Spring 集成**
 
 在 `heirloom-server` 侧创建 wrapper：
 
@@ -672,7 +672,7 @@ public class EntityRegistryInitializer {
 }
 ```
 
-- [ ] **Step 3: 全量测试**
+- [x] **Step 3: 全量测试**
 
 ```bash
 mvn clean test
@@ -680,7 +680,7 @@ mvn clean test
 
 预期：192 tests PASS。ArchUnit 测试 PASS。
 
-- [ ] **Step 4: Phase 0 完成 Commit**
+- [x] **Step 4: Phase 0 完成 Commit**
 
 ```bash
 git add -A
@@ -702,7 +702,7 @@ git commit -m "chore: complete Phase 0 — module migration cleanup, ArchUnit ve
 - Create: `heirloom-core/src/main/java/.../metadata/ColumnDef.java`
 - Create: `heirloom-core/src/main/java/.../metadata/TableProfileDef.java`
 
-- [ ] **Step 1: 创建 Classification.java**
+- [x] **Step 1: 创建 Classification.java**
 
 ```java
 package com.heirloom.core.metadata;
@@ -715,7 +715,7 @@ public interface Classification extends HeirloomEntity {
 }
 ```
 
-- [ ] **Step 2: 创建 Tag.java**
+- [x] **Step 2: 创建 Tag.java**
 
 ```java
 package com.heirloom.core.metadata;
@@ -731,7 +731,7 @@ public interface Tag extends HeirloomEntity {
 }
 ```
 
-- [ ] **Step 3: 创建 Domain.java**
+- [x] **Step 3: 创建 Domain.java**
 
 ```java
 package com.heirloom.core.metadata;
@@ -746,7 +746,7 @@ public interface Domain extends HeirloomEntity {
 }
 ```
 
-- [ ] **Step 4: 创建 ColumnDef.java**
+- [x] **Step 4: 创建 ColumnDef.java**
 
 ```java
 package com.heirloom.core.metadata;
@@ -767,7 +767,7 @@ public record ColumnDef(
 ) {}
 ```
 
-- [ ] **Step 5: 创建 TableProfileDef.java**
+- [x] **Step 5: 创建 TableProfileDef.java**
 
 ```java
 package com.heirloom.core.metadata;
@@ -790,13 +790,13 @@ public interface TableProfileDef extends HeirloomEntity {
 }
 ```
 
-- [ ] **Step 6: 编译 heirloom-core**
+- [x] **Step 6: 编译 heirloom-core**
 
 ```bash
 mvn compile -pl heirloom-core
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add heirloom-core/
@@ -810,7 +810,7 @@ git commit -m "feat: define metadata interfaces in heirloom-core (Classification
 **Files:**
 - Create: `heirloom-server/src/main/resources/db/migration/V17__enhance_metadata_tables.sql`
 
-- [ ] **Step 1: 写 Flyway 脚本**
+- [x] **Step 1: 写 Flyway 脚本**
 
 ```sql
 ALTER TABLE metadata_tables
@@ -825,7 +825,7 @@ CREATE INDEX IF NOT EXISTS idx_tables_domain ON metadata_tables(domain_fqn);
 CREATE INDEX IF NOT EXISTS idx_tables_tags ON metadata_tables USING GIN (tags jsonb_path_ops);
 ```
 
-- [ ] **Step 2: 验证迁移**
+- [x] **Step 2: 验证迁移**
 
 ```bash
 mvn flyway:migrate -pl heirloom-server
@@ -833,7 +833,7 @@ mvn flyway:migrate -pl heirloom-server
 
 预期：Flyway 执行 V17 成功。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add heirloom-server/src/main/resources/db/migration/V17__enhance_metadata_tables.sql
@@ -847,7 +847,7 @@ git commit -m "feat: add Flyway V17 — enhance metadata_tables with tags, domai
 **Files:**
 - Create: `heirloom-server/src/main/resources/db/migration/V18__create_classifications_tags.sql`
 
-- [ ] **Step 1: 写 Flyway 脚本**
+- [x] **Step 1: 写 Flyway 脚本**
 
 ```sql
 CREATE TABLE IF NOT EXISTS metadata_classifications (
@@ -887,13 +887,13 @@ CREATE INDEX IF NOT EXISTS idx_tags_classification ON metadata_tags(classificati
 CREATE INDEX IF NOT EXISTS idx_tags_parent ON metadata_tags(parent_fqn);
 ```
 
-- [ ] **Step 2: 验证迁移**
+- [x] **Step 2: 验证迁移**
 
 ```bash
 mvn flyway:migrate -pl heirloom-server
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add heirloom-server/src/main/resources/db/migration/V18__create_classifications_tags.sql
@@ -907,7 +907,7 @@ git commit -m "feat: add Flyway V18 — create metadata_classifications and meta
 **Files:**
 - Create: `heirloom-server/src/main/resources/db/migration/V19__add_domain_parent.sql`
 
-- [ ] **Step 1: 写 Flyway 脚本**
+- [x] **Step 1: 写 Flyway 脚本**
 
 ```sql
 ALTER TABLE metadata_domains
@@ -916,7 +916,7 @@ ALTER TABLE metadata_domains
 CREATE INDEX IF NOT EXISTS idx_domains_parent ON metadata_domains(parent_fqn);
 ```
 
-- [ ] **Step 2: 验证 + Commit**
+- [x] **Step 2: 验证 + Commit**
 
 ```bash
 mvn flyway:migrate -pl heirloom-server
@@ -936,7 +936,7 @@ git commit -m "feat: add Flyway V19 — add parent_fqn to metadata_domains"
 - Create: `heirloom-server/.../metadata/repository/TagJpaRepository.java`
 - Create: `heirloom-server/.../metadata/repository/TagRepository.java`
 
-- [ ] **Step 1: ClassificationEntity.java**
+- [x] **Step 1: ClassificationEntity.java**
 
 ```java
 package com.heirloom.metadata.domain;
@@ -981,7 +981,7 @@ public class ClassificationEntity implements HeirloomEntity, Classification {
 }
 ```
 
-- [ ] **Step 2: ClassificationJpaRepository.java**
+- [x] **Step 2: ClassificationJpaRepository.java**
 
 ```java
 package com.heirloom.metadata.repository;
@@ -996,7 +996,7 @@ public interface ClassificationJpaRepository extends JpaRepository<Classificatio
 }
 ```
 
-- [ ] **Step 3: ClassificationRepository.java**
+- [x] **Step 3: ClassificationRepository.java**
 
 ```java
 package com.heirloom.metadata.repository;
@@ -1036,11 +1036,11 @@ public class ClassificationRepository extends EntityRepository<ClassificationEnt
 }
 ```
 
-- [ ] **Step 4: 重复 Step 1-3 对 TagEntity**
+- [x] **Step 4: 重复 Step 1-3 对 TagEntity**
 
 `TagEntity` 实现 `HeirloomEntity` + `com.heirloom.core.metadata.Tag`。JPA 映射 `metadata_tags` 表。Repository 同模式。
 
-- [ ] **Step 5: 写 Repository 单元测试**
+- [x] **Step 5: 写 Repository 单元测试**
 
 ```java
 // heirloom-server/src/test/java/com/heirloom/metadata/repository/ClassificationRepositoryTest.java
@@ -1064,7 +1064,7 @@ class ClassificationRepositoryTest {
 }
 ```
 
-- [ ] **Step 6: 运行 Repository 测试**
+- [x] **Step 6: 运行 Repository 测试**
 
 ```bash
 mvn test -pl heirloom-server -Dtest="ClassificationRepositoryTest,TagRepositoryTest"
@@ -1072,7 +1072,7 @@ mvn test -pl heirloom-server -Dtest="ClassificationRepositoryTest,TagRepositoryT
 
 预期：全部 PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add heirloom-server/src/main/java/com/heirloom/metadata/
@@ -1088,7 +1088,7 @@ git commit -m "feat: implement ClassificationEntity and TagEntity with JPA repos
 - Modify: `heirloom-server/.../metadata/domain/TableEntity.java` — 加 6 字段
 - Modify: `heirloom-server/.../metadata/domain/DomainEntity.java` — 加 parentFQN
 
-- [ ] **Step 1: TableEntity 加 6 新字段**
+- [x] **Step 1: TableEntity 加 6 新字段**
 
 在 `TableEntity` 中添加字段声明 + getters/setters：
 
@@ -1104,14 +1104,14 @@ private String lifecycle = "Created";
 
 加上对应 getters/setters。
 
-- [ ] **Step 2: DomainEntity 加 parentFQN**
+- [x] **Step 2: DomainEntity 加 parentFQN**
 
 ```java
 @Column(name = "parent_fqn") private String parentFQN;
 // + getter/setter
 ```
 
-- [ ] **Step 3: 运行现有测试确认不破坏**
+- [x] **Step 3: 运行现有测试确认不破坏**
 
 ```bash
 mvn test -pl heirloom-server
@@ -1119,7 +1119,7 @@ mvn test -pl heirloom-server
 
 预期：全部 PASS（增强字段都有 DEFAULT，不影响现有测试）。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add heirloom-server/src/main/java/com/heirloom/metadata/domain/TableEntity.java
@@ -1138,7 +1138,7 @@ git commit -m "feat: enhance TableEntity (6 fields) and DomainEntity (parentFQN)
 - Create: `heirloom-server/.../metadata/repository/ColumnProfileRepository.java`
 - Create: `heirloom-server/src/main/resources/db/migration/V20__create_column_profiles.sql`
 
-- [ ] **Step 1: V20 migration**
+- [x] **Step 1: V20 migration**
 
 ```sql
 CREATE TABLE IF NOT EXISTS column_profiles (
@@ -1163,7 +1163,7 @@ CREATE INDEX IF NOT EXISTS idx_column_profiles_table
     ON column_profiles(table_fqn, column_name, profiled_at DESC);
 ```
 
-- [ ] **Step 2: ColumnProfileEntity.java**
+- [x] **Step 2: ColumnProfileEntity.java**
 
 ```java
 @Entity
@@ -1179,7 +1179,7 @@ public class ColumnProfileEntity {
 }
 ```
 
-- [ ] **Step 3: ColumnDefParser.java**
+- [x] **Step 3: ColumnDefParser.java**
 
 ```java
 package com.heirloom.metadata.domain;
@@ -1223,7 +1223,7 @@ public class ColumnDefParser {
 }
 ```
 
-- [ ] **Step 4: 写 parse 单测**
+- [x] **Step 4: 写 parse 单测**
 
 ```java
 class ColumnDefParserTest {
@@ -1245,7 +1245,7 @@ class ColumnDefParserTest {
 }
 ```
 
-- [ ] **Step 5: 验证 + Commit**
+- [x] **Step 5: 验证 + Commit**
 
 ```bash
 mvn test -pl heirloom-server -Dtest="ColumnDefParserTest"
@@ -1257,13 +1257,13 @@ git commit -m "feat: add ColumnDefParser (legacy compat), ColumnProfileEntity, F
 
 ### Task 1.7: Phase 1 验证
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 ```bash
 mvn clean test
 ```
 
-- [ ] **Step 2: Demo 验证**
+- [x] **Step 2: Demo 验证**
 
 ```bash
 # 启动应用，测试：
@@ -1272,7 +1272,7 @@ mvn clean test
 # GET /v1/tables/{fqn} → 响应含新字段 tags, domainFQN, lifecycle...
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "chore: complete Phase 1 — metadata entities with Classification/Tag/Domain, ColumnDefParser, Flyway V17-V20"
@@ -1294,15 +1294,15 @@ git commit -m "chore: complete Phase 1 — metadata entities with Classification
 - Create: `heirloom-core/.../profiling/DataClass.java`
 - Create: `heirloom-core/.../profiling/SamplingStrategy.java`
 
-- [ ] **Step 1: 全部创建（代码见 Spec 4.1 + 4.2 + 4.3）**
+- [x] **Step 1: 全部创建（代码见 Spec 4.1 + 4.2 + 4.3）**
 
-- [ ] **Step 2: 编译 heirloom-core**
+- [x] **Step 2: 编译 heirloom-core**
 
 ```bash
 mvn compile -pl heirloom-core
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add heirloom-core/
@@ -1316,7 +1316,7 @@ git commit -m "feat: define profiling interfaces in heirloom-core"
 **Files:**
 - Create: `heirloom-server/.../profiling/service/PostgresSamplingStrategy.java`
 
-- [ ] **Step 1: 实现**
+- [x] **Step 1: 实现**
 
 ```java
 package com.heirloom.profiling.service;
@@ -1342,7 +1342,7 @@ public class PostgresSamplingStrategy implements SamplingStrategy {
 }
 ```
 
-- [ ] **Step 2: 单测**
+- [x] **Step 2: 单测**
 
 ```java
 class PostgresSamplingStrategyTest {
@@ -1362,7 +1362,7 @@ class PostgresSamplingStrategyTest {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A
@@ -1426,7 +1426,7 @@ public class ProfilingServiceImpl implements ProfilingService {
 }
 ```
 
-- [ ] **Step 1-8: TDD 逐方法实现**
+- [x] **Step 1-8: TDD 逐方法实现**
 
 每个指标方法先写测试（使用 H2 @DataJpaTest + Testcontainers），再实现。
 
@@ -1468,7 +1468,7 @@ private ColumnProfileResult profileColumn(Connection conn, String table, String 
 }
 ```
 
-- [ ] **Step 9: 质量评分实现**
+- [x] **Step 9: 质量评分实现**
 
 ```java
 // heirloom-server/.../profiling/service/QualityScorer.java
@@ -1487,7 +1487,7 @@ public class QualityScorer {
 }
 ```
 
-- [ ] **Step 10: DataClassInferrer**
+- [x] **Step 10: DataClassInferrer**
 
 ```java
 // heirloom-server/.../profiling/service/DataClassInferrer.java
@@ -1515,7 +1515,7 @@ public class DataClassInferrer {
 }
 ```
 
-- [ ] **Step 11: 添加 Testcontainers 依赖（若尚未存在）**
+- [x] **Step 11: 添加 Testcontainers 依赖（若尚未存在）**
 
 检查 `heirloom-server/pom.xml` 中是否已有 Testcontainers 依赖。若没有，添加：
 
@@ -1540,7 +1540,7 @@ public class DataClassInferrer {
 </dependency>
 ```
 
-- [ ] **Step 12: 集成测试 — Testcontainers**
+- [x] **Step 12: 集成测试 — Testcontainers**
 
 ```java
 @Testcontainers
@@ -1557,7 +1557,7 @@ class ProfilingServiceImplIntegrationTest {
 }
 ```
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add -A
@@ -1571,7 +1571,7 @@ git commit -m "feat: implement ProfilingServiceImpl with JDBC + DataClass infere
 **Files:**
 - Create: `heirloom-server/.../profiling/service/ColumnProfileCleanupService.java`
 
-- [ ] **Step 1: 实现**
+- [x] **Step 1: 实现**
 
 ```java
 @Service
@@ -1589,11 +1589,11 @@ public class ColumnProfileCleanupService {
 }
 ```
 
-- [ ] **Step 2: 在 ProfilingServiceImpl 中调用**
+- [x] **Step 2: 在 ProfilingServiceImpl 中调用**
 
 每次写入新 ColumnProfile 后调用 `cleanupService.cleanup(tableFQN, colName)`。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A
@@ -1606,7 +1606,7 @@ git commit -m "feat: add column_profiles retention cleanup (keep last 5)"
 - Create: `heirloom-server/src/main/resources/db/migration/V21__enhance_table_profiles.sql`
 - Modify: `heirloom-server/.../metadata/domain/TableProfileEntity.java`
 
-- [ ] **Step 1: V21 SQL**
+- [x] **Step 1: V21 SQL**
 
 ```sql
 ALTER TABLE table_profiles
@@ -1617,9 +1617,9 @@ ALTER TABLE table_profiles
   ADD COLUMN IF NOT EXISTS duplicate_row_count BIGINT;
 ```
 
-- [ ] **Step 2: TableProfileEntity 加对应字段 + getters/setters**
+- [x] **Step 2: TableProfileEntity 加对应字段 + getters/setters**
 
-- [ ] **Step 3: Migrate + Commit**
+- [x] **Step 3: Migrate + Commit**
 
 ```bash
 mvn flyway:migrate -pl heirloom-server
@@ -1634,7 +1634,7 @@ git commit -m "feat: enhance TableProfileEntity (5 fields), Flyway V21"
 **Files:**
 - Modify: `heirloom-server/.../discovery/service/DiscoveryService.java`
 
-- [ ] **Step 1: 在 runDiscovery() 方法的 Schema 提取之后、InferencePipeline 之前插入 Profiling**
+- [x] **Step 1: 在 runDiscovery() 方法的 Schema 提取之后、InferencePipeline 之前插入 Profiling**
 
 ```java
 // DiscoveryService.runDiscovery() 中：
@@ -1652,13 +1652,13 @@ InferenceContext ctx = new InferenceContext(rawSchema, profile, null, null, null
 List<ResourceTypeProposal> proposals = inferencePipeline.infer(ctx);
 ```
 
-- [ ] **Step 2: 集成测试验证联动**
+- [x] **Step 2: 集成测试验证联动**
 
 ```bash
 mvn test -pl heirloom-server -Dtest="DiscoveryServiceIntegrationTest"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add heirloom-server/src/main/java/com/heirloom/discovery/service/DiscoveryService.java
@@ -1678,7 +1678,7 @@ git commit -m "feat: integrate Profiling into DiscoveryService pipeline"
 
 （代码见 Spec 5.3，已在上方文件结构总览中列出）
 
-- [ ] **Step 1: 全部创建并编译 heirloom-core**
+- [x] **Step 1: 全部创建并编译 heirloom-core**
 
 ```bash
 mvn compile -pl heirloom-core
@@ -1698,7 +1698,7 @@ git commit -m "feat: define alignment interfaces in heirloom-core"
 - Modify: `heirloom-server/.../discovery/inference/InferencePipeline.java` — 改签名
 - Modify: 6 条 InferenceRule 实现 — 改签名 + 加增强分支
 
-- [ ] **Step 1: 创建 InferenceContext.java**
+- [x] **Step 1: 创建 InferenceContext.java**
 
 ```java
 package com.heirloom.discovery.inference;
@@ -1717,7 +1717,7 @@ public record InferenceContext(
 ) {}
 ```
 
-- [ ] **Step 2: 修改 InferenceRule.java 签名**
+- [x] **Step 2: 修改 InferenceRule.java 签名**
 
 ```java
 // Before:
@@ -1736,7 +1736,7 @@ public interface InferenceRule {
 }
 ```
 
-- [ ] **Step 3: 修改 InferencePipeline.java 签名**
+- [x] **Step 3: 修改 InferencePipeline.java 签名**
 
 ```java
 // Before:
@@ -1752,7 +1752,7 @@ public interface InferencePipeline {
 
 修改 `InferencePipeline` 实现类（如果存在）中 `infer()` 方法调用。
 
-- [ ] **Step 4: 修改 6 条规则的签名**
+- [x] **Step 4: 修改 6 条规则的签名**
 
 每个 `infer(RawSchema schema)` → `infer(InferenceContext ctx)`，内部用 `ctx.rawSchema()` 访问 RawSchema。
 
@@ -1762,7 +1762,7 @@ public interface InferencePipeline {
 # DescriptionInference.java, AbilityInference.java, StateMachineInference.java
 ```
 
-- [ ] **Step 5: 加 Profiling 增强分支**
+- [x] **Step 5: 加 Profiling 增强分支**
 
 以 `FieldMapperInference.java` 为例：
 
@@ -1785,20 +1785,20 @@ public List<ResourceTypeProposal> infer(InferenceContext ctx) {
 
 同样处理 `AbilityInference`（rowCount 判断）和 `StateMachineInference`（topValues 枚举状态）。
 
-- [ ] **Step 6: 编译 + 测试**
+- [x] **Step 6: 编译 + 测试**
 
 ```bash
 mvn test -pl heirloom-server
 ```
 
-- [ ] **Step 7: 更新 InferencePipeline 实现中的规则链顺序**
+- [x] **Step 7: 更新 InferencePipeline 实现中的规则链顺序**
 
 按 Spec 5.4 新顺序排列规则：
 `TypeNameInference → FieldMapperInference → RelationshipInference → DescriptionInference → AlignmentInference → AbilityInference → StateMachineInference`
 
 找到 InferencePipeline 的实现类（如 `InferencePipelineImpl` 或 `DiscoveryService` 中直接调用的位置），重新排列规则列表顺序。Align 移到了 Ability 之前，确保语义对齐结果影响 Ability 推断。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
@@ -1813,7 +1813,7 @@ git commit -m "feat: upgrade InferenceRule/Pipeline to InferenceContext, add pro
 - Create: `heirloom-server/.../discovery/inference/rules/AlignmentInference.java`
 - Create: `heirloom-server/.../alignment/service/AlignmentServiceImpl.java`
 
-- [ ] **Step 1: AlignmentServiceImpl.java**
+- [x] **Step 1: AlignmentServiceImpl.java**
 
 ```java
 @Service
@@ -1848,7 +1848,7 @@ public class AlignmentServiceImpl implements AlignmentService {
 }
 ```
 
-- [ ] **Step 2: AlignmentInference.java**
+- [x] **Step 2: AlignmentInference.java**
 
 ```java
 package com.heirloom.discovery.inference.rules;
@@ -1887,11 +1887,11 @@ public class AlignmentInference implements InferenceRule {
 }
 ```
 
-- [ ] **Step 3: 注册到 InferencePipeline**
+- [x] **Step 3: 注册到 InferencePipeline**
 
 在 InferencePipeline 实现类中注册为第 7 条规则。
 
-- [ ] **Step 4: 单测**
+- [x] **Step 4: 单测**
 
 ```java
 class AlignmentInferenceTest {
@@ -1905,7 +1905,7 @@ class AlignmentInferenceTest {
 }
 ```
 
-- [ ] **Step 5: 编译 + 测试 + Commit**
+- [x] **Step 5: 编译 + 测试 + Commit**
 
 ```bash
 mvn test -pl heirloom-server
@@ -1917,7 +1917,7 @@ git commit -m "feat: implement AlignmentServiceImpl + AlignmentInference (7th ru
 
 ### Task 3.3: 端到端集成验证
 
-- [ ] **Step 1: DiscoveryService 更新为传入完整 InferenceContext**
+- [x] **Step 1: DiscoveryService 更新为传入完整 InferenceContext**
 
 ```java
 // DiscoveryService.runDiscovery():
@@ -1925,7 +1925,7 @@ InferenceContext ctx = new InferenceContext(rawSchema, profile, alignment, table
 List<ResourceTypeProposal> proposals = inferencePipeline.infer(ctx);
 ```
 
-- [ ] **Step 2: 写集成测试**
+- [x] **Step 2: 写集成测试**
 
 ```java
 @Testcontainers
@@ -1940,7 +1940,7 @@ class DiscoveryWithProfilingAndAlignmentTest {
 }
 ```
 
-- [ ] **Step 3: 全量测试**
+- [x] **Step 3: 全量测试**
 
 ```bash
 mvn clean test
@@ -1948,7 +1948,7 @@ mvn clean test
 
 预期：所有测试 PASS（现有 192 + 新增）。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -1967,7 +1967,7 @@ git commit -m "feat: end-to-end Discovery → Profiling → Align → Infer pipe
 - Create: `heirloom-server/.../metadata/web/ClassificationResource.java`
 - Create: `heirloom-server/.../metadata/web/TagResource.java`
 
-- [ ] **Step 1: ClassificationResource.java**
+- [x] **Step 1: ClassificationResource.java**
 
 ```java
 @RestController
@@ -1993,9 +1993,9 @@ public class ClassificationResource {
 }
 ```
 
-- [ ] **Step 2: TagResource.java** — 同上模式，加 `PUT /v1/tables/{fqn}/columns/{name}/tags` 给列打标
+- [x] **Step 2: TagResource.java** — 同上模式，加 `PUT /v1/tables/{fqn}/columns/{name}/tags` 给列打标
 
-- [ ] **Step 3: API 测试**
+- [x] **Step 3: API 测试**
 
 ```java
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -2009,7 +2009,7 @@ class ClassificationResourceTest {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -2020,7 +2020,7 @@ git commit -m "feat: add ClassificationResource + TagResource REST endpoints"
 
 ### Task 4.1: ColumnResource + ProfilingResource + AlignmentResource
 
-- [ ] **Step 1-3: 创建三个 Controller**（代码见下方）
+- [x] **Step 1-3: 创建三个 Controller**（代码见下方）
 
 ColumnResource:
 ```java
@@ -2074,13 +2074,13 @@ public class AlignmentResource {
 }
 ```
 
-- [ ] **Step 4: API 集成测试**
+- [x] **Step 4: API 集成测试**
 
 ```bash
 mvn test -pl heirloom-server -Dtest="*ResourceTest"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -2091,7 +2091,7 @@ git commit -m "feat: add ColumnResource, ProfilingResource, AlignmentResource RE
 
 ### Task 4.2: 增强现有端点
 
-- [ ] **Step 1: DiscoveryResource — 加 profile 参数**
+- [x] **Step 1: DiscoveryResource — 加 profile 参数**
 
 ```java
 @PostMapping("/sources/{sourceFQN}/run")
@@ -2101,17 +2101,17 @@ public DiscoveryReport run(@PathVariable String sourceFQN,
 }
 ```
 
-- [ ] **Step 2: TableResource — 响应加新字段**
+- [x] **Step 2: TableResource — 响应加新字段**
 
 如果 `TableResource` 不存在，创建它。响应包含 `tags, domainFQN, constraints, sourceHash, lifecycle, certification`。
 
-- [ ] **Step 3: 验证现有端点不破坏**
+- [x] **Step 3: 验证现有端点不破坏**
 
 ```bash
 mvn test -pl heirloom-server
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -2124,7 +2124,7 @@ git commit -m "feat: enhance DiscoveryResource (profile param), add TableResourc
 
 ## 最终验证
 
-- [ ] **全量测试**
+- [x] **全量测试**
 
 ```bash
 mvn clean test
@@ -2132,13 +2132,13 @@ mvn clean test
 
 预期：所有模块编译通过，所有测试 PASS（估计 230-250 个测试，含新增 40-60 个）。
 
-- [ ] **mvn verify（含集成测试）**
+- [x] **mvn verify（含集成测试）**
 
 ```bash
 mvn clean verify
 ```
 
-- [ ] **代码风格检查**
+- [x] **代码风格检查**
 
 ```bash
 # 如果有 checkstyle plugin：
