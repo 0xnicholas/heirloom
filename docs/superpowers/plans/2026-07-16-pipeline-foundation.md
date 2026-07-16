@@ -616,11 +616,15 @@ package com.heirloom.core.pipeline;
 
 public interface PipelineEventBus {
     void publish(PipelineEvent event);
+
+    /** Default no-op: 实现类可覆盖以支持 Kafka 等多订阅者总线。注册表模式（registry.register）由 StageRegistry 处理。 */
+    default void subscribe(PipelineEventType type, PipelineStage subscriber) {}
+
     void start();
 }
 ```
 
-注：`subscribe()` 移至 `PipelineStageRegistry`（每个 event type 唯一 stage），避免双注册路径。
+注：`subscribe()` 保留在接口契约中以兼容 Kafka 等多订阅者实现；当前 InProcessBus 默认 no-op，注册通过 `PipelineStageRegistry` 完成。
 
 - [ ] **Step 4: 编译验证**
 
@@ -1283,6 +1287,8 @@ import java.util.UUID;
 public interface DeadLetterJpaRepository extends JpaRepository<DeadLetterEntity, Long> {
     List<DeadLetterEntity> findBySourceFqnOrderByFailedAtDesc(String sourceFqn);
     List<DeadLetterEntity> findByReplayedAtIsNullOrderByFailedAtDesc();
+    List<DeadLetterEntity> findByReplayedAtIsNotNullOrderByFailedAtDesc();
+    List<DeadLetterEntity> findAllByOrderByFailedAtDesc();
 }
 ```
 
@@ -1896,11 +1902,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heirloom.core.pipeline.*;
 import com.heirloom.discovery.domain.DiscoverySource;
 import com.heirloom.discovery.service.DiscoveryService;
+import com.heirloom.metadata.domain.TableEntity;
 import com.heirloom.pipeline.persistence.PipelineResultEntity;
 import com.heirloom.pipeline.persistence.PipelineResultJpaRepository;
 import com.heirloom.repository.DiscoverySourceRepository;
+import com.heirloom.repository.TableRepository;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -1908,15 +1917,18 @@ public class PipelineDiscoveryStage implements PipelineStage {
 
     private final DiscoveryService discoveryService;
     private final DiscoverySourceRepository sourceRepo;
+    private final TableRepository tableRepo;
     private final PipelineResultJpaRepository resultRepo;
     private final ObjectMapper mapper;
 
     public PipelineDiscoveryStage(DiscoveryService discoveryService,
                                    DiscoverySourceRepository sourceRepo,
+                                   TableRepository tableRepo,
                                    PipelineResultJpaRepository resultRepo,
                                    ObjectMapper mapper) {
         this.discoveryService = discoveryService;
         this.sourceRepo = sourceRepo;
+        this.tableRepo = tableRepo;
         this.resultRepo = resultRepo;
         this.mapper = mapper;
     }
@@ -1926,7 +1938,15 @@ public class PipelineDiscoveryStage implements PipelineStage {
         DiscoverySource source = sourceRepo.findByFQN(ctx.sourceFqn())
             .orElseThrow(() -> new FatalFailure("source not found: " + ctx.sourceFqn()));
 
+        // 实际工作：调用 DiscoveryService 持久化 TableEntity（带 profiling + inference）
         var report = discoveryService.runDiscovery(source);
+
+        // 提取本 source 的 tableFQN 列表（按 databaseServiceFQN 过滤）
+        String sourceFqn = source.getFullyQualifiedName();
+        List<String> tableFqns = tableRepo.findAll().stream()
+            .filter(t -> sourceFqn.equals(t.getDatabaseServiceFQN()))
+            .map(TableEntity::getFullyQualifiedName)
+            .toList();
 
         try {
             resultRepo.save(new PipelineResultEntity(
@@ -1936,12 +1956,12 @@ public class PipelineDiscoveryStage implements PipelineStage {
             throw new RuntimeException("failed to persist discovery result", e);
         }
 
-        if (report == null) {
-            throw new RecoverableFailure("discovery returned null report");
+        if (tableFqns.isEmpty()) {
+            throw new RecoverableFailure("discovery produced no tables for " + sourceFqn);
         }
 
         return new SchemaDiscovered(
-            java.util.List.of(), 0,
+            tableFqns, tableFqns.size(),
             UUID.randomUUID(), ctx.runUuid(), ctx.tenantId(), ctx.sourceFqn(),
             ctx.correlationId(), Instant.now(), 1, "{}");
     }
@@ -2022,7 +2042,9 @@ public class PipelineAlignmentStage implements PipelineStage {
 
     @Override
     public PipelineEvent apply(PipelineEvent input, PipelineContext ctx) {
-        var request = new AlignmentRequest(ctx.sourceFqn(), java.util.List.of(), java.util.Map.of());
+        // 实际工作：调用 AlignmentService 对当前 source 做对齐
+        // targetOntologies = 从已注册 ontology 类型列表（Phase 7a 留空；Phase 7b 接 Entity Resolution 后填）
+        var request = new AlignmentRequest(ctx.sourceFqn(), java.util.List.of(), true);
         var map = alignmentService.align(request);
 
         resultRepo.deleteByRunUuidAndStageName(ctx.runUuid(), "alignment");
@@ -2040,6 +2062,8 @@ public class PipelineAlignmentStage implements PipelineStage {
     }
 }
 ```
+
+**关键：AlignmentRequest 真实 record 签名**：`AlignmentRequest(String tableFQN, List<String> targetOntologies, boolean allowNewType)`。第 3 参是 `boolean allowNewType`，不是 Map。
 
 - [ ] **Step 5: 编译验证**
 
@@ -2444,15 +2468,25 @@ public class PipelineResource {
             @RequestParam(required = false) Boolean replayed,
             @RequestParam(defaultValue = "50") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        var all = sourceFqn != null
-            ? dlqRepo.findBySourceFqnOrderByFailedAtDesc(sourceFqn)
-            : dlqRepo.findByReplayedAtIsNullOrderByFailedAtDesc();
+        java.util.List<DeadLetterEntity> all;
+        if (sourceFqn != null) {
+            all = dlqRepo.findBySourceFqnOrderByFailedAtDesc(sourceFqn);
+        } else if (Boolean.TRUE.equals(replayed)) {
+            all = dlqRepo.findByReplayedAtIsNotNullOrderByFailedAtDesc();
+        } else if (Boolean.FALSE.equals(replayed)) {
+            all = dlqRepo.findByReplayedAtIsNullOrderByFailedAtDesc();
+        } else {
+            all = dlqRepo.findAllByOrderByFailedAtDesc();
+        }
         return all.stream()
-            .filter(d -> replayed == null
-                || (replayed && d.getReplayedAt() != null)
-                || (!replayed && d.getReplayedAt() == null))
             .skip(offset).limit(Math.min(limit, 500))
             .map(DeadLetterResponse::from).toList();
+    }
+
+    @ExceptionHandler({IllegalStateException.class, DataIntegrityViolationException.class})
+    public ResponseEntity<java.util.Map<String, Object>> conflict(Exception e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(java.util.Map.of("error", "conflict", "message", e.getMessage()));
     }
 }
 ```
