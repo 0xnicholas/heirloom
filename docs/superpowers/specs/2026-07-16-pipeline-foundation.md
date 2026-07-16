@@ -124,7 +124,8 @@ heirloom-server/src/main/resources/db/migration/
 ├── V23__create_pipeline_run_stages.sql
 ├── V24__create_pipeline_run_results.sql
 ├── V25__create_pipeline_outbox.sql
-└── V26__create_pipeline_dead_letter.sql
+├── V26__create_pipeline_dead_letter.sql
+└── V27__create_pipeline_stage_executions.sql
 ```
 
 ---
@@ -383,6 +384,7 @@ CREATE TABLE pipeline_outbox (
   claimed_at TIMESTAMPTZ,
   claimed_by VARCHAR(128),                 -- 实例标识（hostname + UUID）
   claimed_until TIMESTAMPTZ,                -- lease 超时
+  not_before TIMESTAMPTZ,                   -- RETRYING 事件的最早可派发时间
   dispatched_at TIMESTAMPTZ,
   attempts INT NOT NULL DEFAULT 0,
   last_error TEXT,
@@ -390,29 +392,31 @@ CREATE TABLE pipeline_outbox (
 );
 
 CREATE INDEX idx_outbox_pending
-  ON pipeline_outbox (status, claimed_until, created_at)
-  WHERE status = 'PENDING';
+  ON pipeline_outbox (status, claimed_until, not_before, created_at)
+  WHERE status IN ('PENDING','CLAIMED');
 ```
 
 **OutboxProcessor 工作流：**
 ```sql
--- 1. 原子声明一批事件（避免多实例重复处理）
-SELECT id, payload FROM pipeline_outbox
-WHERE status = 'PENDING'
-  AND (claimed_until IS NULL OR claimed_until < now())
-ORDER BY created_at
-LIMIT 50
-FOR UPDATE SKIP LOCKED;
-
--- 2. 标记为 CLAIMED + 续约 lease
-UPDATE pipeline_outbox SET status='CLAIMED', claimed_at=now(),
-  claimed_by=?, claimed_until=now() + interval '60 seconds'
-WHERE id IN (?);
-
--- 3. 派发：调用 stage，处理后写 DISPATCHED / FAILED
+-- 单条语句原子声明一批事件（新 PENDING + 过期 CLAIMED 一起回收）
+UPDATE pipeline_outbox
+SET status='CLAIMED',
+    claimed_by=?,
+    claimed_until=now() + interval '60 seconds',
+    claimed_at=COALESCE(claimed_at, now())
+WHERE id IN (
+  SELECT id FROM pipeline_outbox
+  WHERE status IN ('PENDING','CLAIMED')
+    AND (claimed_until IS NULL OR claimed_until < now())
+    AND (not_before IS NULL OR not_before <= now())
+  ORDER BY created_at
+  LIMIT 50
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, payload;
 ```
 
-崩溃恢复：若实例崩溃，`claimed_until` 超时后事件被重新声明。
+崩溃恢复：实例崩溃后，其 CLAIMED 行的 `claimed_until` 超时后被任意存活实例回收。`not_before` 让 RETRYING 事件在指定时间前不被派发。
 
 ### 5.5 V26 — pipeline_dead_letter
 
@@ -437,7 +441,22 @@ CREATE INDEX idx_dlq_unreplayed
   WHERE replayed_at IS NULL;
 ```
 
-### 5.6 状态机（运行级）
+### 5.6 V27 — pipeline_stage_executions（幂等追踪）
+
+```sql
+CREATE TABLE pipeline_stage_executions (
+  input_event_id UUID NOT NULL,
+  stage_name VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL,         -- COMPLETED | FAILED
+  output_event_id UUID,                -- 该 stage 产出的下一个 event_id
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (input_event_id, stage_name)
+);
+```
+
+幂等语义：同一 `(input_event_id, stage_name)` 只能成功一次。OutboxProcessor 在执行 stage 前先 SELECT，COMPLETED 则跳过。**Phase 7a 接受 at-least-once**：stage 必须自行实现 §6.6 的幂等机制（upsert by FQN 等），本表提供 hint 层去重。
+
+### 5.7 状态机（运行级）
 
 ```
               POST /runs
@@ -507,37 +526,64 @@ start():
 ```
 @Scheduled(fixedDelayString = "${heirloom.pipeline.outbox-poll-seconds:5s}")
 dispatchPending():
-  1. 开启事务
-  2. SELECT id, payload FROM pipeline_outbox
-       WHERE status='PENDING'
+  1. 单条 SQL 原子声明一批事件（新 PENDING + 过期 CLAIMED 一起回收）：
+     UPDATE pipeline_outbox
+     SET status='CLAIMED',
+         claimed_by=?,
+         claimed_until=now() + interval '60 seconds',
+         claimed_at=COALESCE(claimed_at, now())
+     WHERE id IN (
+       SELECT id FROM pipeline_outbox
+       WHERE status IN ('PENDING','CLAIMED')
          AND (claimed_until IS NULL OR claimed_until < now())
-       ORDER BY created_at LIMIT 50
+         AND (not_before IS NULL OR not_before <= now())
+       ORDER BY created_at
+       LIMIT 50
        FOR UPDATE SKIP LOCKED
-  3. 对每条记录：
-     a. UPDATE status='CLAIMED', claimed_by=instanceId, claimed_until=now() + 60s
-     b. 反序列化 payload → PipelineEvent
-     c. 查 PipelineStageRegistry.find(event.type())
-     d. 若 stage 不存在：视为 fatal — INSERT INTO pipeline_dead_letter, UPDATE outbox status='FAILED'
-     e. 调用 stage.apply(event, context)
-     f. 成功：
-        - 写 pipeline_run_stages 该 stage 的 status='COMPLETED', completed_at=now()
-        - 写 pipeline_run_results 该 stage 的 result（如有）
-        - 若 stage 返回的 nextEvent != null：publish(nextEvent) 递归
-        - 若所有 stage 都 COMPLETED 且无 nextEvent：UPDATE pipeline_runs SET status='COMPLETED', completed_at=now()
+     )
+     RETURNING id, event_id, event_type, payload;
+  2. 对每条记录：
+     a. 反序列化 payload → PipelineEvent
+     b. 查 PipelineStageRegistry.find(event.type())
+     c. 若 stage 不存在：视为 fatal — 见 step 3h
+     d. 幂等检查：SELECT 1 FROM pipeline_stage_executions
+         WHERE input_event_id=? AND stage_name=? AND status='COMPLETED'
+         若存在：标记 outbox DISPATCHED，跳过 stage 执行（已成功过）
+     e. UPDATE pipeline_runs SET status='RUNNING', updated_at=now()
+     f. 调用 stage.apply(event, context)
+     g. 成功：
+        - INSERT INTO pipeline_stage_executions (input_event_id=event.eventId,
+          stage_name, status='COMPLETED', output_event_id=<nextEvent.eventId if any>)
+        - UPDATE pipeline_run_stages 该 stage 的 status='COMPLETED', completed_at=now()
+        - 写 pipeline_run_results（如有）
+        - 若 stage 返回 nextEvent != null：
+          · 若 nextEvent 是终止事件（无 subscriber 的 terminal stage）：标记该 stage COMPLETED，
+            若所有 stage 都 COMPLETED：UPDATE pipeline_runs SET status='COMPLETED', completed_at=now()
+          · 否则：INSERT INTO pipeline_outbox (event_id=nextEvent.eventId(), ..., not_before=NULL)
+            → 下次 poll 派发
+        - 若 stage 返回 null 且所有 stage 都 COMPLETED：
+          UPDATE pipeline_runs SET status='COMPLETED', completed_at=now()
         - UPDATE outbox status='DISPATCHED'
-     g. 失败（PipelineFailure）：
-        - RecoverableFailure 且 stage.attempts < max_attempts：
-          · UPDATE pipeline_run_stages SET status='RETRYING', attempts=attempts+1,
-            next_retry_at=now() + min(2^attempts * 10s, 5min),
-            last_error=?
-          · UPDATE pipeline_runs SET status='RETRYING'
-          · UPDATE outbox status='DISPATCHED'（事件已处理；stage 状态决定是否重试）
-        - FatalFailure 或 attempts ≥ max_attempts：
-          · INSERT INTO pipeline_dead_letter
-          · UPDATE pipeline_run_stages SET status='DEAD_LETTER'
-          · UPDATE pipeline_runs SET status='DEAD_LETTER'
-          · UPDATE outbox status='FAILED'
+     h. 致命失败（unknown stage 或 FatalFailure 或 attempts ≥ max_attempts）：
+        - INSERT INTO pipeline_dead_letter
+        - UPDATE pipeline_run_stages 该 stage SET status='DEAD_LETTER'
+        - UPDATE pipeline_runs SET status='DEAD_LETTER'
+        - INSERT INTO pipeline_stage_executions status='FAILED'
+        - UPDATE outbox status='FAILED'
+     i. RecoverableFailure 且 stage.attempts < max_attempts：
+        - UPDATE pipeline_run_stages SET status='RETRYING', attempts=attempts+1,
+          next_retry_at=now() + min(2^attempts * 10s, 5min), last_error=?
+        - UPDATE pipeline_runs SET status='RETRYING'
+        - INSERT INTO pipeline_outbox 新事件（event_id=newUuid, payload=原 input 序列化），
+          status='PENDING', not_before=next_retry_at
+        - UPDATE 当前 outbox status='DISPATCHED'
 ```
+
+**关键约束：**
+- `max_attempts` 含初次尝试。`attempts=1` 是首次执行，< 3 表示还能再试 2 次
+- RETRYING 事件通过插入新 outbox 行（not_before=nextRetryAt）实现，无需单独 RetryScheduler
+- CLAIMED 行通过 poll 查询同时回收（status IN ('PENDING','CLAIMED') + claimed_until 检查）
+- 终止事件由 `terminalStage`（no-op）处理，避免 unknown-stage fatal 路径
 
 ### 6.3 异常分类
 
@@ -582,14 +628,34 @@ public class PipelineDiscoveryStage implements PipelineStage {
 
 ### 6.5 幂等性要求
 
-每个 stage 必须幂等。**幂等键**：`(runUuid, stageName, stageAttempt)`。
+每个 stage 必须幂等。**幂等键**：`(input_event_id, stage_name)`，由 `pipeline_stage_executions` 表强制。
 
 | Stage | 幂等机制 |
 |---|---|
-| IngestionStage | 检查 `pipeline_run_stages(stage='ingestion', status IN ('COMPLETED','RUNNING'))` |
-| DiscoveryStage | `TableEntity` upsert by FQN |
-| ProfilingStage | 写之前检查 `profiling_attempts` 表，避免重复大查询 |
-| AlignmentStage | `AlignmentMap` 写之前 delete by (runUuid, stageName) |
+| PipelineIngestionStage | DuckDB `CREATE TABLE IF NOT EXISTS` + 原子 rename |
+| PipelineDiscoveryStage | `TableEntity` upsert by FQN |
+| PipelineProfilingStage | 检查 `tableProfile.profiledAt` TTL；同 event_id 跳过 |
+| PipelineAlignmentStage | `pipeline_run_results` 写前 delete by (runUuid, stageName) |
+
+### 6.6 终止事件（Terminal Stage）
+
+`SemanticAligned` 是 Phase 7a 的终止事件（无下游 stage 消费）。通过注册 no-op terminal stage 处理：
+
+```java
+@Component
+public class PipelineOrchestrator {
+    @PostConstruct void wire(...) {
+        registry.register(INGESTION_REQUESTED, ingestionStage);
+        registry.register(RAW_DATA_INGESTED, discoveryStage);
+        registry.register(SCHEMA_DISCOVERED, profilingStage);
+        registry.register(DATA_PROFILED, alignmentStage);
+        // 终止事件：无操作 stage，返回 null → OutboxProcessor 标记 COMPLETED
+        registry.register(SEMANTIC_ALIGNED, (event, ctx) -> null);
+    }
+}
+```
+
+Phase 7b+ 引入新 stage 时只需注册新的 event type → stage 映射，终止事件可保留为占位或移除。
 
 ---
 
@@ -597,18 +663,7 @@ public class PipelineDiscoveryStage implements PipelineStage {
 
 ### 7.1 PipelineOrchestrator
 
-```java
-@Component
-public class PipelineOrchestrator {
-    @PostConstruct void wire(StageRegistry registry, IngestionStage ingestion, ...) {
-        registry.register(PipelineEventType.INGESTION_REQUESTED, ingestion);
-        registry.register(PipelineEventType.RAW_DATA_INGESTED, discovery);
-        registry.register(PipelineEventType.SCHEMA_DISCOVERED, profiling);
-        registry.register(PipelineEventType.DATA_PROFILED, alignment);
-        // Alignment 阶段输出 null → 终止 → run COMPLETED
-    }
-}
-```
+见 §6.6 终止事件处理。完整代码见 §6.6 示例。
 
 ### 7.2 事件链
 
@@ -638,10 +693,12 @@ IngestionRequested  ──▶  [IngestionStage]  ──▶  RawDataIngested
 
 | Stage | 输入 event | 输出 event | 复用服务 | 写入 result_type |
 |---|---|---|---|---|
-| IngestionStage | IngestionRequested | RawDataIngested | DuckDbSyncService（per table） | raw_sync_report |
-| DiscoveryStage | RawDataIngested | SchemaDiscovered | DiscoveryService | discovery_report |
-| ProfilingStage | SchemaDiscovered | DataProfiled | ProfilingService | profile_report |
-| AlignmentStage | DataProfiled | null（终止） | AlignmentService | alignment_map |
+| PipelineIngestionStage | IngestionRequested | RawDataIngested | DuckDbSyncService（per table） | raw_sync_report |
+| PipelineDiscoveryStage | RawDataIngested | SchemaDiscovered | DiscoveryService | discovery_report |
+| PipelineProfilingStage | SchemaDiscovered | DataProfiled | ProfilingService | profile_report |
+| PipelineAlignmentStage | DataProfiled | SemanticAligned（终止事件） | AlignmentService | alignment_map |
+
+**Per-table iteration**：ProfilingStage 接收 `SchemaDiscovered.discoveredTableFqns`，对每个 tableFQN 调用 `ProfilingService.profile(tableFQN)`。部分成功策略：若 ≥1 个 table 失败：报告 `partialFailure=true`，若所有 table 都失败：抛 `RecoverableFailure`。
 
 阶段 5-8 通过新增 event type + 注册新 stage 接入。
 
@@ -788,10 +845,10 @@ Phase 7a — Pipeline 骨架 + 前 4 阶段
 ├── 7a.4  OutboxProcessor（@Scheduled 拉取 + SELECT FOR UPDATE SKIP LOCKED）
 ├── 7a.5  PipelineStageRegistry 实现
 ├── 7a.6  PipelineOrchestrator（@PostConstruct 注册 4 阶段）
-├── 7a.7  IngestionStage（per-table DuckDbSyncService + 幂等检查）
-├── 7a.8  DiscoveryStage（包装 DiscoveryService + result 写入）
-├── 7a.9  ProfilingStage（包装 ProfilingService + result 写入）
-├── 7a.10 AlignmentStage（包装 AlignmentService + result 写入）
+├── 7a.7  PipelineIngestionStage（per-table DuckDbSyncService + 幂等检查）
+├── 7a.8  PipelineDiscoveryStage（包装 DiscoveryService + SourceRegistry 查询 + result 写入）
+├── 7a.9  PipelineProfilingStage（per-table 迭代 + partial-failure 处理 + result 写入）
+├── 7a.10 PipelineAlignmentStage（包装 AlignmentService + result 写入）
 ├── 7a.11 PipelineService（start / get / list）
 ├── 7a.12 PipelineResource REST endpoints（runs + dead-letter 列表）
 ├── 7a.13 DiscoveryResource 改为触发管线（保留 /run-sync deprecated alias）
