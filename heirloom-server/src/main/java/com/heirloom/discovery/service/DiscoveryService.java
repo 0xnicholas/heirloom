@@ -1,6 +1,7 @@
 package com.heirloom.discovery.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.heirloom.core.alignment.AlignmentService;
 import com.heirloom.discovery.domain.DiscoveryReport;
 import com.heirloom.discovery.domain.DiscoverySource;
 import com.heirloom.core.discovery.DiscoveryConfig;
@@ -38,13 +39,14 @@ public class DiscoveryService {
 
     public DiscoveryService(TypeRepository typeRepo, ProposalRepository proposalRepo,
                            MappingRuleRepository mappingRepo, TableRepository tableRepo,
-                           LineageRepository lineageRepo, ProfilingService profilingService) {
+                           LineageRepository lineageRepo, ProfilingService profilingService,
+                           AlignmentService alignmentService) {
         this.typeRepo = typeRepo;
         this.proposalRepo = proposalRepo;
         this.mappingRepo = mappingRepo;
         this.tableRepo = tableRepo;
         this.lineageRepo = lineageRepo;
-        this.inference = new InferencePipeline();
+        this.inference = new InferencePipeline(alignmentService);
         this.profilingService = profilingService;
     }
 

@@ -1,5 +1,6 @@
 package com.heirloom.discovery;
 
+import com.heirloom.core.alignment.AlignmentService;
 import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.connector.postgres.PostgresSchemaExtractor;
 import com.heirloom.discovery.inference.InferenceContext;
@@ -116,7 +117,7 @@ class DiscoveryE2ETest {
     @Test
     void shouldInferResourceTypes() {
         RawSchema schema = extractor.extract(config);
-        InferencePipeline pipeline = new InferencePipeline();
+        InferencePipeline pipeline = new InferencePipeline((AlignmentService) null);
         InferenceContext ctx = new InferenceContext(schema, null, null, List.of(), "test");
         List<ResourceTypeProposal> proposals = pipeline.infer(ctx);
 
@@ -146,7 +147,7 @@ class DiscoveryE2ETest {
     @Test
     void shouldInferRelationships() {
         RawSchema schema = extractor.extract(config);
-        InferencePipeline pipeline = new InferencePipeline();
+        InferencePipeline pipeline = new InferencePipeline((AlignmentService) null);
         InferenceContext ctx = new InferenceContext(schema, null, null, List.of(), "test");
         List<ResourceTypeProposal> proposals = pipeline.infer(ctx);
 
