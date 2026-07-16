@@ -1808,29 +1808,50 @@ public class OutboxProcessor {
 }
 ```
 
-- [ ] **Step 2: 配置 Clock Bean（如尚未配置）**
+- [ ] **Step 2: 修改 HeirloomApplication.java 添加 @EnableScheduling + Clock bean**
 
-检查 `heirloom-server/src/main/java/com/heirloom/HeirloomApplication.java` 或配置类是否已有 `Clock` bean。若无，添加：
+修改 `heirloom-server/src/main/java/com/heirloom/HeirloomApplication.java`：
 
 ```java
-@Bean
-public Clock systemClock() { return Clock.systemUTC(); }
+package com.heirloom;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import java.time.Clock;
+
+@SpringBootApplication
+@EnableScheduling
+public class HeirloomApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(HeirloomApplication.class, args);
+    }
+
+    @Bean
+    public Clock systemClock() {
+        return Clock.systemUTC();
+    }
+}
 ```
 
-- [ ] **Step 3: 启用 @Scheduled**
+**关键：当前文件没有 `@EnableScheduling` 和 `Clock` bean（已验证）。不修改会导致 OutboxProcessor 的 `@Scheduled` 不触发，pipeline 永远卡在 PENDING。**
 
-确保 `HeirloomApplication` 有 `@EnableScheduling`。
-
-- [ ] **Step 4: 编译验证**
+- [ ] **Step 3: 编译验证**
 
 Run: `./heirloom-server/mvnw -f pom.xml -pl heirloom-server -am compile`
 Expected: `BUILD SUCCESS`
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add heirloom-server/src/main/java/com/heirloom/pipeline/processor/OutboxProcessor.java
-git commit -m "feat(pipeline): add OutboxProcessor — claims batch, dispatches stages, handles retry/DLQ"
+git add heirloom-server/src/main/java/com/heirloom/pipeline/processor/OutboxProcessor.java \
+        heirloom-server/src/main/java/com/heirloom/HeirloomApplication.java
+git commit -m "feat(pipeline): add OutboxProcessor — claims batch, dispatches stages, handles retry/DLQ
+
+Also: add @EnableScheduling + Clock bean to HeirloomApplication (required for
+OutboxProcessor @Scheduled activation)."
 ```
 
 ---
@@ -2628,6 +2649,7 @@ import com.heirloom.core.pipeline.PipelineStatus;
 import com.heirloom.core.pipeline.PipelineTriggerType;
 import com.heirloom.pipeline.persistence.*;
 import com.heirloom.pipeline.service.PipelineService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
