@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.*;
 class DiscoveryE2ETest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17")
         .withDatabaseName("heirloom_test")
         .withUsername("test")
         .withPassword("test");
