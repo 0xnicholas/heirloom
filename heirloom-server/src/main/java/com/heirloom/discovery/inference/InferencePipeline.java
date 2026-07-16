@@ -1,6 +1,6 @@
 package com.heirloom.discovery.inference;
 
-import com.heirloom.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawSchema;
 import com.heirloom.discovery.inference.rules.TypeNameInference;
 import com.heirloom.discovery.inference.rules.AbilityInference;
 import com.heirloom.discovery.inference.rules.DescriptionInference;

@@ -1,6 +1,6 @@
-package com.heirloom.discovery.extractor;
+package com.heirloom.core.discovery;
 
-import com.heirloom.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawSchema;
 import java.util.Set;
 
 public interface SchemaExtractor {

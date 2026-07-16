@@ -2,8 +2,8 @@ package com.heirloom.discovery.inference.rules;
 
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawSchema;
-import com.heirloom.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
 import java.util.*;
 import java.util.stream.Collectors;
 

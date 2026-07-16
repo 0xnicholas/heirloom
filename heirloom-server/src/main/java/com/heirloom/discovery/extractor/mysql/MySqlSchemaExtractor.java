@@ -1,8 +1,8 @@
 package com.heirloom.discovery.extractor.mysql;
 
-import com.heirloom.discovery.extractor.DiscoveryConfig;
-import com.heirloom.discovery.extractor.SchemaExtractor;
-import com.heirloom.discovery.model.*;
+import com.heirloom.core.discovery.DiscoveryConfig;
+import com.heirloom.core.discovery.SchemaExtractor;
+import com.heirloom.core.discovery.model.*;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package com.heirloom.discovery.model;
+package com.heirloom.core.discovery.model;
 
 import java.util.List;
 

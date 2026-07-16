@@ -1,10 +1,10 @@
 package com.heirloom.discovery;
 
-import com.heirloom.discovery.extractor.DiscoveryConfig;
+import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.discovery.extractor.postgres.PostgresSchemaExtractor;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawSchema;
 import com.heirloom.discovery.runner.DiscoveryRunner;
 import org.junit.jupiter.api.*;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -105,7 +105,7 @@ class DiscoveryE2ETest {
             .findFirst().orElseThrow();
 
         var fks = orders.constraints().stream()
-            .filter(c -> c.type() == com.heirloom.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY)
+            .filter(c -> c.type() == com.heirloom.core.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY)
             .toList();
 
         assertThat(fks).isNotEmpty();

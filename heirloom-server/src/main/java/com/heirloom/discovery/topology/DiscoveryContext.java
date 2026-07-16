@@ -1,8 +1,8 @@
 package com.heirloom.discovery.topology;
 
-import com.heirloom.discovery.model.RawTable;
-import com.heirloom.discovery.model.RawRelationship;
-import com.heirloom.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawRelationship;
+import com.heirloom.core.discovery.model.RawSchema;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 

@@ -1,4 +1,4 @@
-package com.heirloom.discovery.extractor;
+package com.heirloom.core.discovery;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;

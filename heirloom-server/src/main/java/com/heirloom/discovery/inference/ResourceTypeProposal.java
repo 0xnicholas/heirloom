@@ -1,6 +1,6 @@
 package com.heirloom.discovery.inference;
 
-import com.heirloom.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawSchema;
 import com.heirloom.schema.domain.*;
 import java.util.*;
 

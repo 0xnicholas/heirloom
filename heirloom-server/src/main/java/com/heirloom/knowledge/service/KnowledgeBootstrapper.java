@@ -2,7 +2,7 @@ package com.heirloom.knowledge.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.heirloom.discovery.model.RawColumn;
+import com.heirloom.core.discovery.model.RawColumn;
 import com.heirloom.knowledge.domain.KnowledgeSource;
 import com.heirloom.knowledge.repository.KnowledgeSourceJpaRepository;
 import com.heirloom.metadata.domain.TableEntity;

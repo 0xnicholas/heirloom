@@ -1,3 +1,3 @@
-package com.heirloom.discovery.model;
+package com.heirloom.core.discovery.model;
 
 public record RawColumn(String columnName, String rawType, boolean nullable, String comment, String defaultValue) {}

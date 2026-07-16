@@ -2,8 +2,8 @@ package com.heirloom.discovery.inference.rules;
 
 import com.heirloom.discovery.inference.InferenceRule;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawSchema;
-import com.heirloom.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
 import com.heirloom.schema.domain.Ability;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,7 +29,7 @@ public class AbilityInference implements InferenceRule {
 
             // Junction tables: 2 FK + few non-FK columns → no DROP
             long fkCount = t.constraints().stream()
-                .filter(c -> c.type() == com.heirloom.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY).count();
+                .filter(c -> c.type() == com.heirloom.core.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY).count();
             if (fkCount >= 2 && t.columns().size() - fkCount <= 2) {
                 abilities.remove(Ability.DROP);
             }

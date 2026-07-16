@@ -3,13 +3,13 @@ package com.heirloom.discovery.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.heirloom.discovery.domain.DiscoveryReport;
 import com.heirloom.discovery.domain.DiscoverySource;
-import com.heirloom.discovery.extractor.DiscoveryConfig;
-import com.heirloom.discovery.extractor.SchemaExtractor;
+import com.heirloom.core.discovery.DiscoveryConfig;
+import com.heirloom.core.discovery.SchemaExtractor;
 import com.heirloom.discovery.extractor.postgres.PostgresSchemaExtractor;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
-import com.heirloom.discovery.model.RawSchema;
-import com.heirloom.discovery.model.RawTable;
+import com.heirloom.core.discovery.model.RawSchema;
+import com.heirloom.core.discovery.model.RawTable;
 import com.heirloom.discovery.runner.DiscoveryRunner;
 import com.heirloom.metadata.domain.LineageEntity;
 import com.heirloom.metadata.domain.TableEntity;
@@ -85,7 +85,7 @@ public class DiscoveryService {
             for (var rawTable : schema.tables()) {
                 String fromFQN = source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + rawTable.tableName();
                 for (var c : rawTable.constraints()) {
-                    if (c.type() == com.heirloom.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY) {
+                    if (c.type() == com.heirloom.core.discovery.model.RawConstraint.ConstraintType.FOREIGN_KEY) {
                         LineageEntity lineage = new LineageEntity();
                         lineage.setFromEntityFQN(fromFQN);
                         lineage.setToEntityFQN(source.getFullyQualifiedName() + "." + rawTable.schemaName() + "." + c.targetTable());
