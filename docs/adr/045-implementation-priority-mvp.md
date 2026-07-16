@@ -2,7 +2,7 @@
 
 ## 状态
 
-Proposed
+Superseded by [ADR-046](./046-metadata-first-mvp.md) (2026-07-16)
 
 ## 日期
 
