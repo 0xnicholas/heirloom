@@ -77,6 +77,8 @@ Phase 7b 落地 Kafka adapter：
 
 Phase 7a 已有的接口全部保留：`PipelineEventBus` / `PipelineEvent` / `PipelineEventType` / `PipelineStage` / `PipelineStageRegistry` / `PipelineContext` / `PipelineRun` / `PipelineStageStatus` / `PipelineStatus` / `PipelineTriggerType` / `PipelineFailure` / `RecoverableFailure` / `FatalFailure`。
 
+**PipelineStageRegistry / DefaultPipelineStageRegistry / PipelineOrchestrator 删除决策：** Phase 7b 的 stage listener 直接委派给 stage bean（`stage.apply()`），不需要 registry 做事件 → stage 路由。`PipelineStageRegistry` 接口、`DefaultPipelineStageRegistry` 实现、`PipelineOrchestrator` 装配类全部删除。`PipelineStage` 接口保留（stage bean 实现它，但无注册表）。
+
 ### 3.2 实现模块（heirloom-server）
 
 ```
@@ -98,12 +100,11 @@ heirloom-server/src/main/java/com/heirloom/pipeline/
 │   ├── PipelineDiscoveryListener.java      # stub for Phase 7c (NEW)
 │   ├── PipelineProfilingListener.java      # stub for Phase 7c (NEW)
 │   └── PipelineAlignmentListener.java      # stub for Phase 7c (NEW)
-├── stages/                                  # 保留 7a 的 4 个 @Component stage beans
-│   ├── PipelineIngestionStage.java         # 现有，逻辑不变
-│   ├── PipelineDiscoveryStage.java         # 现有，逻辑不变
-│   ├── PipelineProfilingStage.java         # 现有，逻辑不变
-│   ├── PipelineAlignmentStage.java         # 现有，逻辑不变
-│   └── PipelineOrchestrator.java           # 现有，仍注册 4 个 stage（Kafka listener 也用）
+├── stages/                                  # 保留 7a 的 4 个 @Component stage beans（无 orchestrator）
+│   ├── PipelineIngestionStage.java         # 现有
+│   ├── PipelineDiscoveryStage.java         # 现有
+│   ├── PipelineProfilingStage.java         # 现有
+│   └── PipelineAlignmentStage.java         # 现有
 ├── service/
 │   └── PipelineService.java                # 改：startRun 调 bus.publish（不写 DB run/status）
 ├── persistence/                              # 保留，删 PipelineOutbox*
@@ -124,6 +125,8 @@ heirloom-server/src/main/java/com/heirloom/pipeline/
 - heirloom-server/src/main/java/com/heirloom/pipeline/bus/InProcessBus.java
 - heirloom-server/src/main/java/com/heirloom/pipeline/bus/PipelineEventPublisher.java
 - heirloom-server/src/main/java/com/heirloom/pipeline/processor/OutboxProcessor.java
+- heirloom-server/src/main/java/com/heirloom/pipeline/stages/PipelineOrchestrator.java
+- heirloom-server/src/main/java/com/heirloom/pipeline/stages/DefaultPipelineStageRegistry.java
 - heirloom-server/src/main/java/com/heirloom/pipeline/persistence/PipelineOutboxEntity.java
 - heirloom-server/src/main/java/com/heirloom/pipeline/persistence/PipelineOutboxJpaRepository.java
 - heirloom-server/src/test/java/com/heirloom/pipeline/bus/InProcessBusTest.java
@@ -132,6 +135,12 @@ heirloom-server/src/main/java/com/heirloom/pipeline/
 
 新建迁移:
 - heirloom-server/src/main/resources/db/migration/V28__drop_pipeline_outbox.sql
+
+注：`PipelineStageRegistry` 接口（heirloom-core）也删除——Phase 7b 不再有事件 → stage 注册概念。
+
+### 3.4 heairloom-core 接口清理
+
+`PipelineStageRegistry.java` 接口文件删除。`PipelineStage` 接口保留（stage bean 实现）。其他接口无变化。
 
 ---
 
@@ -439,6 +448,10 @@ public abstract class StageConsumerTemplate {
 
     private static final Logger log = LoggerFactory.getLogger(StageConsumerTemplate.class);
 
+    /** Phase 7b 全局固定 4 个 stage 名。"allStagesComplete" 据此判断而非 "现存 row 全 COMPLETED"。 */
+    public static final java.util.List<String> ALL_STAGE_NAMES =
+        java.util.List.of("ingestion", "discovery", "profiling", "alignment");
+
     private final PipelineRunJpaRepository runRepo;
     private final PipelineStageStatusJpaRepository stageRepo;
     private final PipelineStageExecutionJpaRepository execRepo;
@@ -477,10 +490,17 @@ public abstract class StageConsumerTemplate {
 
     @KafkaListener(
         topics = "${heirloom.pipeline.kafka.topic-events}",
-        groupId = "#{T(com.heirloom.pipeline.kafka.KafkaTopics).groupId(stageName())}"
+        groupId = "#{T(com.heirloom.pipeline.kafka.KafkaTopics).groupIdForStage(stageName())}"
     )
     public void onEvent(PipelineEvent event) {
         String name = stageName();
+
+        // 0. listener 只处理匹配 event.type() 的事件（消费端过滤，符合 ADR-039）
+        if (!expectedEventType(name).equals(event.type())) {
+            log.debug("Listener for stage {} skipping event of type {}", name, event.type());
+            return;
+        }
+
         // 1. 幂等检查
         if (execRepo.existsByInputEventIdAndStageNameAndStatus(
                 event.eventId(), name, "COMPLETED")) {
@@ -488,13 +508,13 @@ public abstract class StageConsumerTemplate {
             return;
         }
 
-        // 2. 更新 run + stage 状态为 RUNNING
+        // 2. 更新 run + stage 状态为 RUNNING。stage 行不存在则 lazy 创建（避免与 Projector 顺序竞争）
         var run = runRepo.findByRunUuid(event.runUuid()).orElseThrow();
         run.setStatus(PipelineStatus.RUNNING);
         run.setUpdatedAt(clock.instant());
         runRepo.save(run);
 
-        var stage = stageRepo.findByRunUuidAndStageName(event.runUuid(), name).orElseThrow();
+        var stage = ensureStage(event.runUuid(), name);
         stage.setStatus(PipelineStatus.RUNNING);
         stage.setAttempts(stage.getAttempts() + 1);
         stage.setStartedAt(clock.instant());
@@ -536,6 +556,32 @@ public abstract class StageConsumerTemplate {
         }
     }
 
+    /**
+     * Stage row lazy upsert。避免依赖 Projector 先创建（consumer group 间无顺序保证）。
+     */
+    private PipelineStageStatusEntity ensureStage(UUID runUuid, String stageName) {
+        return stageRepo.findByRunUuidAndStageName(runUuid, stageName).orElseGet(() -> {
+            var s = new PipelineStageStatusEntity();
+            s.setRunUuid(runUuid);
+            s.setStageName(stageName);
+            s.setStatus(PipelineStatus.PENDING);
+            s.setAttempts(0);
+            s.setMaxAttempts(3);
+            return stageRepo.save(s);
+        });
+    }
+
+    /** 推断 stage 期望的 event type（用于消费端过滤，避免 listener 消费其他 stage 的事件） */
+    private PipelineEventType expectedEventType(String stageName) {
+        return switch (stageName) {
+            case "ingestion" -> PipelineEventType.INGESTION_REQUESTED;
+            case "discovery" -> PipelineEventType.RAW_DATA_INGESTED;
+            case "profiling" -> PipelineEventType.SCHEMA_DISCOVERED;
+            case "alignment" -> PipelineEventType.DATA_PROFILED;
+            default -> throw new IllegalStateException("unknown stage: " + stageName);
+        };
+    }
+
     private void handleRecoverable(PipelineEvent event,
                                     PipelineStageStatusEntity stage,
                                     RecoverableFailure rf) {
@@ -558,7 +604,11 @@ public abstract class StageConsumerTemplate {
 
     private void handleFatal(PipelineEvent event,
                                PipelineStageStatusEntity stage, String error) {
-        // 双写 DLQ：表 + topic
+        // 双写 DLQ：DB 表（query 真相）+ topic（replay 流）。topic 先发（廉价、快），
+        // 表写失败时不重试 topic（replay 流会缺一条但 ops 可从 log 找回）
+        kafkaTemplate.send(dlqTopic,
+            event.tenantId() + "::" + event.sourceFqn(), event);
+
         var dlq = new DeadLetterEntity();
         dlq.setRunUuid(event.runUuid());
         dlq.setTenantId(event.tenantId());
@@ -574,9 +624,6 @@ public abstract class StageConsumerTemplate {
         }
         dlqRepo.save(dlq);
 
-        kafkaTemplate.send(dlqTopic,
-            event.tenantId() + "::" + event.sourceFqn(), event);
-
         stage.setStatus(PipelineStatus.DEAD_LETTER);
         stage.setLastError(error);
         stageRepo.save(stage);
@@ -587,10 +634,20 @@ public abstract class StageConsumerTemplate {
         runRepo.save(run);
     }
 
+    /**
+     * 检查 ALL 4 个 stage 是否都 COMPLETED（而非"现存 row 全 COMPLETED"）。
+     * 解决 C2: stub listener return null 时若只有 2 个 stage 行存在（ingestion+discovery），
+     * "现存全 COMPLETED" 会误判 run 完成。"必须有 4 个 stage 行且都 COMPLETED" 才算完成。
+     */
     private boolean allStagesComplete(UUID runUuid) {
         var stages = stageRepo.findByRunUuid(runUuid);
-        return !stages.isEmpty() && stages.stream()
-            .allMatch(s -> s.getStatus() == PipelineStatus.COMPLETED);
+        if (stages.size() != ALL_STAGE_NAMES.size()) {
+            return false;
+        }
+        return stages.stream()
+            .allMatch(s -> s.getStatus() == PipelineStatus.COMPLETED)
+            && ALL_STAGE_NAMES.stream().allMatch(required ->
+                stages.stream().anyMatch(s -> s.getStageName().equals(required)));
     }
 }
 ```
@@ -639,14 +696,23 @@ public class PipelineIngestionListener extends StageConsumerTemplate {
 
 ### 11.2-11.4 Discovery/Profiling/Alignment Listener（stub for 7c）
 
+**关键：** stub listener **不在 applyStage 返回 null**，而是把事件"转发"到下一阶段的事件类型，让完整事件链能跑到 alignment。这样 stub 也能验证 Kafka 全链路，Phase 7c 替换为真实逻辑时仅改 applyStage。
+
 ```java
 @Component
 public class PipelineDiscoveryListener extends StageConsumerTemplate {
 
     private static final Logger log = LoggerFactory.getLogger(PipelineDiscoveryListener.class);
 
-    public PipelineDiscoveryListener(... 构造参数同 IngestionListener ...) {
-        super(...);
+    public PipelineDiscoveryListener(PipelineRunJpaRepository runRepo,
+                                      PipelineStageStatusJpaRepository stageRepo,
+                                      PipelineStageExecutionJpaRepository execRepo,
+                                      DeadLetterJpaRepository dlqRepo,
+                                      PipelineResultJpaRepository resultRepo,
+                                      ObjectMapper mapper,
+                                      Clock clock,
+                                      KafkaTemplate<String, PipelineEvent> kafkaTemplate) {
+        super(runRepo, stageRepo, execRepo, dlqRepo, resultRepo, mapper, clock, kafkaTemplate);
     }
 
     @Override
@@ -654,16 +720,101 @@ public class PipelineDiscoveryListener extends StageConsumerTemplate {
 
     @Override
     protected PipelineEvent applyStage(PipelineEvent input, PipelineContext ctx) {
-        log.warn("PipelineDiscoveryListener is a Phase 7c stub. Acknowledging event {}.",
+        log.warn("PipelineDiscoveryListener is a Phase 7c stub. Forwarding event {} as SchemaDiscovered.",
             input.eventId());
-        // 立即成功但 nextEvent=null → run 终止
-        // Phase 7c 替换为：stage.apply(input, ctx)
-        return null;
+        // Phase 7c: 改为 stage.apply(input, ctx)
+        var rawIngested = (RawDataIngested) input;
+        return new SchemaDiscovered(
+            rawIngested.ingestedTableFqns(), rawIngested.ingestedTableFqns().size(),
+            UUID.randomUUID(), ctx.runUuid(), ctx.tenantId(), ctx.sourceFqn(),
+            ctx.correlationId(), java.time.Instant.now(), 1, "{}");
     }
 }
 ```
 
-Profiling/Alignment 类似。
+```java
+@Component
+public class PipelineProfilingListener extends StageConsumerTemplate {
+
+    private static final Logger log = LoggerFactory.getLogger(PipelineProfilingListener.class);
+
+    public PipelineProfilingListener(... 同 Discovery 构造 ...) { super(...); }
+
+    @Override
+    protected String stageName() { return "profiling"; }
+
+    @Override
+    protected PipelineEvent applyStage(PipelineEvent input, PipelineContext ctx) {
+        log.warn("PipelineProfilingListener is a Phase 7c stub. Forwarding event {} as DataProfiled.",
+            input.eventId());
+        var discovered = (SchemaDiscovered) input;
+        return new DataProfiled(
+            discovered.discoveredTableFqns(), discovered.discoveredTableFqns().size(), 0.0,
+            UUID.randomUUID(), ctx.runUuid(), ctx.tenantId(), ctx.sourceFqn(),
+            ctx.correlationId(), java.time.Instant.now(), 1, "{}");
+    }
+}
+```
+
+```java
+@Component
+public class PipelineAlignmentListener extends StageConsumerTemplate {
+
+    private static final Logger log = LoggerFactory.getLogger(PipelineAlignmentListener.class);
+
+    public PipelineAlignmentListener(... 同 Discovery 构造 ...) { super(...); }
+
+    @Override
+    protected String stageName() { return "alignment"; }
+
+    @Override
+    protected PipelineEvent applyStage(PipelineEvent input, PipelineContext ctx) {
+        log.warn("PipelineAlignmentListener is a Phase 7c stub. Returning SemanticAligned (terminal).",
+            input.eventId());
+        return new SemanticAligned(
+            UUID.randomUUID(), ctx.runUuid(), ctx.tenantId(), ctx.sourceFqn(),
+            ctx.correlationId(), java.time.Instant.now(), 1, "{}");
+    }
+}
+```
+
+**Phase 7b 端到端流程（带 stub 转发）：**
+
+```
+POST /v1/pipeline/runs
+  → PipelineService.startRun 创建 run（PENDING）+ publish IngestionRequested to Kafka
+  → Projector 收 IngestionRequested → run = RUNNING + stage "ingestion" 行
+  → IngestionListener 收 IngestionRequested → stage.apply() → 发 RawDataIngested
+  → Projector 收 RawDataIngested → stage "discovery" 行（lazy）
+  → DiscoveryListener（stub）收 RawDataIngested → return SchemaDiscovered → 发
+  → Projector 收 SchemaDiscovered → stage "profiling" 行
+  → ProfilingListener（stub）收 SchemaDiscovered → return DataProfiled → 发
+  → Projector 收 DataProfiled → stage "alignment" 行
+  → AlignmentListener（stub）收 DataProfiled → return SemanticAligned → 发
+  → SemanticAligned 进 events topic，无 listener 订阅（阶段 5+ 才消费）
+    → 5 秒后 Kafka retention / 或 Phase 7b 接受该事件无人消费
+    → run 永远不会 allStagesComplete → 永远 RUNNING
+  
+  ⚠️ 接受此行为：Phase 7b 验证 Kafka 全链路 + 单 stage 真实工作；
+    run 不会自然 COMPLETED 是 stub 链路的设计结果。Phase 7c 替换 stub 后行为正确。
+```
+
+**或者更干净的 Phase 7b demo：Discovery/Profiling/Alignment stub **直接 return null（不转发）**，这样 run 会"提前"COMPLETED（如 C2 描述）。但这违背"4 个 stage 都该有真实 listener"的意图。**
+
+**采用：stub 转发版本（上面代码）。run 行为：直到 SemanticAligned 被发出并被 Projector 收到 + Alignment stage COMPLETED，所有 4 stage 都 COMPLETED → run = COMPLETED。**
+
+注：SemanticAligned 发出后无 listener 处理，但 Projector 收到 → 创建/确认 stage 行。AlignmentListener 收到（因 stageName="alignment" 监听 DATA_PROFILED，但事件是 SEMANTIC_ALIGNED → 过滤掉 skip）。等等——AlignmentListener 监听 DATA_PROFILED，SemanticAligned 不会被它消费。这意味着 alignment 阶段停留在 DATA_PROFILED 的处理完，不会被 SemanticAligned 触发再次消费。
+
+修正：AlignmentListener 的 expectedEventType 应为 DATA_PROFILED。stub 返回 SemanticAligned 后该事件被发出但无人消费（无 stage 监听 SEMANTIC_ALIGNED），run 不会完成。
+
+**最终决定：** 接受 Phase 7b demo 行为：
+- Ingestion 真实工作 → 发 RawDataIngested
+- Discovery stub 转发 → 发 SchemaDiscovered
+- Profiling stub 转发 → 发 DataProfiled
+- Alignment stub 转发 → 发 SemanticAligned
+- SemanticAligned 进入 events topic，无 listener 消费 → run 永远停留在 alignment 处理完但 SemanticAligned 未消费状态
+
+为验证 Phase 7b 框架 OK，**E2E 测试只验证到 "alignment stage COMPLETED"**（通过 GET /runs/{uuid} 看 alignment stage status）—— 不验证 run.status=COMPLETED。Phase 7c 把 stub 替换后，run 会按设计 COMPLETED。
 
 ---
 
