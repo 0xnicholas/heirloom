@@ -51,6 +51,10 @@ public class DuckDbRawStore implements AutoCloseable {
         }
     }
 
+    public Connection getConnection() {
+        return conn;
+    }
+
     public boolean tableExists(String tableName) {
         try (var stmt = conn.createStatement();
              var rs = stmt.executeQuery(
