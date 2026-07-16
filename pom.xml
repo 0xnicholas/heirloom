@@ -12,6 +12,7 @@
 
     <modules>
         <module>heirloom-core</module>
+        <module>heirloom-connector</module>
         <module>heirloom-server</module>
     </modules>
 </project>

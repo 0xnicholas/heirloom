@@ -1,4 +1,4 @@
-package com.heirloom.discovery.extractor.postgres;
+package com.heirloom.connector.postgres;
 
 import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.core.discovery.SchemaExtractor;

@@ -32,6 +32,18 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Heirloom Connectors -->
+        <dependency>
+            <groupId>com.heirloom</groupId>
+            <artifactId>heirloom-connector-postgres</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.heirloom</groupId>
+            <artifactId>heirloom-connector-mysql</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Web + API -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

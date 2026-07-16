@@ -5,7 +5,7 @@ import com.heirloom.discovery.domain.DiscoveryReport;
 import com.heirloom.discovery.domain.DiscoverySource;
 import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.core.discovery.SchemaExtractor;
-import com.heirloom.discovery.extractor.postgres.PostgresSchemaExtractor;
+import com.heirloom.connector.postgres.PostgresSchemaExtractor;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;

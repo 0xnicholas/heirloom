@@ -1,7 +1,7 @@
 package com.heirloom.discovery;
 
 import com.heirloom.core.discovery.DiscoveryConfig;
-import com.heirloom.discovery.extractor.postgres.PostgresSchemaExtractor;
+import com.heirloom.connector.postgres.PostgresSchemaExtractor;
 import com.heirloom.discovery.inference.InferencePipeline;
 import com.heirloom.discovery.inference.ResourceTypeProposal;
 import com.heirloom.core.discovery.model.RawSchema;

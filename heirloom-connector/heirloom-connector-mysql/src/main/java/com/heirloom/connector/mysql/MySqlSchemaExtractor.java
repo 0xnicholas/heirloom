@@ -1,4 +1,4 @@
-package com.heirloom.discovery.extractor.mysql;
+package com.heirloom.connector.mysql;
 
 import com.heirloom.core.discovery.DiscoveryConfig;
 import com.heirloom.core.discovery.SchemaExtractor;
