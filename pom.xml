@@ -11,6 +11,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>heirloom-core</module>
         <module>heirloom-server</module>
     </modules>
 </project>
