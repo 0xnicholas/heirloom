@@ -1,5 +1,7 @@
 package com.heirloom.query;
 
+import com.heirloom.core.query.QueryParseException;
+import com.heirloom.core.query.SemanticQuery;
 import com.heirloom.repository.TypeRepository;
 import com.heirloom.schema.domain.*;
 import org.junit.jupiter.api.BeforeEach;

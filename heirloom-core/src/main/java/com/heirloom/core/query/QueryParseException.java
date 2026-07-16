@@ -1,4 +1,4 @@
-package com.heirloom.query;
+package com.heirloom.core.query;
 
 /**
  * Thrown when a query request fails validation — unknown type, undeclared field,

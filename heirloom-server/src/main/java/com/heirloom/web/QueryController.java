@@ -1,6 +1,10 @@
 package com.heirloom.web;
 
-import com.heirloom.query.*;
+import com.heirloom.core.query.GeneratedSql;
+import com.heirloom.core.query.QueryParseException;
+import com.heirloom.core.query.SemanticQuery;
+import com.heirloom.query.QueryParser;
+import com.heirloom.query.SqlGenerator;
 import com.heirloom.schema.service.PerspectiveEngine;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

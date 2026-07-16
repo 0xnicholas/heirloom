@@ -1,4 +1,4 @@
-package com.heirloom.query;
+package com.heirloom.core.query;
 
 import java.util.List;
 import java.util.Map;
