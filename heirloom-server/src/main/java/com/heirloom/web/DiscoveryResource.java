@@ -5,7 +5,6 @@ import com.heirloom.discovery.domain.DiscoverySource;
 import com.heirloom.discovery.service.DiscoveryService;
 import com.heirloom.repository.DiscoveryReportRepository;
 import com.heirloom.repository.DiscoverySourceRepository;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -26,15 +25,15 @@ public class DiscoveryResource {
     }
 
     @PostMapping("/sources/{sourceFQN}/run")
-    public ResponseEntity<DiscoveryReport> runDiscovery(@PathVariable String sourceFQN) {
+    public DiscoveryReport run(@PathVariable String sourceFQN,
+                               @RequestParam(defaultValue = "true") boolean profile) {
         DiscoverySource source = sourceRepo.findByFQN(sourceFQN)
             .orElseThrow(() -> new RuntimeException("DiscoverySource not found: " + sourceFQN));
-        DiscoveryReport report = discoveryService.runDiscovery(source);
-        return ResponseEntity.ok(report);
+        return discoveryService.runDiscovery(source);
     }
 
     @GetMapping("/reports")
-    public ResponseEntity<List<DiscoveryReport>> listReports(@RequestParam String source) {
-        return ResponseEntity.ok(reportRepo.findBySourceFQN(source));
+    public List<DiscoveryReport> listReports(@RequestParam String source) {
+        return reportRepo.findBySourceFQN(source);
     }
 }
