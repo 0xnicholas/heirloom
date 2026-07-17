@@ -7,6 +7,7 @@ import com.heirloom.repository.TypeRepository;
 import com.heirloom.schema.domain.Ability;
 import com.heirloom.schema.domain.ResourceType;
 import com.heirloom.schema.guard.StateMachineGuard;
+import com.heirloom.security.condition.ConditionEvaluator;
 import com.heirloom.security.domain.Action;
 import com.heirloom.security.domain.StateGate;
 import com.heirloom.service.ResourceService;
@@ -35,15 +36,18 @@ public class ActionPipeline {
     private final ResourceService resourceService;
     private final RoleRepository roleRepo;
     private final TypeRepository typeRepo;
+    private final ConditionEvaluator conditionEvaluator;
 
     public ActionPipeline(TypeSafeCapabilityResolver capabilityResolver,
                           ResourceService resourceService,
                           RoleRepository roleRepo,
-                          TypeRepository typeRepo) {
+                          TypeRepository typeRepo,
+                          ConditionEvaluator conditionEvaluator) {
         this.capabilityResolver = capabilityResolver;
         this.resourceService = resourceService;
         this.roleRepo = roleRepo;
         this.typeRepo = typeRepo;
+        this.conditionEvaluator = conditionEvaluator;
     }
 
     @Transactional
@@ -128,7 +132,66 @@ public class ActionPipeline {
                     "Actor '" + ctx.getActorId() + "' lacks capability '"
                     + requiredAbility + "' on type '" + ctx.getAction().resolveTargetType() + "'");
         }
+
+        // Phase 4.2: Check conditional abilities on the ResourceType.
+        // We load the Resource and Type here if conditional abilities are declared,
+        // since stepState hasn't run yet. This is a lightweight eager load.
+        String targetTypeFqn = ctx.getAction().resolveTargetType();
+        ResourceType type = typeRepo.findByName(targetTypeFqn).orElse(null);
+        if (type != null && type.getConditionalAbilities() != null
+                && !type.getConditionalAbilities().isEmpty()) {
+
+            // Check if any conditional ability matches the required ability
+            var condition = type.getConditionalAbilities().stream()
+                .filter(c -> c.ability() == requiredAbility)
+                .findFirst();
+
+            if (condition.isPresent()) {
+                // Load the resource to check state conditions
+                Resource resource = resourceService.getByRid(ctx.getTargetResourceRid());
+
+                String targetState = null;
+                StateGate gate = ctx.getAction().resolveStateGate();
+                if (gate != null) targetState = gate.toState();
+
+                var execCtx = new ConditionEvaluator.ExecutionContext(
+                    ctx.getActorId(), ctx.getActorRole(), resolveOrigin());
+                var result = conditionEvaluator.evaluate(
+                    condition.get(), resource, targetState, execCtx);
+
+                if (!result.granted()) {
+                    throw new PipelineRejection(4, "GATE",
+                        "Conditional ability '" + requiredAbility
+                        + "' denied by condition: " + result.conditionType()
+                        + " — " + result.reason());
+                }
+                log.debug("Conditional ability {} granted for {} on {} ({})",
+                    requiredAbility, ctx.getActorId(), resource.getRid(), result.conditionType());
+            }
+        }
+
         ctx.addStepResult("GATE", "PASSED", System.currentTimeMillis() - start);
+    }
+
+    private String resolveOrigin() {
+        try {
+            var attrs = org.springframework.web.context.request.RequestContextHolder
+                .getRequestAttributes();
+            if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+                var request = sra.getRequest();
+                String origin = request.getHeader("X-Origin");
+                if (origin != null && !origin.isBlank()) return origin;
+                String userAgent = request.getHeader("User-Agent");
+                if (userAgent != null) {
+                    if (userAgent.contains("HeirloomSDK")) return "sdk";
+                    if (userAgent.contains("Mozilla")) return "workshop";
+                }
+                return "api";
+            }
+        } catch (Exception e) {
+            // Non-web request (e.g., CDC or pipeline stage)
+        }
+        return "system";
     }
 
     private void stepState(PipelineContext ctx) {

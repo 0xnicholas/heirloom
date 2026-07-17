@@ -1,8 +1,10 @@
 package com.heirloom.pipeline.service;
 
+import com.heirloom.core.pipeline.IngestionRequested;
+import com.heirloom.core.pipeline.PipelineEvent;
+import com.heirloom.core.pipeline.PipelineEventBus;
 import com.heirloom.core.pipeline.PipelineStatus;
 import com.heirloom.core.pipeline.PipelineTriggerType;
-import com.heirloom.pipeline.bus.PipelineEventPublisher;
 import com.heirloom.pipeline.persistence.PipelineRunEntity;
 import com.heirloom.pipeline.persistence.PipelineRunJpaRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,11 +18,11 @@ import java.util.UUID;
 public class PipelineService {
 
     private final PipelineRunJpaRepository runRepo;
-    private final PipelineEventPublisher publisher;
+    private final PipelineEventBus bus;
 
-    public PipelineService(PipelineRunJpaRepository runRepo, PipelineEventPublisher publisher) {
+    public PipelineService(PipelineRunJpaRepository runRepo, PipelineEventBus bus) {
         this.runRepo = runRepo;
-        this.publisher = publisher;
+        this.bus = bus;
     }
 
     @Transactional
@@ -53,8 +55,10 @@ public class PipelineService {
             throw new IllegalStateException("active run exists (race): " + sourceFqn, e);
         }
 
-        publisher.publishIngestionRequested(runUuid, tenantId, sourceFqn,
-            tableFqns, correlationId.toString());
+        PipelineEvent event = new IngestionRequested(
+            tableFqns, UUID.randomUUID(), runUuid, tenantId, sourceFqn,
+            correlationId.toString(), Instant.now(), 1, "{}");
+        bus.publish(event);
 
         return run;
     }

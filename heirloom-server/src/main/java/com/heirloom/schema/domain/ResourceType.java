@@ -102,6 +102,15 @@ public class ResourceType implements HeirloomEntity {
     private String initialState;
 
     /**
+     * Phase 4.2: conditional abilities — abilities that are only active
+     * under specific state, time, and/or origin conditions.
+     * Stored as JSONB array of ConditionalAbility records.
+     */
+    @Type(value = io.hypersistence.utils.hibernate.type.json.JsonType.class)
+    @Column(name = "conditional_abilities", columnDefinition = "jsonb")
+    private List<com.heirloom.security.condition.ConditionalAbility> conditionalAbilities = new java.util.ArrayList<>();
+
+    /**
      * Monotonically increasing version number. Incremented on
      * every schema change. Kept for historical query compatibility.
      */
@@ -169,6 +178,9 @@ public class ResourceType implements HeirloomEntity {
 
     public List<Ability> getAbilities() { return abilities; }
     public void setAbilities(List<Ability> abilities) { this.abilities = abilities; }
+
+    public List<com.heirloom.security.condition.ConditionalAbility> getConditionalAbilities() { return conditionalAbilities; }
+    public void setConditionalAbilities(List<com.heirloom.security.condition.ConditionalAbility> conditionalAbilities) { this.conditionalAbilities = conditionalAbilities; }
 
     public List<StateTransition> getStateMachine() { return stateMachine; }
     public void setStateMachine(List<StateTransition> stateMachine) { this.stateMachine = stateMachine; }

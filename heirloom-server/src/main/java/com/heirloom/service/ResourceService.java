@@ -26,10 +26,13 @@ public class ResourceService {
 
     private final ResourceRepository resourceRepo;
     private final TypeRepository typeRepo;
+    private final com.heirloom.graph.GraphStoreService graphStore;
 
-    public ResourceService(ResourceRepository resourceRepo, TypeRepository typeRepo) {
+    public ResourceService(ResourceRepository resourceRepo, TypeRepository typeRepo,
+                            com.heirloom.graph.GraphStoreService graphStore) {
         this.resourceRepo = resourceRepo;
         this.typeRepo = typeRepo;
+        this.graphStore = graphStore;
     }
 
     /**
@@ -214,6 +217,8 @@ public class ResourceService {
     /**
      * Soft-delete a Resource via the business layer.
      * Checks that the ResourceType declares the DROP ability.
+     * Cascades to owned resources (OWNERSHIP semantics), breaks incoming
+     * REFERENCE edges, and removes ASSOCIATION edges.
      */
     @Transactional
     public void markDeleted(String rid) {
@@ -228,9 +233,29 @@ public class ResourceService {
                     + "': type does not declare DROP ability");
         }
 
+        // Phase 2.5: Graph Store cascade
+        // 1. Collect and delete owned resources (OWNERSHIP)
+        var ownedRids = graphStore.collectOwnedRids(rid);
+        for (var ownedRid : ownedRids) {
+            var owned = resourceRepo.findByRid(ownedRid).orElse(null);
+            if (owned != null && !Boolean.TRUE.equals(owned.getDeleted())) {
+                owned.setDeleted(true);
+                resourceRepo.update(owned);
+                log.info("Cascade delete owned resource: rid={} (owned by {})", ownedRid, rid);
+            }
+        }
+
+        // 2. Break incoming REFERENCE edges
+        graphStore.breakReferences(rid);
+
+        // 3. Remove ASSOCIATION edges
+        graphStore.removeAssociations(rid);
+
+        // 4. Mark the resource itself deleted
         resource.setDeleted(true);
         resourceRepo.update(resource);
-        log.info("Resource marked deleted (CDC): rid={}", rid);
+        log.info("Resource marked deleted with cascade: rid={} ({} owned cascaded)",
+            rid, ownedRids.size());
     }
 
     // --- Private helpers ---

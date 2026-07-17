@@ -21,15 +21,20 @@ public class QueryRouter {
     private final FreshnessChecker freshness;
     private final DuckDbSyncService syncService;
     private final RawQueryAuthorizer authorizer;
+    private final QueryOptimizer optimizer;
+    private final QueryCache cache;
 
     public QueryRouter(SemanticExecutor semantic, DuckDbRawStore duckDb,
                        FreshnessChecker freshness, DuckDbSyncService syncService,
-                       RawQueryAuthorizer authorizer) {
+                       RawQueryAuthorizer authorizer,
+                       QueryOptimizer optimizer, QueryCache cache) {
         this.semantic = semantic;
         this.duckDb = duckDb;
         this.freshness = freshness;
         this.syncService = syncService;
         this.authorizer = authorizer;
+        this.optimizer = optimizer;
+        this.cache = cache;
     }
 
     public RouteDecision decide(QueryRequest req) {
@@ -58,13 +63,41 @@ public class QueryRouter {
 
     public QueryResult execute(QueryRequest req) throws Exception {
         RouteDecision decision = decide(req);
-        long start = System.currentTimeMillis();
-        switch (decision.mode()) {
-            case RAW:      return executeRaw(decision, start);
-            case HYBRID:   return executeHybrid(decision, start);
-            case SEMANTIC: return executeSemantic(decision, start);
-            default: throw new IllegalStateException("Unreachable: " + decision.mode());
+
+        // Phase 1.2: Check query cache
+        Map<String, Object> requestMap = buildRequestMap(decision);
+        var optResult = optimizer.optimize(requestMap);
+        if (optResult.isCacheHit()) {
+            log.debug("Cache hit for query: {}", optResult.cacheKey());
+            return optResult.cachedResult();
         }
+
+        long start = System.currentTimeMillis();
+        QueryResult result = switch (decision.mode()) {
+            case RAW:      yield executeRaw(decision, start);
+            case HYBRID:   yield executeHybrid(decision, start);
+            case SEMANTIC:
+            case AUTO:     yield executeSemantic(decision, start);
+        };
+
+        // Cache the result
+        optimizer.cacheResult(optResult.cacheKey(), result);
+        return result;
+    }
+
+    private Map<String, Object> buildRequestMap(RouteDecision d) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("mode", d.mode().name());
+        if (d.payload() != null) {
+            Map<String, Object> p = new LinkedHashMap<>();
+            p.put("type", d.payload().type());
+            p.put("filter", d.payload().filter());
+            p.put("fields", d.payload().fields());
+            map.put("payload", p);
+        }
+        if (d.rawTable() != null) map.put("rawTable", d.rawTable());
+        if (d.rawSql() != null) map.put("rawSql", d.rawSql());
+        return map;
     }
 
     private QueryResult executeSemantic(RouteDecision d, long start) throws Exception {

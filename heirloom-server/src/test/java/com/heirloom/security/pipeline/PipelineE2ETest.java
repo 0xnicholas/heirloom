@@ -43,6 +43,8 @@ class PipelineE2ETest {
     @Mock private ActionJpaRepository actionJpa;
     @Mock private RoleRepository roleRepo;
     @Mock private RoleCapabilityCache capabilityCache;
+    @Mock private com.heirloom.graph.GraphStoreService graphStore;
+    @Mock private com.heirloom.security.condition.ConditionEvaluator conditionEvaluator;
 
     private ResourceService resourceService;
     private ActionPipeline pipeline;
@@ -52,9 +54,9 @@ class PipelineE2ETest {
     @BeforeEach
     void setUp() {
         // Wire real services with mocked repos
-        resourceService = new ResourceService(resourceRepo, typeRepo);
+        resourceService = new ResourceService(resourceRepo, typeRepo, graphStore);
         capabilityResolver = new TypeSafeCapabilityResolver(capabilityCache);
-        pipeline = new ActionPipeline(capabilityResolver, resourceService, roleRepo, typeRepo);
+        pipeline = new ActionPipeline(capabilityResolver, resourceService, roleRepo, typeRepo, conditionEvaluator);
 
         // ResourceType fixture
         customerType = new ResourceType("Customer");

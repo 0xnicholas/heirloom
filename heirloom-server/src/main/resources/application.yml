@@ -19,6 +19,22 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  kafka:
+    bootstrap-servers: ${heirloom.pipeline.kafka.bootstrap-servers}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: com.heirloom.pipeline.kafka.PipelineEventSerializer
+      acks: ${heirloom.pipeline.kafka.producer.acks}
+      properties:
+        enable.idempotence: ${heirloom.pipeline.kafka.producer.enable-idempotence}
+        delivery.timeout.ms: ${heirloom.pipeline.kafka.producer.delivery-timeout-ms}
+        retries: ${heirloom.pipeline.kafka.producer.retries}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: com.heirloom.pipeline.kafka.PipelineEventDeserializer
+      auto-offset-reset: ${heirloom.pipeline.kafka.consumer.auto-offset-reset}
+      enable-auto-commit: ${heirloom.pipeline.kafka.consumer.enable-auto-commit}
+
 server:
   port: 8080
 
@@ -38,6 +54,22 @@ heirloom:
       max-rows: 5000000
       sample-threshold: 1000000
       sample-rate: 0.1
+
+  pipeline:
+    kafka:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      topic-events: heirloom.pipeline.events
+      topic-dlq: heirloom.pipeline.dlq
+      partitions: 3
+      replication-factor: 1
+      consumer:
+        auto-offset-reset: earliest
+        enable-auto-commit: false
+      producer:
+        acks: all
+        enable-idempotence: true
+        retries: 5
+        delivery-timeout-ms: 30000
 
 logging:
   level:

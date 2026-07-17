@@ -227,32 +227,64 @@ public class KafkaTopicConfig {
 public class KafkaBus implements PipelineEventBus {
 
     private final KafkaTemplate<String, PipelineEvent> kafkaTemplate;
+    private final PipelineRunJpaRepository runRepo;
+    private final Clock clock;
 
     @Value("${heirloom.pipeline.kafka.topic-events}")
     private String topic;
 
-    public KafkaBus(KafkaTemplate<String, PipelineEvent> kafkaTemplate) {
+    public KafkaBus(KafkaTemplate<String, PipelineEvent> kafkaTemplate,
+                     PipelineRunJpaRepository runRepo,
+                     Clock clock) {
         this.kafkaTemplate = kafkaTemplate;
+        this.runRepo = runRepo;
+        this.clock = clock;
     }
 
     @Override
     public void publish(PipelineEvent event) {
         String partitionKey = event.tenantId() + "::" + event.sourceFqn();
-        kafkaTemplate.send(topic, partitionKey, event);
+        kafkaTemplate.send(topic, partitionKey, event)
+            .whenComplete((result, ex) -> {
+                if (ex != null) {
+                    // Producer 发送失败（broker 不可达 / 序列化错误 / 超时）：
+                    // 标记 run 为 DEAD_LETTER 让 GET /v1/pipeline/runs 可见
+                    log.error("Kafka publish failed for eventId={}: {}",
+                        event.eventId(), ex.getMessage(), ex);
+                    markRunAsProducerError(event.runUuid(), ex.getMessage());
+                }
+            });
     }
 
     @Override
     public void start() {
         // Kafka 启动无需特殊动作；KafkaAdmin 在启动时自动建 topic
     }
+
+    private void markRunAsProducerError(UUID runUuid, String error) {
+        runRepo.findByRunUuid(runUuid).ifPresent(run -> {
+            run.setStatus(PipelineStatus.DEAD_LETTER);
+            run.setUpdatedAt(clock.instant());
+            run.setCompletedAt(clock.instant());
+            // 复用 last_error 列（PipelineRunEntity 暂无 last_error 字段——
+            // 若 spec 已添加则填，否则只更新状态）
+            runRepo.save(run);
+            log.warn("Run {} marked DEAD_LETTER due to producer error: {}", runUuid, error);
+        });
+    }
 }
 ```
 
 **关键约束：**
 - `publish()` 只发 Kafka，**不写 DB**。`pipeline_runs` 状态由 Projector 消费 `IngestionRequested` 后维护。
-- 同步发送（`kafkaTemplate.send()` 返回 `CompletableFuture`，不阻塞当前线程等待 ack）。
+- 同步发送（`kafkaTemplate.send()` 返回 `CompletableFuture`），但 `whenComplete` 回调处理失败：不抛异常给 caller（caller 是 PipelineService.startRun），而是后台异步更新 run 状态。
 - `acks=all` + `enable.idempotence=true` + `retries=5` 保证 broker 收到后才算成功（producer 端 at-least-once）。
 - partition key 保证同一 `(tenantId, sourceFqn)` 的事件进入同一分区，顺序保留。
+
+**Producer 失败的可见性（C4 修复）：**
+- 失败 → `pipeline_runs.status = DEAD_LETTER` + 可选 `last_error`
+- GET /v1/pipeline/runs/{uuid} 立即可见失败，无需轮询
+- 避免"永远 PENDING"的黑洞
 
 ---
 

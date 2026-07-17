@@ -2,7 +2,7 @@ package com.heirloom.pipeline.web;
 
 import com.heirloom.core.pipeline.PipelineStatus;
 import com.heirloom.core.pipeline.PipelineTriggerType;
-import com.heirloom.pipeline.persistence.*;
+import com.heirloom.pipeline.persistence.PipelineRunJpaRepository;
 import com.heirloom.pipeline.service.PipelineService;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
@@ -41,7 +41,6 @@ class PipelineE2EIntegrationTest {
     @Autowired TestRestTemplate rest;
     @Autowired PipelineService pipelineService;
     @Autowired PipelineRunJpaRepository runRepo;
-    @Autowired PipelineOutboxJpaRepository outboxRepo;
 
     @Test
     void triggerRunReturns202WithRunUuid() {
@@ -69,7 +68,7 @@ class PipelineE2EIntegrationTest {
     }
 
     @Test
-    void runStatusTransitionsThroughOutboxProcessing() {
+    void runStatusTransitionsThroughKafkaBus() {
         var run = pipelineService.startRun("default", "e2e.db",
             List.of("e2e.db.t1"), PipelineTriggerType.MANUAL);
 
@@ -78,14 +77,6 @@ class PipelineE2EIntegrationTest {
                 var status = runRepo.findByRunUuid(run.getRunUuid()).orElseThrow().getStatus();
                 assertThat(status).isIn(PipelineStatus.COMPLETED, PipelineStatus.DEAD_LETTER,
                     PipelineStatus.RUNNING, PipelineStatus.RETRYING);
-            });
-
-        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(500))
-            .untilAsserted(() -> {
-                var pending = outboxRepo.findAll().stream()
-                    .filter(r -> r.getStatus().equals("PENDING") || r.getStatus().equals("CLAIMED"))
-                    .count();
-                assertThat(pending).isZero();
             });
     }
 

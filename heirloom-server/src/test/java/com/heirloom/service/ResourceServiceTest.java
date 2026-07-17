@@ -1,6 +1,7 @@
 package com.heirloom.service;
 
 import com.heirloom.domain.Resource;
+import com.heirloom.graph.GraphStoreService;
 import com.heirloom.repository.ResourceRepository;
 import com.heirloom.repository.TypeRepository;
 import com.heirloom.schema.domain.*;
@@ -29,13 +30,16 @@ class ResourceServiceTest {
     @Mock
     private TypeRepository typeRepo;
 
+    @Mock
+    private GraphStoreService graphStore;
+
     private ResourceService service;
 
     private ResourceType customerType;
 
     @BeforeEach
     void setUp() {
-        service = new ResourceService(resourceRepo, typeRepo);
+        service = new ResourceService(resourceRepo, typeRepo, graphStore);
 
         customerType = new ResourceType("Customer");
         customerType.setDomain("default");
