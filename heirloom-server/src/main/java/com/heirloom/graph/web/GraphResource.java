@@ -1,6 +1,7 @@
 package com.heirloom.graph.web;
 
 import com.heirloom.graph.GraphStoreService;
+import com.heirloom.graph.RelationshipDto;
 import com.heirloom.graph.ResourceRelationshipEntity;
 import com.heirloom.graph.ResourceRelationshipJpaRepository;
 import org.springframework.http.HttpStatus;
@@ -30,13 +31,13 @@ public class GraphResource {
     // ─── Relationship CRUD ───────────────────────────────────────────────
 
     @PostMapping("/relationships")
-    public ResponseEntity<GraphStoreService.RelationshipDto> createRelationship(
+    public ResponseEntity<RelationshipDto> createRelationship(
             @RequestBody CreateRelationshipRequest req) {
         var entity = graphStore.addRelationship(
             req.sourceRid(), req.targetRid(),
             req.relationshipType(), req.semantics(), req.createdBy());
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(GraphStoreService.RelationshipDto.from(entity));
+            .body(RelationshipDto.from(entity));
     }
 
     @DeleteMapping("/relationships/{id}")
@@ -46,35 +47,35 @@ public class GraphResource {
     }
 
     @GetMapping("/relationships/{id}")
-    public ResponseEntity<GraphStoreService.RelationshipDto> getRelationship(@PathVariable Long id) {
+    public ResponseEntity<RelationshipDto> getRelationship(@PathVariable Long id) {
         return repo.findById(id)
             .filter(e -> !Boolean.TRUE.equals(e.getDeleted()))
-            .map(e -> ResponseEntity.ok(GraphStoreService.RelationshipDto.from(e)))
+            .map(e -> ResponseEntity.ok(RelationshipDto.from(e)))
             .orElse(ResponseEntity.notFound().build());
     }
 
     // ─── Traversal ───────────────────────────────────────────────────────
 
     @GetMapping("/outgoing/{rid}")
-    public List<GraphStoreService.RelationshipDto> outgoing(@PathVariable String rid) {
+    public List<RelationshipDto> outgoing(@PathVariable String rid) {
         return graphStore.traverseOutgoing(rid).stream()
-            .map(GraphStoreService.RelationshipDto::from)
+            .map(RelationshipDto::from)
             .toList();
     }
 
     @GetMapping("/incoming/{rid}")
-    public List<GraphStoreService.RelationshipDto> incoming(@PathVariable String rid) {
+    public List<RelationshipDto> incoming(@PathVariable String rid) {
         return graphStore.traverseIncoming(rid).stream()
-            .map(GraphStoreService.RelationshipDto::from)
+            .map(RelationshipDto::from)
             .toList();
     }
 
     @GetMapping("/traverse/{rid}")
-    public List<GraphStoreService.RelationshipDto> traverse(
+    public List<RelationshipDto> traverse(
             @PathVariable String rid,
             @RequestParam(defaultValue = "3") int depth) {
         return graphStore.traverseBfs(rid, Math.min(depth, 10)).stream()
-            .map(GraphStoreService.RelationshipDto::from)
+            .map(RelationshipDto::from)
             .toList();
     }
 

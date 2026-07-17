@@ -55,6 +55,9 @@ heirloom:
       sample-threshold: 1000000
       sample-rate: 0.1
 
+  graph:
+    store-type: postgres  # postgres (default) or neo4j
+
   pipeline:
     kafka:
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}

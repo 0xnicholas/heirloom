@@ -93,6 +93,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Neo4j Java Driver (Phase 4.3: Graph Store adapter) -->
+        <dependency>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
+        </dependency>
+
         <!-- JSONB support for JPA -->
         <dependency>
             <groupId>io.hypersistence</groupId>
