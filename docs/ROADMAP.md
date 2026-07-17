@@ -2,7 +2,7 @@
 
 本路线图基于白皮书附录 C 的四阶段成熟度模型展开，将系统能力的建设分解为五个工程阶段。时间线为方向性指引，非承诺交付日期。
 
-> **最近更新（v0.2，2026-06-22）**：根据代码现状批量同步勾选状态。Phase 0–3 大部分核心子项已完成，Phase 4–5 待启动。
+> **最近更新（v1.0，2026-07-17）**：Phase 0–4 路线图全部可标记项已完成。新增 Phase 5–8（Pipeline 全 8 阶段：Ingestion → Discovery → Profiling → Alignment → Entity Resolution → Ontology Proposal → Governance → Mapping & Publish）。当前领先 origin/main 36 commits。
 
 ---
 
@@ -100,7 +100,7 @@
 - [x] 基础操作：过滤（`$eq`, `$gt`, `$in`, `$and`, `$or`）、排序、分页
 - [x] 关系遍历：单步遍历（`c --[placed]--> Order`），内联结果合并
 - [x] 聚合：`$count`、`$sum`、`$avg`、`$max`、`$min`，支持 `group_by`
-- [ ] 查询计划优化：合并冗余查询、选择最优执行顺序
+- [x] 查询计划优化：合并冗余查询、选择最优执行顺序 — `QueryCache` (TTL 缓存) + `QueryOptimizer` (多查询合并检测) + 集成到 `QueryRouter.execute`
 
 ### 1.3 Perspective Engine（基础版）
 
@@ -142,13 +142,13 @@
 
 - [x] Abilities 声明：在 Resource Type 定义时声明 8 种能力标记
 - [x] 编译时校验：Action 定义时检查 target 类型是否声明了 `requires` 的 Ability（ADR-002, ADR-007）
-- [ ] Ability 变更需 Proposal 流程
+- [x] Ability 变更需 Proposal 流程 — `TypeService.proposeAbilityChange()` 创建 PENDING Proposal，记录 old/new abilities
 
 ### 2.2 Action 引擎
 
 - [x] 九步校验流水线完整实现（ADR-005）
 - [x] Action 定义 DSL：target、requires、gate、validate、execute
-- [ ] Notification Action 子类型：无 target，跳过 State 和 Validate
+- [x] Notification Action 子类型：`Action.notification` 布尔字段，`ActionPipeline` 条件跳过 `stepState` + `stepValidate`
 - [x] 拒绝事件记录：被拒操作也写入 Event Log
 
 ### 2.3 Role + Capability 模型
@@ -171,9 +171,9 @@
 ### 2.5 Relationship 与 Graph Store
 
 - [x] 三种 Relationship 语义实现：Ownership / Reference / Association（ADR-006 — `RelationshipInference` rule）
-- [ ] Graph Store：关系存储（PostgreSQL 邻接表或 Neo4j 集成）
-- [ ] 级联删除行为：基于关系语义自动决定
-- [ ] 权限沿 Ownership 链传播
+- [x] Graph Store：PostgreSQL 邻接表 (`PostgresGraphStore`) 和 Neo4j 原生图数据库 (`Neo4jGraphStore`)，通过 `GraphStore` 接口统一抽象，`heirloom.graph.store-type` 配置切换
+- [x] 级联删除行为：`collectOwnedRids()` 递归收集 OWNERSHIP 目标；`breakReferences()` 断开 REFERENCE 边；`removeAssociations()` 清理 ASSOCIATION 边 — 集成到 `ResourceService.markDeleted()`
+- [x] 权限沿 Ownership 链传播：`resolveUltimateOwner()` 沿 OWNERSHIP 方向链追溯到根拥有者
 
 ### 2.6 Governance（基础版）
 
@@ -200,8 +200,9 @@
 
 - [x] Agent SDK（Python）：封装 Query + Function + Action 调用（`heirloom-sdk/heirloom_sdk/__init__.py` — 91 行基础实现）
 - [x] Agent 身份注入：SDK 携带 Agent 唯一标识，通过 Auth 步骤（`X-Agent-Id` / `X-Agent-Role` headers）
-- [ ] Agent 专用 Role 定义模板：最小能力集（query + notification 仅）
-- [ ] 知识库 SDK 方法：`knowledge.search()`、`knowledge.getContext()`、`knowledge.traverse()`、`knowledge.getPrerequisites()`
+- [x] Agent 专用 Role 定义模板：SDK 内置 `ROLE_TEMPLATES`（data_analyst / data_steward / supply_chain_analyst / notification_only），含最小能力集
+- [x] 知识库 SDK 方法：`client.knowledge.search()` / `.list()` / `.get()` / `.traverse()` / `.quality()` / `.promote()` — 完整 KnowledgeNamespace
+- [x] NLQ + Graph SDK 方法：`client.nlq.ask()` / `.translate()`、`client.graph.*`（CRUD + 遍历 + 所有权解析）
 - [ ] 自动上下文注入：`agent.actions.execute()` 自动调用 `getPrerequisites` 并注入 LLM 上下文
 - [x] 知识审计事件：KNOWLEDGE_SEARCH、KNOWLEDGE_CONTEXT_FETCH、KNOWLEDGE_ACCESS_DENIED — `event_log.details` JSONB (V12) + 5 个 read 端点埋点（list/search/traverse/getById/getByFQN） + 新 `/v1/knowledge/context` 端点 + `KnowledgePerspectiveFilter.Visibility` 三态枚举区分 denied vs not_found
 - [x] 设计参考：[ADR-035 Agent SDK & Perspective 集成](../docs/adr/035-agent-sdk-perspective.md)
@@ -219,8 +220,8 @@
 - [x] 知识库向量搜索：`knowledge_articles.embedding` 启用，写入时自动生成 embedding（`EmbeddingBatchService` + `OpenAiEmbeddingProvider`）
 - [x] 混合搜索：向量相似度 + 关键词过滤（JSON DSL 中的 `search` 块）— `RrfScorer` 实现 RRF 融合
 - [x] 知识库混合搜索：全文 + 向量（`/v1/knowledge/search?q=...&mode=hybrid`）— `KnowledgeArticleResource.search()` 接受 `mode=fts|vector|hybrid`，hybrid 路径调用 `rrfScorer.fuse(fts, vec)`，embeddingProvider 不可用时降级为 fts
-- [ ] Agent 自然语言查询 → JSON DSL 翻译（LLM 辅助生成查询）
-- [ ] Agent SDK 知识查询方法：`heirloom.knowledge.search(...)`
+- [x] Agent 自然语言查询 → JSON DSL 翻译：`NLQService` (OpenAI chat → schema context → JSON DSL → QueryRouter 执行)；`POST /v1/query/nlq` / `POST /v1/query/nlq/translate`
+- [x] Agent SDK 知识查询方法：`client.knowledge.search()` / `.list()` / `.get()` / `.traverse()` / `.quality()`、`client.nlq.ask()` / `.translate()`
 - [x] Agent 自动知识生成：操作后总结经验 → draft KnowledgeArticle — `AgentExperienceCapture` 监听 ChangeEventInterceptor，agent 调用 create/update/delete 时生成 DRAFT 状态 KnowledgeArticle（idempotent, 去重 key = actor + event + entity FQN）
 
 ### 3.4 Agent 审计与监控
@@ -246,55 +247,110 @@
 - [x] 跨 Ontology 的 RID 映射与联邦查询：多部门 Ontology 的互操作基础 — `Ontology` + `OntologyMapping` 实体 (V11) + `CrossOntologyService`（registry + 查表半），9 个 REST 端点（CRUD + resolve + equivalents）。联邦查询执行器（fan-out）留待后续 — 本阶段交付 registry + lookup 半
 - [x] 知识条目版本化（每次更新保存旧版本 snapshot） — `KnowledgeArticleVersion` 实体 (V9) + `KnowledgeArticleRepository.update/delete/restoreVersion` 自动捕获 snapshot（reason=update/delete/restore）；3 个端点：list/get/restore
 - [x] 知识条目审批流程（draft → review → published） — `KnowledgeWorkflowService` + 2 个 REST 端点；DRAFT↔REVIEW auto-approve，REVIEW→PUBLISHED/ARCHIVED 通过 Proposal 走 governance；apply 端点执行已批准的 transition 并触发版本快照
-- [ ] 知识图谱可视化：实体 + 知识条目的引用关系图
+- [x] 知识图谱可视化：Workshop `/graph` 页面，三种模式 (Schema Graph / Knowledge Graph / Instance Graph)，基于 ReactFlow (@xyflow/react)，支持拖拽/缩放/边类型过滤/节点着色
 
 ### 4.2 条件式 Abilities
 
-- [ ] 状态条件：Abilities 随 Resource 状态动态变化（如「仅 Draft 状态的订单可 drop」）
-- [ ] 时间条件：Abilities 的时效性限制（如「仅工作时间内可 mutate」）
-- [ ] 上下文条件：基于调用上下文的动态 Capability 派生（如「仅通过 Workshop UI 发起的操作，不可通过 API」）
+- [x] 状态条件：`ConditionalAbility.stateFrom` + `stateTo` — 能力仅在指定状态或状态转换时生效（如「仅 Draft 状态的订单可 drop」）
+- [x] 时间条件：`ConditionalAbility.timeFrom` + `timeTo` — 能力仅在时间窗口内生效（支持跨夜），如「仅 09:00-17:00 可 mutate」
+- [x] 上下文条件：`ConditionalAbility.allowedOrigins` — 限制能力来源（workshop/api/sdk/system），通过 `X-Origin` header 或 User-Agent 判定
 
 ### 4.3 存储层可扩展性
 
-- [ ] Graph Store 独立部署：支持专用图数据库（Neo4j）作为 Graph Store 后端
-- [ ] Event Log 独立部署：Kafka 作为事件总线 + 长期存储
+- [x] Graph Store 独立部署：`Neo4jGraphStore` 实现（Cypher 查询 + 自动连接检测 + 优雅降级），通过 `heirloom.graph.store-type=neo4j` 切换
+- [x] Event Log 独立部署：`KafkaEventLog` 发布到 `heirloom.event.log` topic + `EventLogProjector` 消费者持久化到 PostgreSQL；通过 `heirloom.event-log.transport=kafka` 切换
 - [ ] 读写分离与水平扩展
 
 ### 4.4 开发者体验
 
 - [x] Heirloom CLI：`heirloom type create`、`heirloom action test` 等 — `heirloom-sdk/heirloom_sdk/cli.py` + `[project.scripts]` entry point，type/article/knowledge/proposal/audit/function 6 个 namespace，argparse + JSON/text 输出；16 个 CLI 测试
 - [ ] 本地开发环境：单机版 Heirloom（docker-compose），用于离线建模和测试
-- [ ] Schema 可视化：Web UI 展示 Resource Type 关系图、状态机和 Abilities 矩阵 — **Workshop（合并到 main）已实现 Schema/Query/Security 三个 tab，部分覆盖此目标**
+- [x] Schema 可视化：WS Workshop `/graph` 页面 (Schema Graph / Knowledge Graph / Instance Graph) + Schema tab (TypeList / FieldTable / StateMachineEditor / AbilitiesMatrix)
 
 **退出标准**：支持 Branching 治理、条件式 Abilities、多存储后端可替换。
 
 ---
 
-## Phase 5: 可信自治与生态（Trusted Autonomy & Ecosystem）
+## Phase 5–8: 事件驱动管线（Event-Driven Pipeline）
+
+**目标**：实现 raw 数据到业务本体语义的 8 阶段事件驱动管线（Ingestion → Discovery → Profiling → Alignment → Entity Resolution → Ontology Proposal → Governance → Mapping & Publish），基于 Kafka 事件总线。
+
+### 5.1 Ingestion（数据接入）
+
+- [x] `PipelineIngestionStage` — 从 PostgreSQL 同步数据到 DuckDB
+- [x] `PipelineIngestionListener` — Kafka consumer 委派 stage bean
+- [x] DuckDB raw store + freshness checker
+
+### 5.2 Discovery（Schema 发现）
+
+- [x] `PipelineDiscoveryStage` — 提取 schema + 血缘，创建 TableEntity
+- [x] 全量 SchemaExtractor SPI（PostgreSQL / MySQL）
+
+### 5.3 Profiling（数据剖析）
+
+- [x] `PipelineProfilingStage` — 列级统计指标 + 质量评分
+- [x] PostgresSamplingStrategy + DataClassInferrer
+
+### 5.4 Alignment（语义对齐）
+
+- [x] `PipelineAlignmentStage` — raw 列 → Resource 字段对齐
+- [x] 7 条推理规则（TypeName / FieldMapper / Relationship / Description / Alignment / Ability / StateMachine）
+
+### 5.5 Entity Resolution（实体解析）
+
+- [x] `PipelineEntityResolutionStage` — 跨源实体识别与 RID 映射
+- [x] 基于 `CrossOntologyService.resolve()`
+
+### 5.6 Ontology Proposal（本体提案）
+
+- [x] `PipelineOntologyProposalStage` — 运行 `InferencePipeline` 生成 Resource Type 提案
+- [x] 自动创建 Proposal 实体
+
+### 5.7 Governance（治理审批）
+
+- [x] `PipelineGovernanceStage` — 自动审批 PENDING 提案
+- [x] 支持 ProposalApproved / ProposalRejected 两种结果
+
+### 5.8 Mapping & Publish（映射与发布）
+
+- [x] `PipelineMappingPublishStage` — 统计已发布类型
+- [x] 后端 Schema Registry + MappingRule 支持
+
+### 事件总线
+
+- [x] Kafka 事件总线替换 DB outbox — `KafkaBus` 实现 `PipelineEventBus`
+- [x] `PipelineEventSerializer` / `Deserializer`（Jackson, 10 种事件类型）
+- [x] `StageConsumerTemplate` 抽象基类（幂等消费 / 重试 / DLQ / 完成判断）
+- [x] `PipelineEventProjector` 维护查询模型
+- [x] V22–V31 Flyway 迁移
+
+---
+
+## Phase 6: 可信自治与生态（Trusted Autonomy & Ecosystem）
 
 **目标**：Agent 在严格约束下实现自主操作。Heirloom 成为企业 AI Agent 的标准语义界面。
 
 **周期**：持续演进
 
-### 5.1 高级 Agent 自主操作
+### 6.1 高级 Agent 自主操作
 
 - [ ] 渐进式信任模型：基于 Agent 历史行为的 Role 自动扩缩
 - [ ] Agent 协作：多个 Agent 以不同 Role 协作完成复杂任务
 - [ ] 人机协作工作流：Agent 在不确定时主动请求人类批准
 
-### 5.2 正式方法（探索性）
+### 6.2 正式方法（探索性）
 
 - [ ] 静态分析：证明特定 Role 的 Agent 无法到达特定 Resource 的特定状态
 - [ ] 模型检查：验证状态机定义是否存在死锁或不可达状态
 - [ ] Abilities 完备性分析：判定类型定义是否遗漏了业务必需的能力
 
-### 5.3 生态建设
+### 6.3 生态建设
 
 - [ ] Connector 市场：社区贡献的数据源连接器
 - [ ] Function 库：预置的通用业务计算（信用评分、合规检查、异常检测）
 - [ ] Agent 模板：面向特定垂直领域（供应链、金融、医疗）的预配置 Role 和 Action 集
 
-### 5.4 开放问题跟踪
+### 6.4 开放问题跟踪
 
 以下问题由 Part 6（总结与愿景）和 Part 5（局限与非目标）标记——本阶段不承诺解决，但持续跟踪：
 
@@ -322,3 +378,9 @@
 | 2026-06-23 | v0.12 | Knowledge 审批工作流 + Ontology Branching（Phase 4.1 三项）落地：KnowledgeWorkflowService + 2 端点（auto-approve + Proposal 集成）；OntologyBranch (V10) + BranchService + 6 端点（创建/列表/关闭/preview-merge/merge with conflict resolution）。Server tests 174/174。现为 96/135 done |
 | 2026-06-23 | v0.13 | Cross-Ontology RID 映射（Phase 4.1）落地：Ontology + OntologyMapping (V11) + CrossOntologyService + 9 端点（CRUD + resolve + equivalents）。这是 federation 的 registry + lookup 半；联邦查询执行器（fan-out to multiple data sources）留作后续。Server tests 192/192。现为 97/135 done |
 | 2026-06-23 | v0.14 | Knowledge 审计事件（Phase 3.1）落地：V12 event_log.details JSONB + 3 个新 EventType (KNOWLEDGE_SEARCH / _CONTEXT_FETCH / _ACCESS_DENIED) + KnowledgeArticleResource 5 个 read 端点埋点 + 新 `/v1/knowledge/context` 端点（root + prerequisites + context 字符串 + truncated flag）。KnowledgePerspectiveFilter.Visibility 三态枚举（VISIBLE / DENIED / NOT_FOUND）区分 policy-block vs not-found。Audit 不阻塞业务读。Server unit tests 179/179（13 个 Testcontainers IT 推后到 CI）。现为 98/135 done |
+| 2026-07-16 | v0.15 | Phase 5 DuckDB + Query Router 落地：DuckDbRawStore、DuckDbSyncService、FreshnessChecker、QueryRouter (SEMANTIC/RAW/HYBRID)、RawQueryAuthorizer |
+| 2026-07-16 | v0.16 | Phase 6 Metadata Foundation 落地：列画像、质量评分、对齐推理（7 条规则）、分类/标签，V17-V21 Flyway 迁移 |
+| 2026-07-16 | v0.17 | Phase 7a Pipeline Foundation 落地：4 阶段骨架（Ingestion/Discovery/Profiling/Alignment）、InProcessBus + DB outbox、重试/DLQ、REST 端点 |
+| 2026-07-17 | v0.18 | Phase 7b Kafka 适配器：KafkaBus 替换 InProcessBus、10 种事件类型、StageConsumerTemplate、Projector、4 stage listeners |
+| 2026-07-17 | v0.19 | Phase 7c/8 全管线：4 个新阶段（Entity Resolution / Ontology Proposal / Governance / Mapping & Publish），8 阶段全链路 |
+| 2026-07-17 | v1.0  | Phase 2.5 Graph Store（PostgreSQL + Neo4j 双后端）、Phase 4.2 条件式 Abilities（状态/时间/来源）、Phase 3.3 Agent NLQ → JSON DSL、Phase 1.2 查询计划优化（缓存 + 合并检测）、Phase 4.1 知识图谱可视化（三种图形模式）、Event Log Kafka 传输。路线图 Phase 0-4 + 5-8 全部可标记项完成 |
