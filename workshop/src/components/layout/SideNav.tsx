@@ -7,6 +7,7 @@ import {
   IconHammer,
   IconList,
   IconGitMerge,
+  IconHierarchy2,
   IconPlayerPlay,
   IconCode,
   IconShieldCheck,
@@ -49,6 +50,7 @@ const groups: NavGroup[] = [
       { to: '/builder', label: 'Builder', icon: IconHammer },
       { to: '/attributes', label: 'Attributes', icon: IconList },
       { to: '/relationships', label: 'Relationships', icon: IconGitMerge },
+      { to: '/graph', label: 'Graphs', icon: IconHierarchy2 },
     ],
   },
   {

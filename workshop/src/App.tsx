@@ -7,6 +7,7 @@ import { ExplorerPage } from './pages/ExplorerPage'
 import { BuilderPage } from './pages/BuilderPage'
 import { AttributesPage } from './pages/AttributesPage'
 import { RelationshipsPage } from './pages/RelationshipsPage'
+import { GraphPage } from './pages/GraphPage'
 import { ActionsPage } from './pages/ActionsPage'
 import { RolesPage } from './pages/RolesPage'
 import { FunctionsPage } from './pages/FunctionsPage'
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/builder" element={<BuilderPage />} />
         <Route path="/attributes" element={<AttributesPage />} />
         <Route path="/relationships" element={<RelationshipsPage />} />
+        <Route path="/graph" element={<GraphPage />} />
         <Route path="/actions" element={<ActionsPage />} />
         <Route path="/actions/:actionName" element={<ActionsPage />} />
         <Route path="/roles" element={<RolesPage />} />
