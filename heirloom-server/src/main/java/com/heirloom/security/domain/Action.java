@@ -61,6 +61,10 @@ public class Action implements HeirloomEntity {
     @Column(name = "input_schema_json", columnDefinition = "jsonb")
     private List<ActionInput> inputSchemaJson;
 
+    /** Phase 2.2: Notification actions have no target resource — skip State + Validate steps. */
+    @Column(nullable = false)
+    private Boolean notification = false;
+
     private String description;
 
     @Version
@@ -134,6 +138,9 @@ public class Action implements HeirloomEntity {
 
     @Override
     public Long getVersion() { return version; }
+
+    public Boolean getNotification() { return notification; }
+    public void setNotification(Boolean n) { this.notification = n; }
 
     @Override
     public String getChangeHash() { return changeHash; }

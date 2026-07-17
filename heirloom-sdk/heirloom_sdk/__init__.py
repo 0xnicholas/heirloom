@@ -77,6 +77,8 @@ class HeirloomClient:
         self._audit: Optional["AuditNamespace"] = None
         self._resources: Optional["ResourcesNamespace"] = None
         self._actions: Optional["ActionsNamespace"] = None
+        self._nlq: Optional["NLQNamespace"] = None
+        self._graph: Optional["GraphNamespace"] = None
 
     # --- Namespace accessors ---
 
@@ -121,6 +123,18 @@ class HeirloomClient:
         if self._actions is None:
             self._actions = ActionsNamespace(self)
         return self._actions
+
+    @property
+    def nlq(self) -> "NLQNamespace":
+        if self._nlq is None:
+            self._nlq = NLQNamespace(self)
+        return self._nlq
+
+    @property
+    def graph(self) -> "GraphNamespace":
+        if self._graph is None:
+            self._graph = GraphNamespace(self)
+        return self._graph
 
     # === Discovery ===
 
@@ -618,6 +632,117 @@ class ActionsNamespace:
                 "targetResourceId": target_resource_id,
                 "params": params or {},
             },
+        )
+        r.raise_for_status()
+        return r.json()
+
+@dataclass
+class NLQNamespace:
+    """Natural Language Query — ``client.nlq.*``.
+
+    Phase 3.3: Translates natural language questions into Heirloom JSON DSL
+    via an LLM (OpenAI), then executes the query against registered ResourceTypes.
+    """
+
+    _client: HeirloomClient
+
+    def ask(self, question: str, mode: Optional[str] = None) -> Dict[str, Any]:
+        """Ask a natural language question and get executed results back.
+
+        ``mode`` can be "semantic" (default), "raw", or "hybrid".
+        Returns ``{"success": bool, "generatedQuery": str, "result": {...}}``.
+        """
+        payload: Dict[str, Any] = {"question": question}
+        if mode:
+            payload["mode"] = mode
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/query/nlq",
+            json=payload,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def translate(self, question: str) -> Dict[str, Any]:
+        """Translate a question to JSON DSL without executing.
+
+        Returns ``{"success": bool, "generatedQuery": str}``.
+        Use this to preview what the LLM generated before running it.
+        """
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/query/nlq/translate",
+            json={"question": question},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+@dataclass
+class GraphNamespace:
+    """Graph Store — ``client.graph.*``.
+
+    Phase 2.5: Manages instance-level resource relationships and graph traversal.
+    Supports relationship CRUD, BFS traversal, and ownership chain resolution.
+    """
+
+    _client: HeirloomClient
+
+    def create_relationship(self, source_rid: str, target_rid: str,
+                            relationship_type: str, semantics: str = "REFERENCE",
+                            created_by: str = "agent") -> Dict[str, Any]:
+        """Create a relationship between two resources.
+
+        ``semantics``: ``OWNERSHIP`` (cascade delete), ``REFERENCE`` (weak link),
+        or ``ASSOCIATION`` (loose coupling).
+        """
+        r = self._client._session.post(
+            f"{self._client.base_url}/v1/graph/relationships",
+            json={
+                "sourceRid": source_rid,
+                "targetRid": target_rid,
+                "relationshipType": relationship_type,
+                "semantics": semantics,
+                "createdBy": created_by,
+            },
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def delete_relationship(self, relationship_id: int) -> None:
+        """Soft-delete a relationship by ID."""
+        r = self._client._session.delete(
+            f"{self._client.base_url}/v1/graph/relationships/{relationship_id}"
+        )
+        r.raise_for_status()
+
+    def outgoing(self, rid: str) -> List[Dict[str, Any]]:
+        """Get all outgoing relationships from a resource."""
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/graph/outgoing/{rid}"
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def incoming(self, rid: str) -> List[Dict[str, Any]]:
+        """Get all incoming relationships to a resource."""
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/graph/incoming/{rid}"
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def traverse(self, rid: str, depth: int = 3) -> List[Dict[str, Any]]:
+        """BFS graph traversal from a resource up to ``depth`` hops."""
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/graph/traverse/{rid}",
+            params={"depth": depth},
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def ultimate_owner(self, rid: str) -> Dict[str, Any]:
+        """Resolve the ultimate owner of a resource via the OWNERSHIP chain."""
+        r = self._client._session.get(
+            f"{self._client.base_url}/v1/graph/owner/{rid}"
         )
         r.raise_for_status()
         return r.json()

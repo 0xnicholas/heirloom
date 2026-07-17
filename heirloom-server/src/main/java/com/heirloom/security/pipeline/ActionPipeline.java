@@ -63,8 +63,13 @@ public class ActionPipeline {
             stepRole(ctx);       // 2
             stepCapability(ctx); // 3 — resolve and cache
             stepGate(ctx);       // 4 — use cached capabilities
-            stepState(ctx);      // 5
-            stepValidate(ctx);   // 6
+
+            // Phase 2.2: Notification actions skip State + Validate (no target resource)
+            if (!Boolean.TRUE.equals(ctx.getAction().getNotification())) {
+                stepState(ctx);      // 5
+                stepValidate(ctx);   // 6
+            }
+
             stepExecute(ctx);    // 7
             stepEvent(ctx, pipelineStart);  // 8
             stepNotify(ctx);     // 9

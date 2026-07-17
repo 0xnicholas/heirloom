@@ -1,11 +1,19 @@
 package com.heirloom.schema.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.heirloom.repository.ProposalJpaRepository;
+import com.heirloom.schema.domain.Ability;
+import com.heirloom.schema.domain.Proposal;
 import com.heirloom.schema.domain.ResourceType;
 import com.heirloom.schema.dto.CreateTypeRequest;
 import com.heirloom.service.EntityService;
 import com.heirloom.repository.TypeRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,10 +25,54 @@ import java.util.Set;
 @Service
 public class TypeService implements EntityService<ResourceType> {
 
-    private final TypeRepository typeRepo;
+    private static final Logger log = LoggerFactory.getLogger(TypeService.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public TypeService(TypeRepository typeRepo) {
+    private final TypeRepository typeRepo;
+    private final ProposalJpaRepository proposalJpa;
+
+    public TypeService(TypeRepository typeRepo, ProposalJpaRepository proposalJpa) {
         this.typeRepo = typeRepo;
+        this.proposalJpa = proposalJpa;
+    }
+
+    /**
+     * Phase 2.1: Changing abilities requires a Proposal.
+     * Creates a governance proposal instead of applying the change directly.
+     * Returns the created Proposal, or null if abilities were not changed.
+     */
+    public Proposal proposeAbilityChange(String typeName, List<Ability> newAbilities, String proposedBy) {
+        ResourceType type = typeRepo.findByName(typeName)
+            .orElseThrow(() -> new IllegalArgumentException("Type not found: " + typeName));
+
+        var oldAbilities = type.getAbilities();
+        if (oldAbilities != null && oldAbilities.equals(newAbilities)) {
+            log.info("No ability change for {} — identical", typeName);
+            return null;
+        }
+
+        var proposal = new Proposal();
+        proposal.setName("Change abilities on " + typeName);
+        proposal.setTargetEntityType("resourceType");
+        proposal.setTargetEntityFQN(type.getFullyQualifiedName());
+        proposal.setChangeType("UPDATE_ABILITIES");
+        proposal.setSource("governance");
+        proposal.setProposedBy(proposedBy);
+        proposal.setStatus("PENDING");
+
+        try {
+            Map<String, Object> changes = new LinkedHashMap<>();
+            changes.put("oldAbilities", oldAbilities);
+            changes.put("newAbilities", newAbilities);
+            proposal.setProposedChanges(MAPPER.writeValueAsString(changes));
+        } catch (Exception e) {
+            proposal.setProposedChanges("{\"error\":\"serialization failed\"}");
+        }
+
+        var saved = proposalJpa.save(proposal);
+        log.info("Proposal created for ability change on {}: {} (proposal #{})",
+            typeName, newAbilities, saved.getId());
+        return saved;
     }
 
     @Override
