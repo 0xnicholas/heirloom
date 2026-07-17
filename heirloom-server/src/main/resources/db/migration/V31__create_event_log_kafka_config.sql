@@ -1,0 +1,6 @@
+-- V31__create_event_log_kafka_config.sql
+-- Phase 4.3: Event Log Kafka transport.
+-- The event_log table already exists; this migration adds config metadata
+-- for the Kafka transport. No schema changes needed — the table is shared
+-- between JDBC and Kafka transport modes.
+-- Kafka topic "heirloom.event.log" is auto-created by KafkaAdmin.

@@ -58,6 +58,9 @@ heirloom:
   graph:
     store-type: postgres  # postgres (default) or neo4j
 
+  event-log:
+    transport: jdbc  # jdbc (default) or kafka
+
   pipeline:
     kafka:
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
