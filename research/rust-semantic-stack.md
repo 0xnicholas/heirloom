@@ -31,6 +31,8 @@
 | Python 互操作 | `pyo3` + `maturin` + `arrow-pyarrow` | 子进程 + Arrow IPC | **Python 处理层独立进程**；PyO3 做 SDK/可选嵌入 |
 | 可观测性 | `tracing` + `tracing-subscriber` | `opentelemetry` + OTLP | 默认结构化日志；OTLP 可选 feature |
 
+四个特别问题分别在 §3.1（Oxigraph）、§3.2（rudof SHACL/ShEx）、§3.3（ascent/crepe 证明树与 TMS）、§3.4（许可证）回答。
+
 ### 1.2 十条关键判断
 
 1. **Oxigraph 能同时承担 RDF 存储 + SPARQL 查询 + 事务，但有明确边界**：嵌入模式是 `Store::new()`（内存）或 `Store::open(path)`（RocksDB 磁盘）；事务是 repeatable-read、原子、**写事务持锁且把全部变更缓存在内存**；同一数据库目录**只能有一个读写实例**；它适合 v0.1 的 RDF 主存储，不适合当通用 OLTP 库。[Store docs](https://docs.rs/oxigraph/latest/oxigraph/store/struct.Store.html)
@@ -91,7 +93,7 @@ Rust 语义核心可以打成单二进制（Oxigraph 静态链接 RocksDB、redb
 | 候选 | 版本（发布） | 许可证 | 活跃度 | 成熟度 | 性能/契合 | 风险 | 结论 |
 |---|---|---|---|---|---|---|---|
 | `shacl`（rudof 拆出） | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；60k 下载 / 55k 近期 | 稳定 0.x | Native（内存图，Rust 约束求值）与 Sparql（远端 endpoint）双模式；覆盖 SHACL Core 约束族；SHACL-SPARQL 在 `sparql` feature 后 | 0.x API；Native 需整图入内存；SHACL-SPARQL 4 个用例被 `#[ignore]`；默认 feature 会拉 Oxigraph/tokio/reqwest | **首选（SHACL Core）** |
-| `shacl_validation` | 0.2.12（2026-04-22） | MIT OR Apache-2.0 | 低；49k / 5k；已被重构替代 | 旧版 | 旧引擎（`shacl_engine`/`validation_cache`） | 与 `shacl` 并存易混用；新项目不应选 | **淘汰（旧版）** |
+| `shacl_validation` | 0.2.12（2026-04-22） | MIT OR Apache-2.0 | 低；49k / 5k；旧版 | 旧版 | 旧引擎（`shacl_engine`/`validation_cache`） | 与 `shacl` 并存易混用；新项目用 `shacl` | **淘汰（旧版）** |
 | `rudof_lib` | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；39k / 7.5k | 稳定 0.x | 全套：RDF、SHACL、ShEx、DCTAP、PG-Schema、CLI、MCP | 依赖重、API 面大、0.x；适合做后备/CLI | **备选（全套）** |
 | `shex_validation` | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；50k 下载 | 稳定 0.x | ShExC/ShExJ、RBE；仓库内带官方 ShEx 测试套件 harness | 本次未跑套件；ShEx 复杂、与 SHACL 二选一即可 | **可选，不进 v0.1** |
 
@@ -159,7 +161,7 @@ Rust 语义核心可以打成单二进制（Oxigraph 静态链接 RocksDB、redb
 |---|---|---|---|---|---|---|---|
 | `hnsw_rs` | 0.3.5（2026-10-09） | MIT/Apache-2.0 | 高；257 stars；1.4M / 609k | 稳定 0.x | HNSW（Malkov & Yashunin）；多线程插入/查询、dump/reload、mmap 数据、过滤、多种距离 | 内存索引；更新/删除需重建或外层墓碑；无量化/压缩 | **首选（v0.1）** |
 | `arroy` | 0.9.0（2026-10-22） | MIT | 高；LMDB 后端；545k / 78k | 稳定 0.x | Annoy 风格随机投影树 + LMDB；多进程共享、增量更新、低内存、原子多索引 | README 自述“generally slower due to log(n) lookups and non-aligned vectors”；高维召回需调参 | **备选（需要持久化/多进程）** |
-| `usearch` | 2.26.6（2026-10-31） | Apache-2.0 | 高；4.4k stars；1.7M / 800k | 稳定 0.x | C++20 核心 + SIMD/量化；RAM/VRAM/NVMe；并发可变 | README 要求 **Rust 1.100+、CMake 3.28、C++20**；当前工具链 1.98.1 不能构建；FFI/构建复杂 | **不进 v0.1** |
+| `usearch` | 2.26.6（2026-10-31） | Apache-2.0 | 高；4.4k stars；1.7M / 800k | 稳定 0.x | C++20 核心 + SIMD/量化；RAM/VRAM/NVMe；并发可变 | README 要求 **Rust 1.100+、CMake 3.28、C++20**；本机 1.98.1 不满足（或文档需核实）；FFI/构建复杂 | **不进 v0.1** |
 | `lancedb` | 0.41.0（2026-10-29） | Apache-2.0 | 高；11.9k stars；2.4M / 1.45M | 稳定 0.x | Lance 列式、版本化、向量+全文+SQL；嵌入式/对象存储 | 依赖 DataFusion/Lance/AWS SDK 等一大棵树；异步；0.42 仍是 beta；对 v0.1 过重 | **v0.3+ 评估** |
 | `qdrant-client` | 1.20.0（2026-10-22） | Apache-2.0 | 高；6.3M / 2.9M | 生产级 client | Qdrant 的 HTTP/gRPC 客户端 | 需要外部 Qdrant 服务，违背本地优先/单二进制 | **仅未来适配器** |
 | `instant-distance` | 0.6.1（2023-06-26） | MIT OR Apache-2.0 | 停更 | 稳定但旧 | 不可变 HNSW，构建后只读 | 2023 后无 release；无更新/删除 | **淘汰** |
@@ -175,7 +177,7 @@ Rust 语义核心可以打成单二进制（Oxigraph 静态链接 RocksDB、redb
 
 | 候选 | 版本（发布） | 许可证 | 活跃度 | 成熟度 | 性能/契合 | 风险 | 结论 |
 |---|---|---|---|---|---|---|---|
-| `redb` | 4.6.0（2026-11-13） | MIT OR Apache-2.0 | 高；4.9k stars；16.2M / 6.9M | 生产级 4.x | 纯 Rust、copy-on-write B+tree、ACID、MVCC、崩溃安全、savepoint、多进程多写者 | 无 SQL/全文；单写事务仍需应用层串行；4.x API | **首选（应用状态）** |
+| `redb` | 4.6.0（2026-11-13） | MIT OR Apache-2.0 | 高；4.9k stars；16.2M / 6.9M | 生产级 4.x | 纯 Rust、copy-on-write B+tree、ACID、MVCC、崩溃安全、savepoint、多进程多写者 | 写事务串行（单写者语义）；无 SQL/全文；4.x API | **首选（应用状态）** |
 | `rusqlite` / SQLite | 0.42.0（2026-11-11） | MIT；SQLite public domain | 高；4.5k stars；155M / 61.8M | 生产级 | B-tree、WAL 读不阻塞写/写不阻塞读、但**同时只有一个 writer**；FTS5/JSON1/生态成熟 | C 依赖；大事务/WAL 调参；并发写弱 | **备选（需要 SQL/FTS）** |
 | `sled` | 0.34.7（2024-10-11） | MIT OR Apache-2.0 | 停更；仓库 push 2026-04 但 README 明确 main 是大重写 | beta | 日志结构、无锁读、事务 | 两年无 release；README 与 main 不同步；生产风险高 | **淘汰** |
 | `duckdb` | 1.20000.2（2026-11-13；crate 版本对应 DuckDB 1.2） | MIT | 高；987 stars；6.1M / 2.7M | 生产级 1.2 | 列式向量化 OLAP、ACID、单文件、Parquet/JSON 扩展 | 面向分析型长查询/批量写，不是高频事务；单写 | **仅分析/导出** |
@@ -570,7 +572,7 @@ opentelemetry-otlp = { version = "0.33", optional = true }
 tracing-opentelemetry = { version = "0.34", optional = true }
 ```
 
-> 版本是 2026-11-15 的 minor 线，不是 lockfile。落地时用 `cargo tree -d` 检查重复的 `oxrdf`/`oxigraph`，并用 `cargo deny check` 做许可证/来源审计。
+> 版本是 2026-11-15 的 minor 线，不是 lockfile。落地时用 `cargo tree -d` 检查重复的 `oxrdf`/`oxigraph`，并用 `cargo deny check` 做许可证/来源审计。`shacl` 在 `default-features = false` 下是否仍完整暴露 Native 引擎，需要在 spike 中验证；若不行，回退 `rudof_lib`。
 
 ### 4.2 进程与 crate 边界
 
