@@ -38,7 +38,7 @@
 1. **Oxigraph 能同时承担 RDF 存储 + SPARQL 查询 + 事务，但有明确边界**：嵌入模式是 `Store::new()`（内存）或 `Store::open(path)`（RocksDB 磁盘）；事务是 repeatable-read、原子、**写事务持锁且把全部变更缓存在内存**；同一数据库目录**只能有一个读写实例**；它适合 v0.1 的 RDF 主存储，不适合当通用 OLTP 库。[Store docs](https://docs.rs/oxigraph/latest/oxigraph/store/struct.Store.html)
 2. **`oxrdf` 家族是 RDF 模型/解析的默认选择**；`rio` 的 RDF 分支已归档，crates.io 上名为 `rio` 的 crate 实际是 **GPL-3.0 的 io_uring 绑定**，不是 RDF 库——这是选型时最容易踩的许可证坑。[rio_api](https://crates.io/crates/rio_api) · [rio](https://crates.io/crates/rio)
 3. **`sophia` 是可靠的 RDF 工具箱，但不是成熟 SPARQL 引擎**：它有模型、解析器、规范化、同构、RDFS reasoner；`sophia_sparql` 仍是“partial”且下载量只有 3.7k，不能作为 v0.1 查询层。[sophia README](https://github.com/pchampin/sophia_rs)
-4. **rudof 的 `shacl` crate 足以支撑 v0.1 的 SHACL Core 校验**：测试树里声明了 118 个 W3C data-shapes 用例、只有 4 个 SHACL-SPARQL 用例 `#[ignore]`，Native/Sparql 两种模式都跑；但它是 0.3.x、Native 模式要求整图在内存、SHACL-SPARQL 只部分覆盖。[shacl tests](https://github.com/rudof-project/rudof/tree/master/shacl/tests)
+4. **rudof 的 `shacl` crate 足以支撑 v0.1 的 SHACL Core 校验**：SHACL 1.0/1.1 测试树声明了 132 个 data-shapes 用例，其中 18 个 SHACL-SPARQL 用例被 `#[ignore]`（component 4 + pre-binding 14），Native/Sparql 两种模式都跑；但它是 0.3.x、Native 模式要求整图在内存、SHACL-SPARQL 有明确缺口。[shacl tests](https://github.com/rudof-project/rudof/tree/master/shacl/tests)
 5. **ShEx 有实现、有官方测试套件，但不建议进 v0.1**：`shex_validation` 0.3.39 与 `shex_testsuite` 都在 rudof 仓库内；项目 README 记录的默认套件结果是 **1062 passed / 82 failed / 22 skipped / 0 not implemented**（ShExC；ShExJ 类似），说明覆盖高但并非全通过，且本次未独立跑该套件。[shex_testsuite](https://github.com/rudof-project/rudof/tree/master/shex_testsuite)
 6. **Rust 里没有可放心用于 Apache 2.0 分发的 OWL 2 DL reasoner**：较活跃的 `rustdl`/`owl-dl-reasoner` 仍是 0.4.x、约 1k 下载，且硬依赖 **LGPL-3.0 的 `horned-owl`**；`reasonable` 是 BSD-3 的 OWL 2 RL 子集（其规则表自述 35 supported / 9 partial / 18 unsupported），没有证明树。[reasonable rules](https://github.com/gtfierro/reasonable/blob/master/docs/owl-rules/index.rst)
 7. **`ascent`/`crepe` 本身不提供证明树或增量真值维护**：它们把规则编译成 Rust，能做半朴素求值、分层否定、lattice、并行；证明树要自己加“推导列 + premise 关系”，增量删除/重推导要自己实现 DRed 或上 differential-dataflow。v0.1 用**批量重算 + 显式 provenance**最稳。[ascent README](https://github.com/s-arash/ascent) · [crepe README](https://github.com/ekzhang/crepe)
@@ -92,7 +92,7 @@ Rust 语义核心可以打成单二进制（Oxigraph 静态链接 RocksDB、redb
 
 | 候选 | 版本（发布） | 许可证 | 活跃度 | 成熟度 | 性能/契合 | 风险 | 结论 |
 |---|---|---|---|---|---|---|---|
-| `shacl`（rudof 拆出） | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；60k 下载 / 55k 近期 | 稳定 0.x | Native（内存图，Rust 约束求值）与 Sparql（远端 endpoint）双模式；覆盖 SHACL Core 约束族；SHACL-SPARQL 在 `sparql` feature 后 | 0.x API；Native 需整图入内存；SHACL-SPARQL 4 个用例被 `#[ignore]`；默认 feature 会拉 Oxigraph/tokio/reqwest | **首选（SHACL Core）** |
+| `shacl`（rudof 拆出） | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；60k 下载 / 55k 近期 | 稳定 0.x | Native（内存图，Rust 约束求值）与 Sparql（远端 endpoint）双模式；覆盖 SHACL Core 约束族；SHACL-SPARQL 在 `sparql` feature 后 | 0.x API；Native 需整图入内存；SHACL-SPARQL 18 个用例被 `#[ignore]`（component 4 + pre-binding 14）；默认 feature 会拉 Oxigraph/tokio/reqwest | **首选（SHACL Core）** |
 | `shacl_validation` | 0.2.12（2026-04-22） | MIT OR Apache-2.0 | 低；49k / 5k；旧版 | 旧版 | 旧引擎（`shacl_engine`/`validation_cache`） | 与 `shacl` 并存易混用；新项目用 `shacl` | **淘汰（旧版）** |
 | `rudof_lib` | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；39k / 7.5k | 稳定 0.x | 全套：RDF、SHACL、ShEx、DCTAP、PG-Schema、CLI、MCP | 依赖重、API 面大、0.x；适合做后备/CLI | **备选（全套）** |
 | `shex_validation` | 0.3.39（2026-11-10） | MIT OR Apache-2.0 | 高；50k 下载 | 稳定 0.x | ShExC/ShExJ、RBE；仓库内带官方 ShEx 测试套件 harness | 本次未跑套件；ShEx 复杂、与 SHACL 二选一即可 | **可选，不进 v0.1** |
@@ -100,7 +100,7 @@ Rust 语义核心可以打成单二进制（Oxigraph 静态链接 RocksDB、redb
 **关键证据**
 
 - `shacl` 的约束模块覆盖了 SHACL Core 的主要族：`cardinality`、`logical`、`node_expr_based`、`non_shape`、`other`（closed/hasValue/in）、`property_pair`、`shape_based`（node/qualifiedValueShape）、`string_based`、`value`（class/datatype/nodeKind）、`value_range`；另有 `sparql` 约束目录。[源码树](https://github.com/rudof-project/rudof/tree/master/shacl/src/validator/constraints)
-- 测试树中声明了 **118** 个 data-shapes 用例，**4** 个 SHACL-SPARQL 用例标了 `#[ignore]`；`validate_runner` 会分别用 `Native` 和 `Sparql` 两种模式跑并比较完整报告（忽略 `sh:detail`）。[测试代码](https://github.com/rudof-project/rudof/blob/master/shacl/tests/common/runner/validate.rs)
+- 测试树中声明了 **132** 个 data-shapes 用例，**18** 个 SHACL-SPARQL 用例标了 `#[ignore]`（component 4 + pre-binding 14）；`validate_runner` 会分别用 `Native` 和 `Sparql` 两种模式跑并比较完整报告（忽略 `sh:detail`）。[测试代码](https://github.com/rudof-project/rudof/blob/master/shacl/tests/common/runner/validate.rs)
 - CI 在 `submodules: recursive` 后跑 `cargo test --workspace`，因此这个测试 target 是 CI 的一部分，不是“仓库里放着但没人跑”。[CI](https://github.com/rudof-project/rudof/blob/master/.github/workflows/ci.yml)
 - `shacl` 的 README 明确：Native 模式适合“数据已在进程内”，Sparql 模式适合“数据不能整图加载、只能查远端 endpoint”。[shacl docs](https://docs.rs/shacl/latest/shacl/)
 
@@ -363,12 +363,12 @@ if let QueryResults::Solutions(mut solutions) = SparqlEvaluator::new()
   - `value`（class/datatype/nodeKind）
   - `value_range`（min/max inclusive/exclusive）
   - `sparql`（SHACL-SPARQL 约束）
-- 测试证据：测试树声明 **118** 个 data-shapes 用例，其中 **4** 个 SHACL-SPARQL 用例标 `#[ignore]`；`validate_runner` 对每个用例同时跑 `Native` 和 `Sparql` 并比较完整报告（忽略 `sh:detail`）。[测试代码](https://github.com/rudof-project/rudof/blob/master/shacl/tests/common/runner/validate.rs)
+- 测试证据：测试树声明 **132** 个 data-shapes 用例，其中 **18** 个 SHACL-SPARQL 用例标 `#[ignore]`（component 4 + pre-binding 14）；`validate_runner` 对每个用例同时跑 `Native` 和 `Sparql` 并比较完整报告（忽略 `sh:detail`）。[测试代码](https://github.com/rudof-project/rudof/blob/master/shacl/tests/common/runner/validate.rs)
 - CI 在递归 checkout submodule 后执行 `cargo test --workspace`，所以这个测试 target 是持续验证的一部分。[CI](https://github.com/rudof-project/rudof/blob/master/.github/workflows/ci.yml)
 - 未覆盖/弱项：
-  - **SHACL-SPARQL**：4 个用例被 `#[ignore]`（不等于全部未实现，但说明有已知缺口）；Native 模式下 `SERVICE` 还需要额外 `http-client` feature。
+  - **SHACL-SPARQL**：18 个用例被 `#[ignore]`（component 4 + pre-binding 14；不等于全部未实现，但说明 SPARQL 约束/pre-binding 有已知缺口）；Native 模式下 `SERVICE` 还需要额外 `http-client` feature。
   - **SHACL-JS**：未发现 README/源码宣称支持；v0.1 不应依赖。
-  - **SHACL 1.2**：仓库有 `shacl12` 测试目录，属于进行中；v0.1 按 SHACL 1.0 设计。
+  - **SHACL 1.2**：仓库有 `shacl12` 测试目录（163 个用例、31 个 ignored），属于进行中；v0.1 按 SHACL 1.0 设计。
   - **报告细节**：测试比较时去掉 `sh:detail`，说明嵌套 detail 不是其强项；如果 heirloom 要把报告作为一等产物，需要自己验证。
 - 资源模型：Native 模式需要把数据图放进内存；10^6 级三元组通常可行（取决于 shape 复杂度），10^8 级需要 Sparql 模式/分区，必须实测。
 
@@ -376,7 +376,7 @@ if let QueryResults::Solutions(mut solutions) = SparqlEvaluator::new()
 - 只依赖 `shacl`，`default-features = false` 避免默认 `sparql` 把 Oxigraph/tokio/reqwest 拉进来；v0.1 只做 SHACL Core。
 - 通过 `rudof_rdf` 的图类型转换 Oxigraph 的 quads（批量校验，不共享存储）；校验结果落 RDF（`sh:ValidationReport`），保留 shape/constraint 的 IRI，便于前端解释。
 - 固定 `0.3.39`，CI 里跑 W3C 套件 + 自己的 shapes；升级时对比报告差异。
-- 如果 v0.1 后需要 SHACL-SPARQL/远端 endpoint，再开 `sparql` feature；此时要接受依赖膨胀和 4 个 ignored 用例。
+- 如果 v0.1 后需要 SHACL-SPARQL/远端 endpoint，再开 `sparql` feature；此时要接受依赖膨胀和 18 个 ignored 用例。
 
 #### ShEx 覆盖度
 
@@ -712,7 +712,7 @@ heirloom-py-worker (Python，独立进程)
 
 1. **RDF 解析/加载**：N-Triples/Turtle/JSON-LD，10^5/10^6/10^7 三元组；记录吞吐、峰值内存、导入时间；对比 Oxigraph 单条插入 vs 事务批量 vs `bulk_loader`。
 2. **SPARQL**：BSBM（Oxigraph 仓库自带 `sparqloscope-bsbm-5000.csv` 和 store bench）+ 自己的 20 条真实查询；冷/热缓存、并发 1/4/16；记录 p50/p95、QPS、内存。
-3. **SHACL**：W3C 套件 + 10 个真实 shape；10^4/10^5/10^6 三元组；Native vs Sparql；记录校验时间、内存、报告大小；确认 4 个 ignored 用例是否影响你的 shape。
+3. **SHACL**：W3C 套件 + 10 个真实 shape；10^4/10^5/10^6 三元组；Native vs Sparql；记录校验时间、内存、报告大小；确认 18 个 ignored 用例是否影响你的 shape。
 4. **Datalog/证明**：传递闭包、same-generation、RDFS 规则集；10^4/10^5/10^6 事实；记录固定点时间、证明表大小、证明查询延迟；对比 `ascent` vs 纯 SPARQL CONSTRUCT。
 5. **向量**：10^4/10^5/10^6 向量，768/1536 维；recall@10、QPS、构建时间、索引大小；`hnsw_rs` vs `arroy`（如果持久化需求明确）。
 6. **存储**：redb vs SQLite 的写入/读取/范围扫描/事务/崩溃恢复；确认 redb 多进程写行为在你的部署模型下可用。
