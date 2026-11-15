@@ -131,6 +131,10 @@ Rust 语义核心可以打成单二进制（Oxigraph 静态链接 RocksDB、redb
 | `differential-dataflow` | 0.26.0（2026-11-05） | MIT | 高；3k stars；571k / 135k | 稳定 0.x | 真正的增量：输入增删、迭代、arrangement；README 示例 10M 节点/50M 边首次约 15.5s、单次更新约 230µs | 学习/实现成本高；无 RDF/证明树；编译与运行时开销大 | **v0.3+ 的增量选项** |
 | `timely` | 0.32.0（2026-11-05） | MIT | 高；724k / 148k | 稳定 0.x | 数据流运行时，differential 的底座 | 不是 Datalog 引擎 | 组件，不单独选 |
 
+**Rete 说明**
+
+- 上表没有把 `ascent`/`crepe`/`datafrog` 归为 Rete：它们是 Datalog/半朴素求值器，不是 Rete 网络。Rust 生态里专门的 Rete 引擎很少：`la-rete` 0.1.3（2019，MIT，约 6k 下载）已停更；`phronesis` 是面向 LLM 约定的 RETE 引擎，不是通用规则引擎。heirloom 的规则规模（几十条规则、10^5–10^6 事实）用 Datalog/SPARQL 足够，不需要 Rete 的增量匹配复杂度；如果未来规则数/事实数爆炸，再评估 Rete 或 differential。
+
 **判断**
 
 - `ascent` 与 `crepe` 都是**编译期** Datalog：规则是 Rust 代码，新增/修改规则要重新编译。它们适合 heirloom 的**固定内置规则**（RDFS/OWL RL 子集、实体消歧规则），不适合用户自定义规则。用户规则应走 SPARQL CONSTRUCT（见 §4.4）。
